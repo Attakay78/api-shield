@@ -1,9 +1,22 @@
-"""File-based JSON backend for api-shield."""
+"""File-based backend for api-shield.
+
+Supports JSON, YAML, and TOML file formats — auto-detected from the file
+extension.  Each format requires its own optional dependency:
+
+- ``.json``            — no extra dependency (stdlib ``json``)
+- ``.yaml`` / ``.yml`` — requires ``pyyaml``  (``pip install pyyaml``)
+- ``.toml``            — requires ``tomli-w``  (``pip install tomli-w``)
+                         Reading uses Python 3.11+ stdlib ``tomllib``.
+
+Format is chosen at construction time from the file extension.  The data
+structure is identical across all formats; only the serialisation differs.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import tomllib
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -15,47 +28,140 @@ from shield.core.models import AuditEntry, RouteState
 
 _MAX_AUDIT_ENTRIES = 1000
 
+# Supported extensions mapped to a canonical format name.
+_EXT_TO_FORMAT: dict[str, str] = {
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml":  "yaml",
+    ".toml": "toml",
+}
+
 
 class FileBackend(ShieldBackend):
-    """Backend that persists state to a JSON file via ``aiofiles``.
+    """Backend that persists state to a file via ``aiofiles``.
 
-    Survives process restarts. Suitable for simple single-instance deployments.
-    A single ``asyncio.Lock`` prevents concurrent write corruption.
+    Survives process restarts.  Suitable for simple single-instance
+    deployments.  A single ``asyncio.Lock`` prevents concurrent write
+    corruption.
 
-    File format::
+    The file format is auto-detected from the extension:
+
+    =================== =================== ============================
+    Extension           Format              Extra dependency
+    =================== =================== ============================
+    ``.json``           JSON                *(none — stdlib)*
+    ``.yaml`` / ``.yml`` YAML              ``pip install pyyaml``
+    ``.toml``           TOML               ``pip install tomli-w``
+    =================== =================== ============================
+
+    Data structure (shown as JSON — equivalent across all formats)::
 
         {
-            "states": { "/path": { ...RouteState... } },
+            "states": { "GET:/payments": { ...RouteState... }, ... },
             "audit":  [ { ...AuditEntry... }, ... ]
         }
 
     ``subscribe()`` raises ``NotImplementedError`` — use polling.
+
+    Parameters
+    ----------
+    path:
+        Path to the state file.  Created automatically if absent.
+        The extension determines the serialisation format.
+
+    Raises
+    ------
+    ValueError
+        If the file extension is not one of ``.json``, ``.yaml``,
+        ``.yml``, or ``.toml``.
     """
 
     def __init__(self, path: str) -> None:
         self._path = Path(path)
         self._lock = asyncio.Lock()
 
+        ext = self._path.suffix.lower()
+        if ext not in _EXT_TO_FORMAT:
+            supported = ", ".join(sorted(_EXT_TO_FORMAT))
+            raise ValueError(
+                f"Unsupported file extension {ext!r} for FileBackend. "
+                f"Supported extensions: {supported}"
+            )
+        self._format: str = _EXT_TO_FORMAT[ext]
+
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Format-specific serialisation
+    # ------------------------------------------------------------------
+
+    def _parse(self, raw: str) -> dict[str, Any]:
+        """Deserialise *raw* text using the file's format."""
+        if self._format == "json":
+            return json.loads(raw)  # type: ignore[no-any-return]
+
+        if self._format == "yaml":
+            try:
+                import yaml  # type: ignore[import-untyped]
+            except ImportError as exc:
+                raise ImportError(
+                    "pyyaml is required for YAML FileBackend support. "
+                    "Install it with: pip install pyyaml"
+                ) from exc
+            return yaml.safe_load(raw) or {}  # type: ignore[no-any-return]
+
+        # toml
+        return tomllib.loads(raw)  # type: ignore[no-any-return]
+
+    def _serialize(self, data: dict[str, Any]) -> str:
+        """Serialise *data* to text using the file's format."""
+        if self._format == "json":
+            return json.dumps(data, default=str)
+
+        if self._format == "yaml":
+            try:
+                import yaml  # type: ignore[import-untyped]
+            except ImportError as exc:
+                raise ImportError(
+                    "pyyaml is required for YAML FileBackend support. "
+                    "Install it with: pip install pyyaml"
+                ) from exc
+            return yaml.dump(data, default_flow_style=False, allow_unicode=True)
+
+        # toml
+        try:
+            import tomli_w  # type: ignore[import-untyped]
+        except ImportError as exc:
+            raise ImportError(
+                "tomli-w is required to write TOML FileBackend files. "
+                "Install it with: pip install tomli-w"
+            ) from exc
+        return tomli_w.dumps(data)
+
+    # ------------------------------------------------------------------
+    # Internal read / write
     # ------------------------------------------------------------------
 
     async def _read(self) -> dict[str, Any]:
-        """Read and parse the JSON file.
+        """Read and parse the state file.
 
-        Returns an empty structure if the file does not exist.
+        Returns an empty ``{"states": {}, "audit": []}`` structure if the
+        file does not exist or is blank.
         """
         if not self._path.exists():
             return {"states": {}, "audit": []}
         async with aiofiles.open(self._path) as f:
             raw = await f.read()
-        return json.loads(raw) if raw.strip() else {"states": {}, "audit": []}
+        if not raw.strip():
+            return {"states": {}, "audit": []}
+        data = self._parse(raw)
+        data.setdefault("states", {})
+        data.setdefault("audit", [])
+        return data
 
     async def _write(self, data: dict[str, Any]) -> None:
-        """Write *data* to the JSON file atomically under the lock."""
+        """Serialise and write *data*, creating parent directories as needed."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(self._path, "w") as f:
-            await f.write(json.dumps(data, default=str))
+            await f.write(self._serialize(data))
 
     # ------------------------------------------------------------------
     # ShieldBackend interface

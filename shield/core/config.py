@@ -19,7 +19,8 @@ Environment variables
 ---------------------
 SHIELD_BACKEND      ``memory`` | ``file`` | ``redis`` | ``custom``
                     (default: ``memory``)
-SHIELD_FILE_PATH    Path to the JSON state file
+SHIELD_FILE_PATH    Path to the state file — extension sets the format:
+                    ``.json`` (default), ``.yaml`` / ``.yml``, ``.toml``
                     (default: ``shield-state.json``)
 SHIELD_REDIS_URL    Redis connection URL
                     (default: ``redis://localhost:6379/0``)
