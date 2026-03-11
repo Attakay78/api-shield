@@ -58,7 +58,20 @@ def apply_shield_to_openapi(app: FastAPI, engine: ShieldEngine) -> None:
     """
     original_openapi = app.openapi
 
+    # Schema cache — keyed to engine._schema_version so it is automatically
+    # invalidated whenever any route state changes (enable, disable, maintenance, etc.).
+    # The cache avoids the O(N * verbs) rebuild on every /docs or /openapi.json request.
+    _cached_schema: dict[str, Any] | None = None
+    _cached_schema_version: int = -1
+
     def patched_openapi() -> dict[str, Any]:
+        nonlocal _cached_schema, _cached_schema_version
+
+        # Return cached schema when the engine state hasn't changed.
+        current_version = engine._schema_version
+        if _cached_schema is not None and _cached_schema_version == current_version:
+            return _cached_schema
+
         base = original_openapi()
         states = _fetch_states(engine)
         global_cfg = _fetch_global_config(engine)
@@ -186,6 +199,11 @@ def apply_shield_to_openapi(app: FastAPI, engine: ShieldEngine) -> None:
             schema["info"]["x-shield-global-maintenance"] = {"enabled": False}
 
         schema["paths"] = filtered
+
+        # Store in cache so identical /docs requests within the same state
+        # version are served instantly without rebuilding.
+        _cached_schema = schema
+        _cached_schema_version = current_version
         return schema
 
     app.openapi = patched_openapi  # type: ignore[method-assign]

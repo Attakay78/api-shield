@@ -39,7 +39,10 @@ async def scan_routes(app: Any, engine: ShieldEngine) -> None:
 
     This function is **idempotent**: routes already registered (e.g. by a
     ``ShieldRouter`` startup hook or a previous ``scan_routes()`` call) are
-    left untouched because ``engine.register()`` honours persisted state.
+    left untouched because ``engine.register_batch()`` honours persisted state.
+
+    Uses ``engine.register_batch()`` to discover all already-persisted routes
+    in one backend call instead of N individual ``get_state()`` reads.
 
     Parameters
     ----------
@@ -49,6 +52,8 @@ async def scan_routes(app: Any, engine: ShieldEngine) -> None:
     engine:
         The ``ShieldEngine`` that owns all route state.
     """
+    routes_to_register: list[tuple[str, dict[str, Any]]] = []
+
     for route in getattr(app, "routes", []):
         if not isinstance(route, Route):
             continue
@@ -65,9 +70,11 @@ async def scan_routes(app: Any, engine: ShieldEngine) -> None:
         methods: set[str] = route.methods or set()
         if methods:
             for method in sorted(methods):
-                await engine.register(f"{method}:{route.path}", meta)
+                routes_to_register.append((f"{method}:{route.path}", meta))
         else:
-            await engine.register(route.path, meta)
+            routes_to_register.append((route.path, meta))
+
+    await engine.register_batch(routes_to_register)
 
 
 class ShieldRouter(APIRouter):
@@ -155,9 +162,13 @@ class ShieldRouter(APIRouter):
         Call this during application startup (e.g. via a ``lifespan``
         handler or ``on_startup`` event).  ``ShieldRouter`` calls this
         automatically when you pass it to ``app.include_router()``.
+
+        Uses ``engine.register_batch()`` — a single ``list_states()`` backend
+        call discovers all already-persisted routes, then only the truly new
+        routes are written.  For ``FileBackend`` this means one file read and
+        one debounced file write instead of N reads and N writes.
         """
-        for path, meta in self._shield_routes:
-            await self._shield_engine.register(path, meta)
+        await self._shield_engine.register_batch(list(self._shield_routes))
 
     # ------------------------------------------------------------------
     # Hook into include_router so startup fires automatically
