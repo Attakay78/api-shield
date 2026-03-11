@@ -34,7 +34,7 @@ from typing import Any
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Match
+from starlette.routing import Match, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from shield.core.engine import ShieldEngine
@@ -65,6 +65,12 @@ class ShieldMiddleware(BaseHTTPMiddleware):
         self.engine = engine
         self._scan_lock: asyncio.Lock = asyncio.Lock()
         self._routes_scanned: bool = False
+        # Pre-built route lookup cache — populated after scan_routes() completes.
+        # Static paths (no path params) get an O(1) dict lookup.
+        # Parameterised paths fall back to a short list scan (usually << total routes).
+        self._static_route_meta: dict[str, tuple[bool, str]] = {}
+        self._param_routes: list[tuple[Route, bool, str]] = []
+        self._route_cache_built: bool = False
 
     # ------------------------------------------------------------------
     # ASGI entry point — intercept lifespan for eager startup scan
@@ -118,6 +124,45 @@ class ShieldMiddleware(BaseHTTPMiddleware):
 
             await scan_routes(app, self.engine)
             self._routes_scanned = True
+            # Build the O(1) route-lookup cache now that all routes are registered.
+            self._build_route_cache(app)
+
+    def _build_route_cache(self, app: Any) -> None:
+        """Pre-build a fast route-metadata lookup structure.
+
+        Splits app routes into two buckets:
+
+        * ``_static_route_meta`` — exact-path routes (no ``{params}``).
+          Resolved in O(1) via dict lookup on every request.
+        * ``_param_routes`` — parameterised routes (e.g. ``/items/{id}``).
+          Stored as a short list; still requires ``route.matches()`` but
+          the list is typically much smaller than the total route count.
+
+        The structure stores ``(is_force_active, template_path)`` per route
+        so ``_resolve_route`` can answer both questions in a single pass.
+        """
+        static: dict[str, tuple[bool, str]] = {}
+        param: list[tuple[Route, bool, str]] = []
+
+        for route in getattr(app, "routes", []):
+            if not isinstance(route, Route):
+                continue
+            endpoint = getattr(route, "endpoint", None)
+            meta = getattr(endpoint, "__shield_meta__", {}) if endpoint else {}
+            is_force_active = bool(meta.get("force_active"))
+            template = getattr(route, "path", None) or ""
+
+            if "{" not in template:
+                # Static path — exact dict key match on every request.
+                static[template] = (is_force_active, template)
+            else:
+                # Parameterised path — requires regex matching per request
+                # but the list is usually a small fraction of total routes.
+                param.append((route, is_force_active, template))
+
+        self._static_route_meta = static
+        self._param_routes = param
+        self._route_cache_built = True
 
     async def _ensure_routes_scanned(self, app: Any) -> None:
         """Lazy fallback scan for environments without ASGI lifespan support."""
@@ -181,7 +226,7 @@ class ShieldMiddleware(BaseHTTPMiddleware):
         return response
 
     def _resolve_route(self, request: Request) -> tuple[bool, str | None]:
-        """Match the request against app routes in a single pass.
+        """Match the request against app routes using the pre-built cache.
 
         Returns ``(is_force_active, template_path)`` where:
 
@@ -194,7 +239,37 @@ class ShieldMiddleware(BaseHTTPMiddleware):
           are resolved correctly.
 
         Returns ``(False, None)`` when no route matches (unregistered path).
+
+        Performance
+        -----------
+        After ``_build_route_cache()`` runs at startup:
+
+        * Static paths (no ``{params}``) resolve in O(1) via dict lookup.
+        * Parameterised paths scan only ``_param_routes`` — a small subset of
+          all routes — rather than iterating the entire route list on every
+          request.
+
+        Falls back to the original O(N) walk when the cache is not yet built
+        (e.g. in environments without ASGI lifespan support where the lazy
+        scan has not completed for the current request).
         """
+        path = request.url.path
+
+        if self._route_cache_built:
+            # Fast path: O(1) dict lookup for static routes.
+            entry = self._static_route_meta.get(path)
+            if entry is not None:
+                return entry
+
+            # Parameterised routes — scan only the short param-route list.
+            for route, is_force_active, template in self._param_routes:
+                match, _ = route.matches(request.scope)
+                if match == Match.FULL:
+                    return is_force_active, template
+
+            return False, None
+
+        # Fallback: full O(N) walk used before the cache is ready.
         routes = getattr(request.app, "routes", [])
         for route in routes:
             match, _ = route.matches(request.scope)

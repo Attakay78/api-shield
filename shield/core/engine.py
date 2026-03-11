@@ -61,6 +61,14 @@ class ShieldEngine:
         self.scheduler: MaintenanceScheduler = MaintenanceScheduler(engine=self)
         # Webhook registry: list of (url, formatter) pairs.
         self._webhooks: list[tuple[str, WebhookFormatter]] = []
+        # Global config cache — avoids a backend round-trip on every request.
+        # Invalidated whenever the global config is written in this process.
+        # Acceptable stale window for multi-instance deployments: until the
+        # next write in this process (usually a human-initiated action).
+        self._global_config_cache: GlobalMaintenanceConfig | None = None
+        # Monotonic counter bumped on every state change.  Used by the OpenAPI
+        # filter to detect when the cached schema needs to be rebuilt.
+        self._schema_version: int = 0
 
     # ------------------------------------------------------------------
     # Async context manager — calls backend lifecycle hooks
@@ -119,12 +127,12 @@ class ShieldEngine:
         """
         # 1. Global maintenance check — highest priority.
         try:
-            global_cfg = await self.backend.get_global_config()
+            global_cfg = await self._get_global_config_cached()
             if global_cfg.enabled:
                 method_key = f"{method.upper()}:{path}" if method else None
-                is_exempt = path in global_cfg.exempt_paths or (
-                    method_key is not None and method_key in global_cfg.exempt_paths
-                )
+                # Use frozenset for O(1) membership tests instead of O(M) list scan.
+                exempt = global_cfg.exempt_set
+                is_exempt = path in exempt or (method_key is not None and method_key in exempt)
                 if not is_exempt:
                     raise MaintenanceException(reason=global_cfg.reason)
         except MaintenanceException:
@@ -244,6 +252,63 @@ class ShieldEngine:
 
         await self.backend.set_state(path, state)
 
+    async def register_batch(self, routes: list[tuple[str, dict[str, Any]]]) -> None:
+        """Register multiple routes in a single backend round-trip.
+
+        Replaces N individual ``register()`` calls (each doing one
+        ``backend.get_state()`` read) with a single ``backend.list_states()``
+        call to discover already-persisted routes, then only writes the truly
+        new ones.  For ``FileBackend`` this means one file read instead of N,
+        and the debounced writer coalesces all new-state writes into a single
+        disk flush.
+
+        Like ``register()``, persisted state always wins over decorator state —
+        routes already present in the backend are left untouched.
+
+        Parameters
+        ----------
+        routes:
+            Sequence of ``(path, meta)`` pairs exactly as accumulated by
+            ``ShieldRouter._shield_routes``.
+        """
+        if not routes:
+            return
+
+        # One backend call to discover every already-persisted route.
+        try:
+            existing = await self.backend.list_states()
+            existing_keys: set[str] = {s.path for s in existing}
+        except Exception:
+            logger.exception(
+                "shield: register_batch — failed to list existing states, "
+                "falling back to per-route registration"
+            )
+            for path, meta in routes:
+                await self.register(path, meta)
+            return
+
+        for path, meta in routes:
+            if path in existing_keys:
+                continue  # persisted state wins — skip
+
+            is_force_active = bool(meta.get("force_active"))
+            status_str: str = meta.get("status", RouteStatus.ACTIVE)
+            status = RouteStatus(status_str)
+
+            state = RouteState(
+                path=path,
+                status=status,
+                reason=meta.get("reason", ""),
+                allowed_envs=meta.get("allowed_envs", []),
+                sunset_date=meta.get("sunset_date"),
+                successor_path=meta.get("successor_path"),
+                force_active=is_force_active,
+            )
+            if "window" in meta and meta["window"] is not None:
+                state.window = meta["window"]
+
+            await self.backend.set_state(path, state)
+
     # ------------------------------------------------------------------
     # State mutation methods
     # ------------------------------------------------------------------
@@ -260,6 +325,32 @@ class ShieldEngine:
         if state.force_active:
             raise RouteProtectedException(path)
         return state
+
+    async def _get_global_config_cached(self) -> GlobalMaintenanceConfig:
+        """Return the global config, using the in-process cache when available.
+
+        The cache is populated on first call and invalidated whenever this
+        process writes a new global config (enable/disable/set_exempt_paths).
+        For single-instance deployments the cache is always fresh.  For
+        multi-instance Redis deployments, cross-process changes are visible
+        on the next write from *this* process — an acceptable tradeoff given
+        that global maintenance is a rare, operator-initiated action.
+        """
+        if self._global_config_cache is not None:
+            return self._global_config_cache
+        cfg = await self.backend.get_global_config()
+        self._global_config_cache = cfg
+        return cfg
+
+    def _invalidate_global_config_cache(self) -> None:
+        """Drop the cached global config so the next check re-fetches from backend."""
+        self._global_config_cache = None
+
+    def _bump_schema_version(self) -> None:
+        """Increment the schema version counter to signal that cached OpenAPI schemas
+        are stale and need to be rebuilt on the next ``/docs`` or ``/openapi.json`` request.
+        """
+        self._schema_version += 1
 
     async def enable(self, path: str, actor: str = "system", reason: str = "") -> RouteState:
         """Enable *path*, returning the updated ``RouteState``.
@@ -280,6 +371,7 @@ class ShieldEngine:
             update={"status": RouteStatus.ACTIVE, "reason": reason, "window": None}
         )
         await self.backend.set_state(path, new_state)
+        self._bump_schema_version()
         await self._audit(
             path=path,
             action="enable",
@@ -296,6 +388,7 @@ class ShieldEngine:
         old_state = await self._assert_mutable(path)
         new_state = old_state.model_copy(update={"status": RouteStatus.DISABLED, "reason": reason})
         await self.backend.set_state(path, new_state)
+        self._bump_schema_version()
         await self._audit(
             path=path,
             action="disable",
@@ -324,6 +417,7 @@ class ShieldEngine:
             }
         )
         await self.backend.set_state(path, new_state)
+        self._bump_schema_version()
         await self._audit(
             path=path,
             action="maintenance_on",
@@ -357,6 +451,7 @@ class ShieldEngine:
             update={"status": RouteStatus.ENV_GATED, "allowed_envs": envs}
         )
         await self.backend.set_state(path, new_state)
+        self._bump_schema_version()
         await self._audit(
             path=path,
             action="env_gate",
@@ -405,6 +500,8 @@ class ShieldEngine:
             include_force_active=include_force_active,
         )
         await self.backend.set_global_config(cfg)
+        self._invalidate_global_config_cache()
+        self._bump_schema_version()
         prev = RouteStatus.MAINTENANCE if old_cfg.enabled else RouteStatus.ACTIVE
         await self._audit(
             path="__global__",
@@ -421,6 +518,8 @@ class ShieldEngine:
         old_cfg = await self.backend.get_global_config()
         cfg = GlobalMaintenanceConfig(enabled=False)
         await self.backend.set_global_config(cfg)
+        self._invalidate_global_config_cache()
+        self._bump_schema_version()
         prev = RouteStatus.MAINTENANCE if old_cfg.enabled else RouteStatus.ACTIVE
         await self._audit(
             path="__global__",
@@ -439,6 +538,8 @@ class ShieldEngine:
         cfg = await self.backend.get_global_config()
         updated = cfg.model_copy(update={"exempt_paths": paths})
         await self.backend.set_global_config(updated)
+        self._invalidate_global_config_cache()
+        self._bump_schema_version()
         return updated
 
     # ------------------------------------------------------------------

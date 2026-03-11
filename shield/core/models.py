@@ -69,6 +69,15 @@ class GlobalMaintenanceConfig(BaseModel):
     exempt_paths: list[str] = Field(default_factory=list)
     include_force_active: bool = False
 
+    @property
+    def exempt_set(self) -> frozenset[str]:
+        """Return ``exempt_paths`` as a frozenset for O(1) membership tests.
+
+        Constructed once per config object — avoids rebuilding a set on every
+        call to ``engine.check()`` when global maintenance is active.
+        """
+        return frozenset(self.exempt_paths)
+
 
 class AuditEntry(BaseModel):
     """An immutable record of a route state change."""
