@@ -1495,6 +1495,11 @@
 </tbody>
 </table>
 <p>Schema is re-computed on every <code>/openapi.json</code> request — runtime state changes reflect immediately without restart.</p>
+<figure class="screenshot">
+<p><img alt="OpenAPI schema — normal view" src="../../assets/openapi.png" />
+  </p>
+<figcaption>Standard OpenAPI schema view — disabled and env-gated routes are hidden from the list.</figcaption>
+</figure>
 <h3 id="setup_shield_docs"><code>setup_shield_docs</code><a class="headerlink" href="#setup_shield_docs" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.fastapi.openapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_shield_to_openapi</span><span class="p">,</span> <span class="n">setup_shield_docs</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
@@ -1507,6 +1512,11 @@
 <li><strong>Global maintenance OFF</strong>: small green "All systems operational" chip in the bottom-right corner.</li>
 <li><strong>Per-route maintenance</strong>: orange left-border on the operation block with a <code>🔧 MAINTENANCE</code> badge.</li>
 </ul>
+<figure class="screenshot">
+<p><img alt="OpenAPI schema — maintenance banners" src="../../assets/openapi-maintenance.png" />
+  </p>
+<figcaption>Enhanced docs UI showing per-route maintenance badges injected by <code>setup_shield_docs</code>.</figcaption>
+</figure>
 
 
 
