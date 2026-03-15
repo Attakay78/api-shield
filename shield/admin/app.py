@@ -253,7 +253,7 @@ def ShieldAdmin(
     try:
         version = importlib.metadata.version("api-shield")
     except importlib.metadata.PackageNotFoundError:
-        version = "0.1.0"
+        version = "0.2.0"
 
     auth_backend = make_auth_backend(auth)
     token_manager = TokenManager(
