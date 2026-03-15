@@ -66,6 +66,7 @@ async def test_maintenance_returns_503():
 
 async def test_maintenance_sets_retry_after_header():
     app, engine = _build_app()
+    await engine.register("/api/pay", {"status": "active"})
     window = MaintenanceWindow(
         start=datetime(2025, 3, 10, 2, 0, tzinfo=UTC),
         end=datetime(2025, 3, 10, 4, 0, tzinfo=UTC),
@@ -210,6 +211,7 @@ async def test_active_route_passes():
 
 async def test_docs_path_is_skipped():
     app, engine = _build_app()
+    await engine.register("/docs", {"status": "active"})
     await engine.set_maintenance("/docs", reason="test")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -220,6 +222,7 @@ async def test_docs_path_is_skipped():
 
 async def test_openapi_json_is_skipped():
     app, engine = _build_app()
+    await engine.register("/openapi.json", {"status": "active"})
     await engine.set_maintenance("/openapi.json", reason="test")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

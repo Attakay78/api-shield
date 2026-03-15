@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shield — Sign in</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system','BlinkMacSystemFont','Inter','Segoe UI','Helvetica Neue','Arial','sans-serif'],
+                    },
+                    colors: {
+                        brand: { DEFAULT: '#4f46e5', light: '#eef2ff', dark: '#3730a3' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full bg-slate-50 text-slate-900 antialiased font-sans flex items-center justify-center min-h-screen">
+
+<div class="w-full max-w-sm px-4">
+
+    <!-- Brand -->
+    <div class="flex flex-col items-center mb-8">
+        <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg mb-4">
+            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0
+                         003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622
+                         0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+            </svg>
+        </div>
+        <h1 class="text-xl font-semibold text-slate-900">api-shield</h1>
+        <p class="text-sm text-slate-500 mt-1">Sign in to manage your routes</p>
+    </div>
+
+    <!-- Error banner -->
+    {% if error %}
+    <div class="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <svg class="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71
+                     c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898
+                     0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Sign-in card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <form method="POST" action="{{ prefix }}/login" class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-slate-700 mb-1">
+                    Username
+                </label>
+                <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    autofocus
+                    autocomplete="username"
+                    class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+                           text-slate-900 placeholder-slate-400 shadow-sm
+                           focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20
+                           transition-colors"
+                    placeholder="admin"
+                />
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-slate-700 mb-1">
+                    Password
+                </label>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                    class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+                           text-slate-900 placeholder-slate-400 shadow-sm
+                           focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20
+                           transition-colors"
+                    placeholder="••••••••"
+                />
+            </div>
+
+            <button
+                type="submit"
+                class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                       px-4 py-2.5 text-sm font-semibold text-white shadow-sm
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                       transition-colors"
+            >
+                Sign in
+            </button>
+        </form>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-slate-400">
+        api-shield v{{ version }}
+    </p>
+</div>
+
+</body>
+</html>

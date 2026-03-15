@@ -83,6 +83,7 @@ async def test_cancel_noop_for_unknown(scheduler):
 
 async def test_window_activates_at_start(engine, scheduler):
     """A window with start in 50ms activates maintenance within 200ms."""
+    await engine.register("/api/pay", {"status": "active"})
     now = datetime.now(UTC)
     window = MaintenanceWindow(
         start=now + timedelta(milliseconds=50),
@@ -101,6 +102,7 @@ async def test_window_activates_at_start(engine, scheduler):
 
 async def test_window_deactivates_at_end(engine, scheduler):
     """A window that starts immediately and ends in 100ms re-enables the route."""
+    await engine.register("/api/pay", {"status": "active"})
     now = datetime.now(UTC)
     window = MaintenanceWindow(
         start=now - timedelta(seconds=1),  # start in the past → fires immediately
@@ -122,6 +124,7 @@ async def test_window_deactivates_at_end(engine, scheduler):
 
 
 async def test_engine_schedule_maintenance(engine):
+    await engine.register("/api/pay", {"status": "active"})
     now = datetime.now(UTC)
     window = MaintenanceWindow(
         start=now + timedelta(hours=1),
@@ -149,6 +152,7 @@ async def test_engine_schedule_maintenance(engine):
 
 async def test_restore_from_backend_schedules_future_windows(engine):
     """restore_from_backend re-schedules windows that haven't expired."""
+    await engine.register("/api/pay", {"status": "active"})
     now = datetime.now(UTC)
     window = MaintenanceWindow(
         start=now + timedelta(hours=1),

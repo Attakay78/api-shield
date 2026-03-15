@@ -1,38 +1,37 @@
 """api-shield CLI — ``shield`` command.
 
-Configuration is loaded in priority order (highest wins):
-  1. Environment variables
-  2. Config file specified with ``--config``
-  3. Auto-discovered ``.shield`` file (walks up from current directory)
-  4. Built-in defaults
+The CLI is a **thin HTTP client** that communicates with a running
+:func:`~shield.admin.app.ShieldAdmin` instance mounted on your FastAPI
+application.  It never touches the backend directly.
 
-Environment variables
----------------------
-SHIELD_BACKEND      memory | file | redis | custom  (default: memory)
-SHIELD_FILE_PATH    path to JSON file               (default: shield-state.json)
-SHIELD_REDIS_URL    Redis connection URL            (default: redis://localhost:6379/0)
-SHIELD_CUSTOM_PATH  dotted path to a zero-arg factory when SHIELD_BACKEND=custom
-                    (e.g. myapp.backends:make_backend)
-SHIELD_ENV          current environment             (default: production)
+Quick start
+-----------
+1. Mount :class:`~shield.admin.app.ShieldAdmin` on your app::
 
-Custom backends
----------------
-Set SHIELD_BACKEND=custom and point SHIELD_CUSTOM_PATH to a zero-arg factory:
-    SHIELD_BACKEND=custom SHIELD_CUSTOM_PATH=myapp.backends:make_backend shield status
-The factory is imported and called with no arguments.
+       admin = ShieldAdmin(engine=engine, auth=("admin", "secret"))
+       app.mount("/shield", admin)
 
-Usage examples:
-    shield status
-    shield status /api/payments
-    shield --config /etc/myapp/.shield status
-    shield --config .env.production disable /api/payments --reason "migration"
-    shield enable /api/payments
-    shield disable /api/payments --reason "migration" --until 2h
-    shield maintenance /api/payments --reason "DB swap" --start 2025-03-10T02:00Z \\
-        --end 2025-03-10T04:00Z
-    shield schedule /api/payments --start 2025-03-10T02:00Z --end 2025-03-10T04:00Z
-    shield log
-    shield log --route /api/payments --limit 50
+2. Point the CLI at your running server::
+
+       shield config set-url http://localhost:8000/shield
+
+3. Authenticate (when auth is configured)::
+
+       shield login admin          # prompts for password
+       # or: shield login --username admin --password secret
+
+4. Manage routes::
+
+       shield status
+       shield disable /api/payments --reason "migration"
+       shield enable /api/payments
+
+Authentication
+--------------
+Credentials are stored in ``~/.shield/config.json`` with an expiry
+timestamp.  After expiry you must re-authenticate with ``shield login``.
+
+Token expiry is controlled server-side via ``ShieldAdmin(token_expiry=…)``.
 """
 
 from __future__ import annotations
@@ -42,28 +41,16 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import anyio
-
-if TYPE_CHECKING:
-    from shield.core.engine import ShieldEngine
 import typer
 from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from shield.core.config import make_engine as _cfg_make_engine
-from shield.core.exceptions import RouteProtectedException
+from shield.cli import config as _cfg
+from shield.cli.client import ShieldClient, ShieldClientError, make_client
 
-
-def _current_user() -> str:
-    """Return the logged-in OS username, falling back to 'cli'."""
-    try:
-        return getpass.getuser()
-    except Exception:
-        return "cli"
-
-
-# Resolved once at import time so every CLI invocation uses the real OS user.
-_CLI_ACTOR: str = _current_user()
+if TYPE_CHECKING:
+    pass
 
 cli = typer.Typer(
     name="shield",
@@ -73,113 +60,20 @@ cli = typer.Typer(
 console = Console()
 err_console = Console(stderr=True)
 
-# ---------------------------------------------------------------------------
-# Global --config option (captured by the app callback, used by every command)
-# ---------------------------------------------------------------------------
-
-# Module-level slot populated by @app.callback before any command runs.
-_config_file: str | None = None
-
-
-@cli.callback()
-def _global_options(
-    config: str | None = typer.Option(
-        None,
-        "--config",
-        "-c",
-        help=(
-            "Path to a KEY=value config file. "
-            "Defaults to auto-discovering a .shield file in the current "
-            "or any parent directory."
-        ),
-        show_default=False,
-        metavar="FILE",
-    ),
-) -> None:
-    """api-shield — route lifecycle management CLI."""
-    global _config_file
-    _config_file = config
-
-
-def _make_engine() -> ShieldEngine:
-    """Construct the engine, forwarding the active --config file."""
-    return _cfg_make_engine(config_file=_config_file)
-
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Shared helpers
 # ---------------------------------------------------------------------------
 
-_VALID_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 
-
-def _parse_route(route: str) -> tuple[str | None, str, str]:
-    """Parse a route argument into ``(method, path, storage_key)``.
-
-    Accepted formats:
-    - ``/payments``         → method=None, path="/payments", key="/payments"
-    - ``GET:/payments``     → method="GET", path="/payments", key="GET:/payments"
-
-    The returned *key* is the exact string used as the backend state key.
-    """
-    if ":" in route and not route.startswith("/"):
-        raw_method, _, path = route.partition(":")
-        method = raw_method.upper()
-        if method not in _VALID_METHODS:
-            raise typer.BadParameter(
-                f"Unknown HTTP method {raw_method!r}. Valid: {', '.join(sorted(_VALID_METHODS))}"
-            )
-        if not path.startswith("/"):
-            raise typer.BadParameter(f"Path must start with '/'. Got: {path!r}")
-        return method, path, f"{method}:{path}"
-    if not route.startswith("/"):
-        raise typer.BadParameter(
-            f"Route must start with '/' or use METHOD:/path format. Got: {route!r}"
-        )
-    return None, route, route
-
-
-def _run_mutation(async_fn: object) -> None:
-    """Run *async_fn* via anyio, showing a clear error on protected routes.
-
-    Drop-in replacement for ``anyio.run(async_fn)`` in mutation commands.
-    Catches ``RouteProtectedException`` and exits with a user-friendly message
-    instead of an unhandled traceback.
-
-    The engine is expected to be used inside *async_fn* as an async context
-    manager (``async with engine:``) so that backend startup/shutdown lifecycle
-    hooks are called correctly for any backend type.
-    """
-    try:
-        anyio.run(async_fn)  # type: ignore[arg-type]
-    except RouteProtectedException as exc:
-        err_console.print(
-            f"[red]Error:[/red] {exc}\n"
-            "  [dim]Remove @force_active from the route decorator to allow "
-            "lifecycle changes.[/dim]"
-        )
-        raise typer.Exit(code=1)
-
-
-async def _require_registered(engine: object, key: str) -> None:
-    """Exit with an error if *key* is not registered in the backend.
-
-    Routes are registered when the server starts — both decorated routes
-    (via their ``__shield_meta__``) and plain undecorated routes (registered
-    as ACTIVE).  If a key is absent it means the path does not exist in the
-    application at all, so the mutation is rejected to prevent silent typos.
-
-    The check does NOT apply to the read-only ``shield status`` command —
-    that always returns whatever state exists (or ACTIVE as a default).
-    """
-    exists = await engine.route_exists(key)  # type: ignore[attr-defined]
-    if not exists:
-        err_console.print(
-            f"[red]Error:[/red] Route [bold]{key!r}[/bold] is not registered.\n"
-            "  Only routes that exist in the running application can be managed.\n"
-            "  Run [dim]shield status[/dim] to see all registered routes."
-        )
-        raise typer.Exit(code=1)
+def _status_colour(status: str) -> str:
+    return {
+        "active": "green",
+        "maintenance": "yellow",
+        "disabled": "red",
+        "env_gated": "blue",
+        "deprecated": "dim",
+    }.get(status, "white")
 
 
 def _parse_until(until: str) -> datetime:
@@ -212,7 +106,6 @@ def _parse_dt(value: str) -> datetime:
             return dt.replace(tzinfo=UTC)
         except ValueError:
             continue
-    # Try stdlib fromisoformat last.
     try:
         dt = datetime.fromisoformat(value)
         return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
@@ -220,19 +113,185 @@ def _parse_dt(value: str) -> datetime:
         raise typer.BadParameter(f"Cannot parse datetime: {value!r}")
 
 
-def _status_colour(status: str) -> str:
-    colours = {
-        "active": "green",
-        "maintenance": "yellow",
-        "disabled": "red",
-        "env_gated": "blue",
-        "deprecated": "dim",
-    }
-    return colours.get(status, "white")
+_VALID_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+
+
+def _parse_route(route: str) -> str:
+    """Validate and return the route key (``/path`` or ``METHOD:/path``)."""
+    if ":" in route and not route.startswith("/"):
+        raw_method, _, path = route.partition(":")
+        method = raw_method.upper()
+        if method not in _VALID_METHODS:
+            raise typer.BadParameter(
+                f"Unknown HTTP method {raw_method!r}. Valid: {', '.join(sorted(_VALID_METHODS))}"
+            )
+        if not path.startswith("/"):
+            raise typer.BadParameter(f"Path must start with '/'. Got: {path!r}")
+        return f"{method}:{path}"
+    if not route.startswith("/"):
+        raise typer.BadParameter(
+            f"Route must start with '/' or use METHOD:/path format. Got: {route!r}"
+        )
+    return route
+
+
+def _run(coro_fn: object) -> None:
+    """Run an async function, translating HTTP errors to user-friendly messages."""
+    try:
+        anyio.run(coro_fn)  # type: ignore[arg-type]
+    except ShieldClientError as exc:
+        if exc.status_code == 401:
+            err_console.print(
+                "[red]Error:[/red] Authentication required.\n"
+                "  Run: [bold]shield login <username>[/bold]"
+            )
+        elif exc.status_code == 404:
+            err_console.print(f"[red]Error:[/red] {exc}")
+        elif exc.status_code == 409 and not exc.ambiguous_matches:
+            err_console.print(
+                f"[red]Error:[/red] {exc}\n"
+                "  [dim]Remove @force_active from the route decorator to "
+                "allow lifecycle changes.[/dim]"
+            )
+        else:
+            err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+
+def _confirm_ambiguous(matches: list[str], action: str) -> list[str]:
+    """Prompt the user to confirm applying *action* to all *matches*.
+
+    Returns the list of route keys to operate on, or exits if the user
+    declines.
+    """
+    console.print(f"[yellow]⚠[/yellow]  Route is ambiguous — matches {len(matches)} routes:")
+    for m in matches:
+        console.print(f"    • [cyan]{m}[/cyan]")
+    if not typer.confirm(f"Apply '{action}' to all {len(matches)} routes?", default=False):
+        console.print("[dim]Aborted.[/dim]")
+        raise typer.Exit(code=0)
+    return matches
 
 
 # ---------------------------------------------------------------------------
-# Commands
+# Authentication commands
+# ---------------------------------------------------------------------------
+
+
+@cli.command("login")
+def login(
+    username: str | None = typer.Argument(
+        None,
+        help="Username to authenticate with.  Omit to be prompted.",
+    ),
+    password: str | None = typer.Option(
+        None,
+        "--password",
+        "-p",
+        help="Password.  Omit to be prompted securely.",
+    ),
+) -> None:
+    """Authenticate with the Shield admin server and store a token locally."""
+
+    async def _run_login() -> None:
+        if not username:
+            u = typer.prompt("Username")
+        else:
+            u = username
+
+        if not password:
+            p = getpass.getpass("Password: ")
+        else:
+            p = password
+
+        client = ShieldClient(base_url=_cfg.require_server_url())
+        result = await client.login(u, p)
+
+        _cfg.set_auth(
+            token=result["token"],
+            username=result["username"],
+            expires_at=result["expires_at"],
+        )
+        expires = result.get("expires_at", "")
+        console.print(f"[green]✓[/green] Logged in as [bold]{result['username']}[/bold]")
+        if expires:
+            console.print(f"  Token expires: [dim]{expires}[/dim]")
+
+    _run(_run_login)
+
+
+@cli.command("logout")
+def logout() -> None:
+    """Revoke the stored token and clear local credentials."""
+
+    async def _run_logout() -> None:
+        token = _cfg.get_auth_token()
+        if token:
+            client = make_client()
+            await client.logout()
+        _cfg.clear_auth()
+        console.print("[green]✓[/green] Logged out.")
+
+    _run(_run_logout)
+
+
+# ---------------------------------------------------------------------------
+# Configuration commands
+# ---------------------------------------------------------------------------
+
+config_app = typer.Typer(
+    name="config",
+    help="Manage CLI configuration (server URL, etc.).",
+    no_args_is_help=True,
+)
+cli.add_typer(config_app, name="config")
+
+
+@config_app.command("set-url")
+def config_set_url(
+    url: str = typer.Argument(..., help="Base URL of the ShieldAdmin mount point."),
+) -> None:
+    """Set the Shield admin server URL."""
+    _cfg.set_server_url(url)
+    console.print(f"[green]✓[/green] Server URL set to [cyan]{url.rstrip('/')}[/cyan]")
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Show the current CLI configuration."""
+    server_url = _cfg.get_server_url()
+    url_source = _cfg.get_server_url_source()
+    username = _cfg.get_auth_username()
+    expires_at = _cfg.get_token_expires_at()
+    has_valid_token = _cfg.is_authenticated()
+
+    table = Table(box=box.ROUNDED, show_header=False)
+    table.add_column("Key", style="dim")
+    table.add_column("Value")
+
+    table.add_row("Server URL", f"{server_url}  [dim]({url_source})[/dim]")
+    table.add_row("Username", username or "[dim](not logged in)[/dim]")
+
+    if expires_at:
+        exp_style = "green" if has_valid_token else "red"
+        table.add_row("Token expires", f"[{exp_style}]{expires_at}[/{exp_style}]")
+    else:
+        table.add_row("Token expires", "[dim](no token)[/dim]")
+
+    table.add_row(
+        "Config file",
+        str(_cfg.get_config_path()),
+    )
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Route commands
 # ---------------------------------------------------------------------------
 
 
@@ -240,218 +299,246 @@ def _status_colour(status: str) -> str:
 def status(
     route: str | None = typer.Argument(
         None,
-        help="Route: /path or METHOD:/path (e.g. GET:/payments). Omit for all.",
+        help="Route: /path or METHOD:/path. Omit for all routes.",
     ),
 ) -> None:
     """Show current shield status for all routes (or one route)."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            if route:
-                _, _, key = _parse_route(route)
-                state = await engine.get_state(key)
-                states = [state]
-            else:
-                states = await engine.list_states()
+    async def _run_status() -> None:
+        client = make_client()
+        if route:
+            key = _parse_route(route)
+            states = [await client.get_route(key)]
+        else:
+            states = await client.list_routes()
 
-            if not states:
-                console.print("[dim]No routes registered.[/dim]")
-                return
+        if not states:
+            console.print("[dim]No routes registered.[/dim]")
+            return
 
-            table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
-            table.add_column("Route", style="cyan")
-            table.add_column("Status")
-            table.add_column("Reason")
-            table.add_column("Envs")
-            table.add_column("Window end")
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Route", style="cyan")
+        table.add_column("Status")
+        table.add_column("Reason")
+        table.add_column("Envs")
+        table.add_column("Window end")
 
-            for s in sorted(states, key=lambda x: x.path):
-                colour = _status_colour(s.status)
-                window_end = s.window.end.strftime("%Y-%m-%d %H:%M UTC") if s.window else ""
-                table.add_row(
-                    s.path,
-                    f"[{colour}]{s.status.upper()}[/{colour}]",
-                    s.reason or "—",
-                    ", ".join(s.allowed_envs) if s.allowed_envs else "—",
-                    window_end or "—",
-                )
+        for s in sorted(states, key=lambda x: x["path"]):
+            colour = _status_colour(s["status"])
+            window = s.get("window") or {}
+            window_end = ""
+            if window and window.get("end"):
+                try:
+                    dt = datetime.fromisoformat(window["end"])
+                    window_end = dt.strftime("%Y-%m-%d %H:%M UTC")
+                except Exception:
+                    window_end = window["end"]
+            envs = s.get("allowed_envs") or []
+            table.add_row(
+                s["path"],
+                f"[{colour}]{s['status'].upper()}[/{colour}]",
+                s.get("reason") or "—",
+                ", ".join(envs) if envs else "—",
+                window_end or "—",
+            )
 
-            console.print(table)
+        console.print(table)
 
-    anyio.run(_run)
+    _run(_run_status)
 
 
 @cli.command("enable")
 def enable(
-    route: str = typer.Argument(
-        ...,
-        help="Route: /path or METHOD:/path (e.g. GET:/payments)",
-    ),
-    reason: str = typer.Option(
-        "",
-        "--reason",
-        "-r",
-        help="Optional note explaining why the route is being re-enabled "
-        "(e.g. 'Migration complete').  Stored in the audit log.",
-    ),
+    route: str = typer.Argument(..., help="Route: /path or METHOD:/path"),
+    reason: str = typer.Option("", "--reason", "-r", help="Optional note for the audit log."),
 ) -> None:
     """Enable a route that is in maintenance or disabled state."""
 
-    async def _run() -> None:
-        _, _, key = _parse_route(route)
-        async with _make_engine() as engine:
-            await _require_registered(engine, key)
-            state = await engine.enable(key, actor=_CLI_ACTOR, reason=reason)
-            console.print(f"[green]✓[/green] {key} → [green]{state.status.upper()}[/green]")
-            if reason:
-                console.print(f"  Reason: {reason}")
+    async def _run_enable() -> None:
+        key = _parse_route(route)
+        client = make_client()
+        try:
+            keys_to_apply = [key]
+            state = await client.enable(key, reason=reason)
+            states = [state]
+        except ShieldClientError as exc:
+            if not exc.ambiguous_matches:
+                raise
+            keys_to_apply = _confirm_ambiguous(exc.ambiguous_matches, "enable")
+            states = [await client.enable(k, reason=reason) for k in keys_to_apply]
 
-    _run_mutation(_run)
+        for k, state in zip(keys_to_apply, states):
+            console.print(f"[green]✓[/green] {k} → [green]{state['status'].upper()}[/green]")
+        if reason:
+            console.print(f"  Reason: {reason}")
+
+    _run(_run_enable)
 
 
 @cli.command("disable")
 def disable_cmd(
-    route: str = typer.Argument(
-        ...,
-        help="Route: /path or METHOD:/path (e.g. GET:/payments)",
-    ),
-    reason: str = typer.Option("", "--reason", "-r", help="Reason for disabling"),
+    route: str = typer.Argument(..., help="Route: /path or METHOD:/path"),
+    reason: str = typer.Option("", "--reason", "-r", help="Reason for disabling."),
     until: str | None = typer.Option(
-        None, "--until", help="Re-enable after duration (e.g. 2h, 30m, 1d)"
+        None, "--until", help="Re-enable after duration (e.g. 2h, 30m, 1d)."
     ),
 ) -> None:
     """Permanently disable a route (returns 503 to all callers)."""
 
-    async def _run() -> None:
-        _, _, key = _parse_route(route)
-        async with _make_engine() as engine:
-            await _require_registered(engine, key)
-            state = await engine.disable(key, reason=reason, actor=_CLI_ACTOR)
-            console.print(f"[red]✗[/red] {key} → [red]{state.status.upper()}[/red]")
-            if reason:
-                console.print(f"  Reason: {reason}")
+    async def _run_disable() -> None:
+        key = _parse_route(route)
+        client = make_client()
+        try:
+            keys_to_apply = [key]
+            state = await client.disable(key, reason=reason)
+            states = [state]
+        except ShieldClientError as exc:
+            if not exc.ambiguous_matches:
+                raise
+            keys_to_apply = _confirm_ambiguous(exc.ambiguous_matches, "disable")
+            states = [await client.disable(k, reason=reason) for k in keys_to_apply]
 
-            if until:
-                end_dt = _parse_until(until)
-                from shield.core.models import MaintenanceWindow
+        for k, state in zip(keys_to_apply, states):
+            console.print(f"[red]✗[/red] {k} → [red]{state['status'].upper()}[/red]")
+        if reason:
+            console.print(f"  Reason: {reason}")
 
-                window = MaintenanceWindow(start=datetime.now(UTC), end=end_dt, reason=reason)
-                await engine.schedule_maintenance(key, window, actor=_CLI_ACTOR)
-                console.print(
-                    "  Auto-re-enable scheduled for "
-                    f"[cyan]{end_dt.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]"
+        if until:
+            end_dt = _parse_until(until)
+            for k in keys_to_apply:
+                await client.schedule(
+                    k,
+                    start=datetime.now(UTC).isoformat(),
+                    end=end_dt.isoformat(),
+                    reason=reason,
                 )
+            console.print(
+                "  Auto-re-enable scheduled for "
+                f"[cyan]{end_dt.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]"
+            )
 
-    _run_mutation(_run)
+    _run(_run_disable)
 
 
 @cli.command("maintenance")
 def maintenance_cmd(
-    route: str = typer.Argument(
-        ...,
-        help="Route: /path (all methods) or METHOD:/path (e.g. GET:/payments)",
-    ),
-    reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason"),
-    start: str | None = typer.Option(None, "--start", help="Window start (ISO-8601)"),
-    end: str | None = typer.Option(None, "--end", help="Window end (ISO-8601)"),
+    route: str = typer.Argument(..., help="Route: /path or METHOD:/path"),
+    reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason."),
+    start: str | None = typer.Option(None, "--start", help="Window start (ISO-8601)."),
+    end: str | None = typer.Option(None, "--end", help="Window end (ISO-8601)."),
 ) -> None:
     """Put a route into maintenance mode immediately."""
 
-    async def _run() -> None:
-        from shield.core.models import MaintenanceWindow
+    async def _run_maintenance() -> None:
+        key = _parse_route(route)
+        start_iso = _parse_dt(start).isoformat() if start else None
+        end_iso = _parse_dt(end).isoformat() if end else None
+        client = make_client()
+        try:
+            keys_to_apply = [key]
+            state = await client.maintenance(key, reason=reason, start=start_iso, end=end_iso)
+            states = [state]
+        except ShieldClientError as exc:
+            if not exc.ambiguous_matches:
+                raise
+            keys_to_apply = _confirm_ambiguous(exc.ambiguous_matches, "maintenance")
+            states = [
+                await client.maintenance(k, reason=reason, start=start_iso, end=end_iso)
+                for k in keys_to_apply
+            ]
 
-        _, _, key = _parse_route(route)
-        async with _make_engine() as engine:
-            await _require_registered(engine, key)
-            window = None
-            if start and end:
-                window = MaintenanceWindow(
-                    start=_parse_dt(start), end=_parse_dt(end), reason=reason
-                )
-            state = await engine.set_maintenance(
-                key, reason=reason, window=window, actor=_CLI_ACTOR
-            )
-            console.print(f"[yellow]⚠[/yellow] {key} → [yellow]{state.status.upper()}[/yellow]")
-            if reason:
-                console.print(f"  Reason: {reason}")
-            if window:
-                console.print(
-                    f"  Window: {window.start.strftime('%Y-%m-%d %H:%M')} → "
-                    f"{window.end.strftime('%Y-%m-%d %H:%M')} UTC"
-                )
+        for k, state in zip(keys_to_apply, states):
+            console.print(f"[yellow]⚠[/yellow] {k} → [yellow]{state['status'].upper()}[/yellow]")
+        if reason:
+            console.print(f"  Reason: {reason}")
 
-    _run_mutation(_run)
+    _run(_run_maintenance)
 
 
 @cli.command("schedule")
 def schedule_cmd(
-    route: str = typer.Argument(
-        ...,
-        help="Route: /path (all methods) or METHOD:/path (e.g. GET:/payments)",
-    ),
-    start: str = typer.Option(..., "--start", help="Window start (ISO-8601)"),
-    end: str = typer.Option(..., "--end", help="Window end (ISO-8601)"),
-    reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason"),
+    route: str = typer.Argument(..., help="Route: /path or METHOD:/path"),
+    start: str = typer.Option(..., "--start", help="Window start (ISO-8601)."),
+    end: str = typer.Option(..., "--end", help="Window end (ISO-8601)."),
+    reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason."),
 ) -> None:
     """Schedule a future maintenance window (auto-activates and deactivates)."""
 
-    async def _run() -> None:
-        from shield.core.models import MaintenanceWindow
+    async def _run_schedule() -> None:
+        key = _parse_route(route)
+        start_dt = _parse_dt(start)
+        end_dt = _parse_dt(end)
+        client = make_client()
+        try:
+            keys_to_apply = [key]
+            await client.schedule(
+                key, start=start_dt.isoformat(), end=end_dt.isoformat(), reason=reason
+            )
+        except ShieldClientError as exc:
+            if not exc.ambiguous_matches:
+                raise
+            keys_to_apply = _confirm_ambiguous(exc.ambiguous_matches, "schedule")
+            for k in keys_to_apply:
+                await client.schedule(
+                    k, start=start_dt.isoformat(), end=end_dt.isoformat(), reason=reason
+                )
 
-        _, _, key = _parse_route(route)
-        async with _make_engine() as engine:
-            await _require_registered(engine, key)
-            window = MaintenanceWindow(start=_parse_dt(start), end=_parse_dt(end), reason=reason)
-            await engine.schedule_maintenance(key, window, actor=_CLI_ACTOR)
-            console.print(f"[cyan]⏰[/cyan] Scheduled maintenance for [bold]{key}[/bold]")
-            console.print(f"   Start: [cyan]{window.start.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]")
-            console.print(f"   End:   [cyan]{window.end.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]")
-            if reason:
-                console.print(f"   Reason: {reason}")
+        for k in keys_to_apply:
+            console.print(f"[cyan]⏰[/cyan] Scheduled maintenance for [bold]{k}[/bold]")
+        console.print(f"   Start: [cyan]{start_dt.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]")
+        console.print(f"   End:   [cyan]{end_dt.strftime('%Y-%m-%d %H:%M UTC')}[/cyan]")
+        if reason:
+            console.print(f"   Reason: {reason}")
 
-    _run_mutation(_run)
+    _run(_run_schedule)
 
 
 @cli.command("log")
 def log_cmd(
-    route: str | None = typer.Option(None, "--route", help="Filter by route path"),
-    limit: int = typer.Option(20, "--limit", "-n", help="Number of entries to show"),
+    route: str | None = typer.Option(None, "--route", help="Filter by route path."),
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of entries to show."),
 ) -> None:
     """Show the audit log (most recent first)."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            entries = await engine.get_audit_log(path=route, limit=limit)
+    async def _run_log() -> None:
+        entries = await make_client().audit_log(route=route, limit=limit)
 
-            if not entries:
-                console.print("[dim]No audit entries found.[/dim]")
-                return
+        if not entries:
+            console.print("[dim]No audit entries found.[/dim]")
+            return
 
-            table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
-            table.add_column("Timestamp", style="dim")
-            table.add_column("Route", style="cyan")
-            table.add_column("Action")
-            table.add_column("Actor")
-            table.add_column("Old Status")
-            table.add_column("New Status")
-            table.add_column("Reason")
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Timestamp", style="dim")
+        table.add_column("Route", style="cyan")
+        table.add_column("Action")
+        table.add_column("Actor")
+        table.add_column("Platform")
+        table.add_column("Old Status")
+        table.add_column("New Status")
+        table.add_column("Reason")
 
-            for e in entries:
-                old_colour = _status_colour(e.previous_status)
-                new_colour = _status_colour(e.new_status)
-                table.add_row(
-                    e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                    e.path,
-                    e.action,
-                    e.actor,
-                    f"[{old_colour}]{e.previous_status}[/{old_colour}]",
-                    f"[{new_colour}]{e.new_status}[/{new_colour}]",
-                    e.reason or "—",
-                )
+        for e in entries:
+            old_colour = _status_colour(e["previous_status"])
+            new_colour = _status_colour(e["new_status"])
+            ts = e.get("timestamp", "")
+            try:
+                ts = datetime.fromisoformat(ts).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+            table.add_row(
+                ts,
+                e["path"],
+                e["action"],
+                e.get("actor", "—"),
+                e.get("platform", "—"),
+                f"[{old_colour}]{e['previous_status']}[/{old_colour}]",
+                f"[{new_colour}]{e['new_status']}[/{new_colour}]",
+                e.get("reason") or "—",
+            )
 
-            console.print(table)
+        console.print(table)
 
-    anyio.run(_run)
+    _run(_run_log)
 
 
 # ---------------------------------------------------------------------------
@@ -470,131 +557,125 @@ cli.add_typer(global_app, name="global")
 def global_status() -> None:
     """Show the current global maintenance configuration."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            cfg = await engine.get_global_maintenance()
+    async def _run_gs() -> None:
+        cfg = await make_client().global_status()
+        state_str = "[green]OFF[/green]"
+        if cfg.get("enabled"):
+            state_str = "[yellow]ON[/yellow]"
+        console.print(f"\n  Global maintenance: {state_str}")
+        if cfg.get("enabled"):
+            console.print(f"  Reason            : {cfg.get('reason') or '—'}")
+            fa = cfg.get("include_force_active", False)
+            fa_colour = "red" if fa else "green"
+            fa_text = "yes" if fa else "no"
+            console.print(f"  Include @force_active: [{fa_colour}]{fa_text}[/{fa_colour}]")
+            exempts = cfg.get("exempt_paths") or []
+            if exempts:
+                console.print("  Exempt paths      :")
+                for p in exempts:
+                    console.print(f"    • {p}")
+            else:
+                console.print("  Exempt paths      : (none)")
+        console.print()
 
-            state_str = "[green]OFF[/green]"
-            if cfg.enabled:
-                state_str = "[yellow]ON[/yellow]"
-
-            console.print(f"\n  Global maintenance: {state_str}")
-            if cfg.enabled:
-                console.print(f"  Reason            : {cfg.reason or '—'}")
-                fa_colour = "red" if cfg.include_force_active else "green"
-                fa_text = "yes" if cfg.include_force_active else "no"
-                console.print(f"  Include @force_active: [{fa_colour}]{fa_text}[/{fa_colour}]")
-                if cfg.exempt_paths:
-                    console.print("  Exempt paths      :")
-                    for p in cfg.exempt_paths:
-                        console.print(f"    • {p}")
-                else:
-                    console.print("  Exempt paths      : (none)")
-            console.print()
-
-    anyio.run(_run)
+    _run(_run_gs)
 
 
 @global_app.command("enable")
 def global_enable(
-    reason: str = typer.Option("", "--reason", "-r", help="Reason shown in 503 responses"),
+    reason: str = typer.Option("", "--reason", "-r", help="Reason shown in 503 responses."),
     exempt: list[str] | None = typer.Option(
         None,
         "--exempt",
         "-e",
-        help=(
-            "Route key to exempt from global maintenance "
-            "(repeat for multiple). E.g. --exempt /health --exempt GET:/status"
-        ),
+        help="Route key to exempt (repeat for multiple).",
     ),
     include_force_active: bool = typer.Option(
         False,
         "--include-force-active/--no-include-force-active",
-        help=(
-            "When set, @force_active routes are also blocked. "
-            "Default: force-active routes remain reachable."
-        ),
+        help="Also block @force_active routes.",
     ),
 ) -> None:
     """Enable global maintenance mode — all non-exempt routes return 503."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            cfg = await engine.enable_global_maintenance(
-                reason=reason,
-                exempt_paths=list(exempt) if exempt else [],
-                include_force_active=include_force_active,
-                actor=_CLI_ACTOR,
-            )
-            console.print("[yellow]⚠[/yellow]  Global maintenance [yellow]ENABLED[/yellow]")
-            if cfg.reason:
-                console.print(f"   Reason: {cfg.reason}")
-            if cfg.exempt_paths:
-                console.print(f"   Exempt: {', '.join(cfg.exempt_paths)}")
-            if cfg.include_force_active:
-                console.print("   [red]@force_active routes are also blocked.[/red]")
+    async def _run_ge() -> None:
+        cfg = await make_client().global_enable(
+            reason=reason,
+            exempt_paths=list(exempt) if exempt else [],
+            include_force_active=include_force_active,
+        )
+        console.print("[yellow]⚠[/yellow]  Global maintenance [yellow]ENABLED[/yellow]")
+        if cfg.get("reason"):
+            console.print(f"   Reason: {cfg['reason']}")
+        if cfg.get("exempt_paths"):
+            console.print(f"   Exempt: {', '.join(cfg['exempt_paths'])}")
+        if cfg.get("include_force_active"):
+            console.print("   [red]@force_active routes are also blocked.[/red]")
 
-    anyio.run(_run)
+    _run(_run_ge)
 
 
 @global_app.command("disable")
 def global_disable() -> None:
     """Disable global maintenance mode, restoring normal per-route state."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            await engine.disable_global_maintenance(actor=_CLI_ACTOR)
-            console.print("[green]✓[/green]  Global maintenance [green]DISABLED[/green]")
+    async def _run_gd() -> None:
+        await make_client().global_disable()
+        console.print("[green]✓[/green]  Global maintenance [green]DISABLED[/green]")
 
-    anyio.run(_run)
+    _run(_run_gd)
 
 
 @global_app.command("exempt-add")
 def global_exempt_add(
-    route: str = typer.Argument(
-        ...,
-        help="Route key to add: /path or METHOD:/path (e.g. GET:/health)",
-    ),
+    route: str = typer.Argument(..., help="Route key: /path or METHOD:/path"),
 ) -> None:
     """Add a route to the global maintenance exempt list."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            cfg = await engine.get_global_maintenance()
-            key = route if route.startswith("/") or ":" in route else f"/{route}"
-            if key not in cfg.exempt_paths:
-                updated = await engine.set_global_exempt_paths(cfg.exempt_paths + [key])
-                console.print(
-                    f"[green]✓[/green] Added [cyan]{key}[/cyan] to exempt list "
-                    f"({len(updated.exempt_paths)} total)"
-                )
-            else:
-                console.print(f"[dim]{key} is already in the exempt list.[/dim]")
+    async def _run_ea() -> None:
+        client = make_client()
+        cfg = await client.global_status()
+        key = route if route.startswith("/") or ":" in route else f"/{route}"
+        current = cfg.get("exempt_paths") or []
+        if key not in current:
+            updated_cfg = await client.global_enable(
+                reason=cfg.get("reason", ""),
+                exempt_paths=current + [key],
+                include_force_active=cfg.get("include_force_active", False),
+            )
+            console.print(
+                f"[green]✓[/green] Added [cyan]{key}[/cyan] to exempt list "
+                f"({len(updated_cfg.get('exempt_paths', []))} total)"
+            )
+        else:
+            console.print(f"[dim]{key} is already in the exempt list.[/dim]")
 
-    anyio.run(_run)
+    _run(_run_ea)
 
 
 @global_app.command("exempt-remove")
 def global_exempt_remove(
-    route: str = typer.Argument(
-        ...,
-        help="Route key to remove: /path or METHOD:/path",
-    ),
+    route: str = typer.Argument(..., help="Route key: /path or METHOD:/path"),
 ) -> None:
     """Remove a route from the global maintenance exempt list."""
 
-    async def _run() -> None:
-        async with _make_engine() as engine:
-            cfg = await engine.get_global_maintenance()
-            key = route if route.startswith("/") or ":" in route else f"/{route}"
-            if key in cfg.exempt_paths:
-                remaining = [p for p in cfg.exempt_paths if p != key]
-                await engine.set_global_exempt_paths(remaining)
-                console.print(f"[green]✓[/green] Removed [cyan]{key}[/cyan] from exempt list")
-            else:
-                console.print(f"[dim]{key} was not in the exempt list.[/dim]")
+    async def _run_er() -> None:
+        client = make_client()
+        cfg = await client.global_status()
+        key = route if route.startswith("/") or ":" in route else f"/{route}"
+        current = cfg.get("exempt_paths") or []
+        if key in current:
+            remaining = [p for p in current if p != key]
+            await client.global_enable(
+                reason=cfg.get("reason", ""),
+                exempt_paths=remaining,
+                include_force_active=cfg.get("include_force_active", False),
+            )
+            console.print(f"[green]✓[/green] Removed [cyan]{key}[/cyan] from exempt list")
+        else:
+            console.print(f"[dim]{key} was not in the exempt list.[/dim]")
 
-    anyio.run(_run)
+    _run(_run_er)
 
 
 if __name__ == "__main__":

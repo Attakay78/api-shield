@@ -99,8 +99,9 @@ def test_cli_and_app_use_same_file_backend(tmp_path, monkeypatch):
     monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
 
     async def _run():
-        # Simulate app writing state.
+        # Simulate app registering and then disabling a route.
         app_engine = make_engine()
+        await app_engine.register("/api/pay", {"status": "active"})
         await app_engine.disable("/api/pay", reason="migration")
 
         # Simulate CLI reading state from the same file.

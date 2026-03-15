@@ -142,6 +142,7 @@ async def test_register_env_gated(engine):
 
 
 async def test_enable_sets_active(engine):
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay", reason="gone")
     result = await engine.enable("/api/pay", actor="admin")
     assert result.status == RouteStatus.ACTIVE
@@ -149,6 +150,7 @@ async def test_enable_sets_active(engine):
 
 
 async def test_enable_writes_audit(engine):
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay")
     await engine.enable("/api/pay", actor="admin")
     log = await engine.get_audit_log("/api/pay")
@@ -162,12 +164,14 @@ async def test_enable_writes_audit(engine):
 
 
 async def test_disable_sets_disabled(engine):
+    await engine.register("/api/pay", {"status": "active"})
     result = await engine.disable("/api/pay", reason="migration", actor="admin")
     assert result.status == RouteStatus.DISABLED
     assert result.reason == "migration"
 
 
 async def test_disable_writes_audit(engine):
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay", reason="gone", actor="ops")
     log = await engine.get_audit_log("/api/pay")
     assert log[0].action == "disable"
@@ -180,12 +184,14 @@ async def test_disable_writes_audit(engine):
 
 
 async def test_set_maintenance(engine):
+    await engine.register("/api/pay", {"status": "active"})
     result = await engine.set_maintenance("/api/pay", reason="DB mig", actor="sys")
     assert result.status == RouteStatus.MAINTENANCE
     assert result.reason == "DB mig"
 
 
 async def test_set_maintenance_with_window(engine):
+    await engine.register("/api/pay", {"status": "active"})
     window = MaintenanceWindow(
         start=datetime(2025, 3, 10, 2, 0, tzinfo=UTC),
         end=datetime(2025, 3, 10, 4, 0, tzinfo=UTC),
@@ -196,6 +202,7 @@ async def test_set_maintenance_with_window(engine):
 
 
 async def test_set_maintenance_writes_audit(engine):
+    await engine.register("/api/pay", {"status": "active"})
     await engine.set_maintenance("/api/pay", reason="DB")
     log = await engine.get_audit_log("/api/pay")
     assert log[0].action == "maintenance_on"
@@ -208,12 +215,14 @@ async def test_set_maintenance_writes_audit(engine):
 
 
 async def test_set_env_only(engine):
+    await engine.register("/api/debug", {"status": "active"})
     result = await engine.set_env_only("/api/debug", ["dev", "staging"])
     assert result.status == RouteStatus.ENV_GATED
     assert result.allowed_envs == ["dev", "staging"]
 
 
 async def test_set_env_only_writes_audit(engine):
+    await engine.register("/api/debug", {"status": "active"})
     await engine.set_env_only("/api/debug", ["dev"])
     log = await engine.get_audit_log("/api/debug")
     assert log[0].action == "env_gate"
@@ -231,6 +240,7 @@ async def test_get_state_returns_active_for_unknown(engine):
 
 
 async def test_get_state_returns_registered_state(engine):
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay")
     state = await engine.get_state("/api/pay")
     assert state.status == RouteStatus.DISABLED
@@ -247,6 +257,8 @@ async def test_list_states_empty(engine):
 
 
 async def test_list_states_returns_all(engine):
+    await engine.register("/api/a", {"status": "active"})
+    await engine.register("/api/b", {"status": "active"})
     await engine.disable("/api/a")
     await engine.disable("/api/b")
     states = await engine.list_states()
@@ -260,6 +272,8 @@ async def test_list_states_returns_all(engine):
 
 
 async def test_get_audit_log_all(engine):
+    await engine.register("/api/a", {"status": "active"})
+    await engine.register("/api/b", {"status": "active"})
     await engine.disable("/api/a")
     await engine.disable("/api/b")
     log = await engine.get_audit_log()
@@ -267,6 +281,8 @@ async def test_get_audit_log_all(engine):
 
 
 async def test_get_audit_log_filtered(engine):
+    await engine.register("/api/a", {"status": "active"})
+    await engine.register("/api/b", {"status": "active"})
     await engine.disable("/api/a")
     await engine.disable("/api/b")
     log = await engine.get_audit_log("/api/a")
@@ -396,3 +412,53 @@ async def test_force_active_state_preserved_on_restart(engine):
     await engine.register("/health", {"force_active": False})
     state = await engine.backend.get_state("/health")
     assert state.force_active is True
+
+
+# ---------------------------------------------------------------------------
+# RouteNotFoundException and AmbiguousRouteError
+# ---------------------------------------------------------------------------
+
+
+async def test_disable_unregistered_raises_not_found(engine):
+    """Mutating an unregistered route raises RouteNotFoundException."""
+    from shield.core.exceptions import RouteNotFoundException
+
+    with pytest.raises(RouteNotFoundException) as exc_info:
+        await engine.disable("/nonexistent", reason="gone")
+    assert "/nonexistent" in str(exc_info.value)
+
+
+async def test_enable_unregistered_raises_not_found(engine):
+    from shield.core.exceptions import RouteNotFoundException
+
+    with pytest.raises(RouteNotFoundException):
+        await engine.enable("/nonexistent")
+
+
+async def test_set_maintenance_unregistered_raises_not_found(engine):
+    from shield.core.exceptions import RouteNotFoundException
+
+    with pytest.raises(RouteNotFoundException):
+        await engine.set_maintenance("/nonexistent", reason="test")
+
+
+async def test_bare_path_resolves_single_method_match(engine):
+    """Bare /pay resolves to GET:/pay when only one method-prefixed variant exists."""
+    await engine.register("GET:/pay", {"status": "active"})
+    state = await engine.disable("/pay", reason="resolved")
+    assert state.status == RouteStatus.DISABLED
+    # The actual key in the backend must be the method-prefixed one.
+    stored = await engine.backend.get_state("GET:/pay")
+    assert stored.status == RouteStatus.DISABLED
+
+
+async def test_bare_path_ambiguous_raises(engine):
+    """Bare /pay with GET:/pay and POST:/pay raises AmbiguousRouteError."""
+    from shield.core.exceptions import AmbiguousRouteError
+
+    await engine.register("GET:/pay", {"status": "active"})
+    await engine.register("POST:/pay", {"status": "active"})
+    with pytest.raises(AmbiguousRouteError) as exc_info:
+        await engine.disable("/pay", reason="ambiguous")
+    assert exc_info.value.path == "/pay"
+    assert set(exc_info.value.matches) == {"GET:/pay", "POST:/pay"}

@@ -1,6 +1,9 @@
-# api-shield
+<div align="center">
+  <img src="api-shield-logo.svg" alt="API Shield" width=700/>
+</div>
 
-**Route lifecycle management for Python web frameworks — maintenance mode, environment gating, deprecation, canary rollouts, and more. No restarts required.**
+
+**Route lifecycle management for Python web frameworks — maintenance mode, environment gating, deprecation, admin panels, and more. No restarts required.**
 
 Most "maintenance mode" tools are blunt instruments: shut everything down or nothing at all. `api-shield` treats each route as a first-class entity with its own lifecycle. State changes take effect immediately through middleware — no redeployment, no server restart.
 
@@ -14,6 +17,7 @@ Most "maintenance mode" tools are blunt instruments: shut everything down or not
     - [Quick Start](#quick-start)
     - [How It Works](#how-it-works)
     - [Decorators](#decorators)
+    - [Dependency Injection](#dependency-injection)
     - [Global Maintenance Mode](#global-maintenance-mode)
     - [OpenAPI & Docs Integration](#openapi--docs-integration)
     - [Testing](#testing)
@@ -22,7 +26,17 @@ Most "maintenance mode" tools are blunt instruments: shut everything down or not
   - [Flask — Coming Soon](#flask--coming-soon)
 - [Backends](#backends)
   - [Custom Backends](#custom-backends)
+- [Admin Interface](#admin-interface)
+  - [Mounting ShieldAdmin](#mounting-shieldadmin)
+  - [Authentication](#authentication)
+  - [Dashboard UI](#dashboard-ui)
+  - [REST API](#rest-api)
 - [CLI Reference](#cli-reference)
+  - [Authentication](#authentication-1)
+  - [Route commands](#route-commands)
+  - [Global maintenance commands](#global-maintenance-commands)
+  - [Audit log](#audit-log-1)
+  - [Config commands](#config-commands)
 - [Audit Log](#audit-log)
 - [Configuration File](#configuration-file)
 - [Architecture](#architecture)
@@ -459,13 +473,63 @@ uv run pytest tests/core/                        # core only (no FastAPI depende
 
 ---
 
+#### Dependency Injection
+
+Shield decorators double as FastAPI `Depends()` dependencies. This is useful when you want per-handler enforcement without adding `ShieldMiddleware`, or when running multiple engines in the same app.
+
+`configure_shield(app, engine)` is called automatically by `ShieldMiddleware` at startup, so all deps resolve the engine from `app.state` with no extra configuration.
+
+```python
+from fastapi import Depends, FastAPI
+from shield.fastapi import ShieldMiddleware, ShieldRouter, maintenance, disabled, env_only
+
+app = FastAPI()
+app.add_middleware(ShieldMiddleware, engine=engine)  # calls configure_shield automatically
+router = ShieldRouter(engine=engine)
+
+# Pattern A — middleware-only (decorator stamps metadata; middleware enforces globally)
+@router.get("/payments")
+@maintenance(reason="DB migration")
+async def get_payments():
+    return {"payments": []}
+
+# Pattern B — Depends()-only (per-handler enforcement; no middleware required)
+@router.get("/admin/report", dependencies=[Depends(disabled(reason="Use /v2/report"))])
+async def admin_report():
+    return {}
+
+# Pattern C — both (most explicit; works with or without middleware)
+@router.get(
+    "/orders",
+    dependencies=[Depends(maintenance(reason="Order upgrade"))],
+)
+@maintenance(reason="Order upgrade")
+async def get_orders():
+    return {"orders": []}
+
+app.include_router(router)
+```
+
+**When to use each pattern:**
+
+| Pattern | Best for |
+|---|---|
+| Decorator only | Apps that always run `ShieldMiddleware`; cleanest DX |
+| `Depends()` only | Serverless / edge runtimes where middleware isn't available; fine-grained per-route control |
+| Both | Library code or apps where callers may or may not use middleware |
+
+All three patterns are runtime-togglable — use `shield enable /payments` or the dashboard without redeploying.
+
+---
+
 #### Examples
 
 Runnable examples are in [examples/fastapi/](examples/fastapi/).
 
 | File | What it demonstrates |
 |---|---|
-| [basic.py](examples/fastapi/basic.py) | Core decorators: `@maintenance`, `@disabled`, `@env_only`, `@force_active`, `@deprecated` |
+| [basic.py](examples/fastapi/basic.py) | Core decorators + `ShieldAdmin` (dashboard & CLI) |
+| [dependency_injection.py](examples/fastapi/dependency_injection.py) | `Depends()` pattern alongside decorators + `ShieldAdmin` |
 | [scheduled_maintenance.py](examples/fastapi/scheduled_maintenance.py) | Auto-activating maintenance windows via `schedule_maintenance()` |
 | [global_maintenance.py](examples/fastapi/global_maintenance.py) | Blocking every route at once with `enable_global_maintenance()` |
 | [custom_backend/sqlite_backend.py](examples/fastapi/custom_backend/sqlite_backend.py) | Full custom backend implementation using SQLite |
@@ -473,8 +537,12 @@ Runnable examples are in [examples/fastapi/](examples/fastapi/).
 Run any example:
 
 ```bash
-# Basic decorators
+# Basic decorators + admin dashboard
 uv run uvicorn examples.fastapi.basic:app --reload
+# Then: http://localhost:8000/shield/  (login: admin / secret)
+
+# Dependency injection + admin dashboard
+uv run uvicorn examples.fastapi.dependency_injection:app --reload
 
 # Scheduled maintenance window
 uv run uvicorn examples.fastapi.scheduled_maintenance:app --reload
@@ -658,45 +726,6 @@ app = FastAPI(lifespan=lifespan)
 
 From there everything works as normal — decorators, middleware, CLI, audit log.
 
-#### CLI access for custom backends
-
-Set `SHIELD_BACKEND=custom` and point `SHIELD_CUSTOM_PATH` at a **zero-arg factory function** that returns your configured backend instance:
-
-```python
-# myapp/backends.py
-import os
-from myapp.db import MyBackend
-
-def make_shield_backend() -> MyBackend:
-    """Zero-arg factory — reads config from environment variables."""
-    return MyBackend(dsn=os.environ["MY_DB_DSN"])
-```
-
-```bash
-# One-off
-SHIELD_BACKEND=custom \
-SHIELD_CUSTOM_PATH=myapp.backends:make_shield_backend \
-MY_DB_DSN=postgresql://localhost/myapp \
-    shield status
-```
-
-Or configure it once in your `.shield` file so you don't repeat it on every command:
-
-```ini
-# .shield
-SHIELD_BACKEND=custom
-SHIELD_CUSTOM_PATH=myapp.backends:make_shield_backend
-MY_DB_DSN=postgresql://localhost/myapp
-```
-
-```bash
-shield status
-shield disable GET:/payments --reason "patch"
-shield log
-```
-
-The CLI calls `startup()` and `shutdown()` automatically around every command, so your backend's connection lifecycle is handled correctly with no extra work.
-
 #### SQLite example
 
 A complete working implementation backed by SQLite is in
@@ -758,29 +787,152 @@ pip install aiosqlite
 uv run uvicorn examples.fastapi.custom_backend.sqlite_backend:app --reload
 ```
 
-Use it with the CLI:
+The `shield` CLI connects to the running app's `ShieldAdmin` REST API — no backend config needed on the CLI side:
 
 ```bash
-# One-off
-SHIELD_BACKEND=custom \
-SHIELD_CUSTOM_PATH=examples.fastapi.custom_backend.sqlite_backend:make_backend \
-SHIELD_SQLITE_PATH=shield-state.db \
-    shield status
-
-# Or in .shield
-# SHIELD_BACKEND=custom
-# SHIELD_CUSTOM_PATH=examples.fastapi.custom_backend.sqlite_backend:make_backend
-# SHIELD_SQLITE_PATH=shield-state.db
+shield login admin          # if auth is configured
+shield status
+shield disable GET:/payments --reason "patch"
+shield log
 ```
+
+---
+
+## Admin Interface
+
+`ShieldAdmin` is the single entry-point for the admin dashboard UI and the REST API used by the CLI. Mount it once on your FastAPI app to get both surfaces.
+
+### Mounting ShieldAdmin
+
+```python
+from shield.admin import ShieldAdmin
+
+app.mount(
+    "/shield",
+    ShieldAdmin(
+        engine=engine,
+        auth=("admin", "secret"),   # see Authentication below
+        prefix="/shield",           # must match the mount path
+        secret_key="stable-key",    # optional; omit in dev for random per-restart key
+        token_expiry=86400,         # token lifetime in seconds (default 24 h)
+    ),
+)
+```
+
+### Authentication
+
+`auth=` accepts three forms:
+
+```python
+# Single user
+ShieldAdmin(engine=engine, auth=("admin", "secret"))
+
+# Multiple users (each with their own credentials)
+ShieldAdmin(engine=engine, auth=[("alice", "pass1"), ("bob", "pass2")])
+
+# Custom backend — implement authenticate_user(username, password) -> bool
+from shield.admin.auth import ShieldAuthBackend
+
+class MyDBAuth(ShieldAuthBackend):
+    def authenticate_user(self, username: str, password: str) -> bool:
+        return self.db.check(username, password)
+
+    # Optional — override to invalidate tokens when credentials change.
+    # Default uses the class name (stable across restarts but not credential changes).
+    def fingerprint(self) -> str:
+        import hashlib
+        rows = self.db.query("SELECT username, hash FROM users ORDER BY username")
+        return hashlib.sha256("|".join(f"{u}:{h}" for u, h in rows).encode()).hexdigest()[:16]
+
+ShieldAdmin(engine=engine, auth=MyDBAuth())
+
+# No auth — open access (useful for internal tools or local dev)
+ShieldAdmin(engine=engine)
+```
+
+**Token invalidation on credential change:** api-shield mixes a fingerprint of the `auth=` credentials into the HMAC signing key. When you change the `auth=` value (new user, changed password, different user entirely), all previously issued tokens are automatically invalidated on restart — even if `secret_key` is stable.
+
+**`secret_key` guidance:**
+
+| Environment | Recommendation |
+|---|---|
+| Development | Omit — random key generated on each restart; all sessions cleared on restart |
+| Production | Set a stable value — tokens survive restarts; credential changes still invalidate via fingerprint |
+
+### Dashboard UI
+
+After mounting, the dashboard is available at your mount path:
+
+```
+http://localhost:8000/shield/         — route list with live status badges
+http://localhost:8000/shield/audit    — audit log (newest first)
+```
+
+Browser sessions use `HttpOnly` cookies. The authenticated username is recorded as the `actor` in every audit log entry.
+
+### REST API
+
+The same mount exposes a JSON REST API used by the `shield` CLI:
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Exchange credentials for a bearer token |
+| `POST` | `/api/auth/logout` | Revoke the current token |
+| `GET` | `/api/auth/me` | Current actor info |
+| `GET` | `/api/routes` | List all route states |
+| `GET` | `/api/routes/{key}` | Get one route |
+| `POST` | `/api/routes/{key}/enable` | Enable a route |
+| `POST` | `/api/routes/{key}/disable` | Disable a route |
+| `POST` | `/api/routes/{key}/maintenance` | Put route in maintenance |
+| `POST` | `/api/routes/{key}/schedule` | Schedule a maintenance window |
+| `DELETE` | `/api/routes/{key}/schedule` | Cancel a scheduled window |
+| `GET` | `/api/audit` | Audit log (supports `?route=` and `?limit=`) |
+| `GET` | `/api/global` | Global maintenance config |
+| `POST` | `/api/global/enable` | Enable global maintenance |
+| `POST` | `/api/global/disable` | Disable global maintenance |
 
 ---
 
 ## CLI Reference
 
-The `shield` CLI operates on the same backend as the running server. Requires `SHIELD_BACKEND=file` or `SHIELD_BACKEND=redis` to share state (the default `memory` backend is process-local).
+The `shield` CLI is a **thin HTTP client** — it talks to a running `ShieldAdmin` instance over HTTP. It does not touch the backend directly.
 
 ```bash
-uv pip install -e ".[cli]"
+uv pip install "api-shield[cli]"
+```
+
+### Authentication
+
+```bash
+# Log in (prompts for password)
+shield login admin
+
+# Or pass credentials inline
+shield login admin --password secret
+
+# Check current session
+shield config show
+
+# Log out (revokes the server-side token and clears local credentials)
+shield logout
+```
+
+Credentials are stored in `~/.shield/config.json` with an expiry timestamp. After expiry, re-run `shield login`.
+
+### Server URL discovery
+
+The CLI auto-discovers the server URL using this priority order (highest wins):
+
+1. `SHIELD_SERVER_URL` environment variable
+2. `SHIELD_SERVER_URL` key in a `.shield` file (walks up from cwd)
+3. `server_url` in `~/.shield/config.json` (written by `shield config set-url`)
+4. Built-in default: `http://localhost:8000/shield`
+
+For most projects, dropping a `.shield` file in the repo root is enough — no manual URL configuration needed:
+
+```ini
+# .shield  (commit alongside your code)
+SHIELD_SERVER_URL=http://localhost:8000/shield
 ```
 
 ### Route commands
@@ -791,6 +943,7 @@ shield status GET:/payments             # inspect one route
 
 shield enable GET:/payments
 shield disable GET:/payments --reason "Security patch"
+shield disable GET:/payments --reason "hotfix" --until 2h   # auto re-enable in 2 h
 
 shield maintenance GET:/payments --reason "DB swap"
 shield maintenance GET:/payments \
@@ -809,9 +962,10 @@ shield schedule GET:/payments \
 ```bash
 shield global status
 shield global enable --reason "Deploying v2" --exempt /health
+shield global enable --reason "Hard lockdown" --include-force-active
 shield global disable
-shield global exempt-add /monitoring
-shield global exempt-remove /monitoring
+shield global exempt-add /monitoring/ping
+shield global exempt-remove /monitoring/ping
 ```
 
 ### Audit log
@@ -820,6 +974,16 @@ shield global exempt-remove /monitoring
 shield log                          # last 20 entries across all routes
 shield log --route GET:/payments    # filter by route
 shield log --limit 100
+```
+
+### Config commands
+
+```bash
+# Override the server URL (stored in ~/.shield/config.json)
+shield config set-url http://prod.example.com/shield
+
+# Show resolved URL + its source + current auth session
+shield config show
 ```
 
 ### Route key format
@@ -834,7 +998,7 @@ Routes are stored with method-prefixed keys:
 
 ```bash
 shield disable "GET:/payments"
-shield enable "/payments"           # applies to all methods
+shield enable "/payments"           # applies to all methods registered under /payments
 ```
 
 ---
@@ -848,41 +1012,55 @@ entries = await engine.get_audit_log(limit=50)
 entries = await engine.get_audit_log(path="GET:/payments", limit=20)
 
 for e in entries:
-    print(e.timestamp, e.actor, e.action, e.path,
+    print(e.timestamp, e.actor, e.platform, e.action, e.path,
           e.previous_status, "→", e.new_status, e.reason)
 ```
 
-Fields: `id`, `timestamp`, `path`, `action`, `actor`, `reason`, `previous_status`, `new_status`.
+Fields: `id`, `timestamp`, `path`, `action`, `actor`, `platform`, `reason`, `previous_status`, `new_status`.
 
-The CLI uses `getpass.getuser()` (the logged-in OS username) as the default actor:
+**Actor and platform are set automatically:**
+
+| Source | `actor` | `platform` |
+|---|---|---|
+| CLI (logged in) | Authenticated username | `"cli"` |
+| Dashboard (logged in) | Authenticated username | `"dashboard"` |
+| No auth configured | Value of `X-Shield-Actor` header, or `"anonymous"` | `"cli"` / `"dashboard"` |
 
 ```bash
+# After shield login admin:
 shield disable GET:/payments --reason "Security patch"
-# audit entry: actor="alice", action="disable", path="GET:/payments"
+# audit entry: actor="admin", platform="cli", action="disable", path="GET:/payments"
 ```
 
 ---
 
 ## Configuration File
 
-Both the app and CLI auto-discover a `.shield` file by walking up from the current directory:
+Both the app and CLI auto-discover a `.shield` file by walking up from the current directory. Commit this alongside your code so the entire team shares the same settings with no manual setup.
 
 ```ini
 # .shield
+# ── App backend ───────────────────────────────────────────────────────────
 SHIELD_BACKEND=file
 SHIELD_FILE_PATH=shield-state.json
 SHIELD_ENV=production
+
+# ── CLI server URL ────────────────────────────────────────────────────────
+# The CLI reads this so no one needs to run "shield config set-url ..."
+SHIELD_SERVER_URL=http://localhost:8000/shield
 ```
 
-Priority order (highest wins):
-1. Explicit constructor arguments
+**App backend priority order** (highest wins):
+1. Explicit constructor argument (`ShieldEngine(backend=...)`)
 2. `os.environ`
 3. `.shield` file
-4. Built-in defaults
+4. Built-in defaults (`MemoryBackend`, `production` env)
 
-```bash
-shield --config /etc/myapp/.shield status
-```
+**CLI server URL priority order** (highest wins):
+1. `SHIELD_SERVER_URL` environment variable
+2. `SHIELD_SERVER_URL` in `.shield` file (walked up from cwd)
+3. `server_url` in `~/.shield/config.json` (written by `shield config set-url`)
+4. Built-in default: `http://localhost:8000/shield`
 
 ---
 
@@ -908,21 +1086,51 @@ shield/
 │   ├── router.py               # ShieldRouter + scan_routes()
 │   └── openapi.py              # Schema filter + docs UI customisation
 │
-├── adapters/                   # Future framework adapters
-│   ├── django/                 # Coming soon
-│   └── flask/                  # Coming soon
+├── admin/                      # Unified admin interface
+│   ├── app.py                  # ShieldAdmin factory — mounts dashboard + REST API
+│   ├── api.py                  # REST API handlers (/api/routes, /api/audit, ...)
+│   └── auth.py                 # TokenManager, ShieldAuthBackend, auth_fingerprint
 │
-└── cli/
-    └── main.py                 # Typer CLI app
+├── dashboard/                  # HTMX dashboard UI (served via ShieldAdmin)
+│   ├── routes.py               # Dashboard route handlers + SSE events
+│   └── templates/              # Jinja2 templates (Tailwind + HTMX)
+│
+├── cli/                        # CLI — thin HTTP client over ShieldAdmin REST API
+│   ├── main.py                 # Typer commands (login, status, enable, disable, ...)
+│   ├── client.py               # ShieldClient (httpx-based)
+│   └── config.py               # Config file + server URL auto-discovery
+│
+└── adapters/                   # Future framework adapters
+    ├── django/                 # Coming soon
+    └── flask/                  # Coming soon
+```
+
+### Request flow
+
+```
+CLI command                      Browser dashboard
+     │                                  │
+     │  HTTP + Bearer token             │  HTTP + HttpOnly cookie
+     ▼                                  ▼
+ShieldAdmin (mounted at /shield)
+     ├── _AuthMiddleware  ─────────── inject actor + platform into request.state
+     │
+     ├── /api/...  ──────────────────  REST API handlers → ShieldEngine
+     └── /  /audit /events  ─────────  Dashboard handlers → ShieldEngine
+                                                  │
+                                                  ▼
+                                           ShieldBackend
+                                    (memory / file / Redis / custom)
 ```
 
 ### Key design rules
 
 1. **`shield.core` never imports from any adapter** — the core is framework-agnostic and powers all current and future adapters.
-2. **All business logic lives in `ShieldEngine`** — middleware and decorators are transport layers that call `engine.check()`, never make policy decisions themselves.
-3. **`engine.check()` is the single chokepoint** — every request, regardless of framework or router type, goes through this one method.
+2. **All business logic lives in `ShieldEngine`** — middleware, decorators, API handlers, and CLI commands are transport layers. They call engine methods; they never make policy decisions themselves.
+3. **`engine.check()` is the single chokepoint** — every request, regardless of framework or access surface, goes through this one method.
 4. **Fail-open on backend errors** — if the backend is unreachable, requests pass through. Shield never takes down an API due to its own failures.
 5. **Persistence-first registration** — if a route already has persisted state, the decorator default is ignored. Runtime changes survive restarts.
+6. **Token invalidation on credential change** — the auth fingerprint is mixed into the HMAC signing key, so any change to `auth=` automatically invalidates all existing tokens even with a stable `secret_key`.
 
 ---
 

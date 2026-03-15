@@ -79,6 +79,7 @@ async def test_webhook_fires_on_disable(monkeypatch):
     monkeypatch.setattr(engine, "_post_webhook", staticmethod(fake_post))
     engine.add_webhook("http://hook.example/test")
 
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay", reason="gone")
     # Let the background task run.
     await asyncio.sleep(0.05)
@@ -100,6 +101,7 @@ async def test_webhook_fires_on_enable(monkeypatch):
     monkeypatch.setattr(engine, "_post_webhook", staticmethod(fake_post))
     engine.add_webhook("http://hook.example/test")
 
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay")
     await engine.enable("/api/pay")
     await asyncio.sleep(0.05)
@@ -118,6 +120,7 @@ async def test_webhook_fires_on_maintenance(monkeypatch):
     monkeypatch.setattr(engine, "_post_webhook", staticmethod(fake_post))
     engine.add_webhook("http://hook.example/test")
 
+    await engine.register("/api/pay", {"status": "active"})
     await engine.set_maintenance("/api/pay", reason="DB mig")
     await asyncio.sleep(0.05)
 
@@ -134,6 +137,7 @@ async def test_webhook_failure_does_not_affect_state(monkeypatch):
     monkeypatch.setattr(engine, "_post_webhook", staticmethod(failing_post))
     engine.add_webhook("http://broken.example/hook")
 
+    await engine.register("/api/pay", {"status": "active"})
     # Must not raise.
     state = await engine.disable("/api/pay", reason="gone")
     await asyncio.sleep(0.1)
@@ -153,6 +157,7 @@ async def test_multiple_webhooks_all_called(monkeypatch):
     engine.add_webhook("http://hook1.example/")
     engine.add_webhook("http://hook2.example/")
 
+    await engine.register("/api/pay", {"status": "active"})
     await engine.disable("/api/pay")
     await asyncio.sleep(0.05)
 

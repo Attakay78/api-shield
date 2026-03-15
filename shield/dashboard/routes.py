@@ -38,6 +38,16 @@ def _prefix(request: Request) -> str:
     return request.app.state.prefix  # type: ignore[no-any-return]
 
 
+def _actor(request: Request) -> str:
+    """Return the authenticated actor name (set by auth middleware or default)."""
+    return getattr(request.state, "shield_actor", "dashboard")
+
+
+def _platform(request: Request) -> str:
+    """Return the platform from request state (always 'dashboard' for UI actions)."""
+    return getattr(request.state, "shield_platform", "dashboard")
+
+
 # ---------------------------------------------------------------------------
 # Path encoding utilities
 # ---------------------------------------------------------------------------
@@ -116,6 +126,7 @@ async def index(request: Request) -> Response:
             "active_tab": "routes",
             "version": request.app.state.version,
             "path_slug": path_slug,
+            "shield_actor": _actor(request),
         },
     )
 
@@ -154,12 +165,15 @@ async def toggle(request: Request) -> HTMLResponse:
     try:
         state = await engine.get_state(route_path)
         if state.status.value == "maintenance":
-            new_state = await engine.enable(route_path, reason=reason, actor="dashboard")
+            new_state = await engine.enable(
+                route_path, reason=reason, actor=_actor(request), platform=_platform(request)
+            )
         else:
             new_state = await engine.set_maintenance(
                 route_path,
                 reason=reason,
-                actor="dashboard",
+                actor=_actor(request),
+                platform=_platform(request),
             )
     except RouteProtectedException:
         new_state = await engine.get_state(route_path)
@@ -177,7 +191,9 @@ async def disable(request: Request) -> HTMLResponse:
     form_data = await request.form()
     reason = str(form_data.get("reason", "") or request.headers.get("HX-Prompt", ""))
     try:
-        new_state = await engine.disable(route_path, reason=reason, actor="dashboard")
+        new_state = await engine.disable(
+            route_path, reason=reason, actor=_actor(request), platform=_platform(request)
+        )
     except RouteProtectedException:
         new_state = await engine.get_state(route_path)
 
@@ -194,7 +210,9 @@ async def enable(request: Request) -> HTMLResponse:
     form_data = await request.form()
     reason = str(form_data.get("reason", "") or request.headers.get("HX-Prompt", ""))
     try:
-        new_state = await engine.enable(route_path, reason=reason, actor="dashboard")
+        new_state = await engine.enable(
+            route_path, reason=reason, actor=_actor(request), platform=_platform(request)
+        )
     except RouteProtectedException:
         new_state = await engine.get_state(route_path)
 
@@ -223,7 +241,9 @@ async def schedule(request: Request) -> HTMLResponse:
 
     window = MaintenanceWindow(start=start_dt, end=end_dt, reason=reason)
     try:
-        await engine.schedule_maintenance(route_path, window, actor="dashboard")
+        await engine.schedule_maintenance(
+            route_path, window, actor=_actor(request), platform=_platform(request)
+        )
     except RouteProtectedException:
         pass
 
@@ -258,6 +278,7 @@ async def audit_page(request: Request) -> Response:
             "prefix": prefix,
             "active_tab": "audit",
             "version": request.app.state.version,
+            "shield_actor": _actor(request),
         },
     )
 
@@ -319,7 +340,8 @@ async def global_maintenance_enable(request: Request) -> HTMLResponse:
         reason=reason,
         exempt_paths=exempt_paths,
         include_force_active=include_force_active,
-        actor="dashboard",
+        actor=_actor(request),
+        platform=_platform(request),
     )
     config = await engine.get_global_maintenance()
     return HTMLResponse(_render_global_widget(tpl, config, prefix))
@@ -331,7 +353,7 @@ async def global_maintenance_disable(request: Request) -> HTMLResponse:
     tpl = _templates(request)
     prefix = _prefix(request)
 
-    await engine.disable_global_maintenance(actor="dashboard")
+    await engine.disable_global_maintenance(actor=_actor(request), platform=_platform(request))
     config = await engine.get_global_maintenance()
     return HTMLResponse(_render_global_widget(tpl, config, prefix))
 

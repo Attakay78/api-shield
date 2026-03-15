@@ -28,6 +28,15 @@
             {{ entry.actor }}
         </div>
     </td>
+    <td class="px-4 py-3 text-xs text-slate-500 hidden sm:table-cell">
+        {% if entry.platform == "cli" %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-50 text-violet-700 font-mono">cli</span>
+        {% elif entry.platform == "dashboard" %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 font-mono">dashboard</span>
+        {% else %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 font-mono">{{ entry.platform }}</span>
+        {% endif %}
+    </td>
     <td class="px-4 py-3">
         <div class="flex items-center gap-1.5 flex-wrap">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 ring-inset {{ status_colors.get(entry.previous_status, 'bg-slate-100 text-slate-500 ring-slate-400/20') }}">

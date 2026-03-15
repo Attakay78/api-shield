@@ -1,14 +1,21 @@
 """FastAPI — Basic Usage Example.
 
-Demonstrates the core api-shield decorators on both ShieldRouter and a plain
-FastAPI APIRouter.
+Demonstrates the core api-shield decorators together with the ShieldAdmin
+unified admin interface (dashboard UI + REST API for the CLI).
 
 Run:
     uv run uvicorn examples.fastapi.basic:app --reload
 
 Then visit:
-    http://localhost:8000/docs   — filtered Swagger UI
-    http://localhost:8000/redoc  — filtered ReDoc
+    http://localhost:8000/docs           — filtered Swagger UI
+    http://localhost:8000/shield/        — admin dashboard (login: admin / secret)
+    http://localhost:8000/shield/audit   — audit log
+
+CLI quick-start (auto-discovers the server URL):
+    shield login admin          # password: secret
+    shield status
+    shield disable /payments --reason "hotfix"
+    shield enable /payments
 
 Expected behaviour (production env):
     GET /health          → 200 always          (@force_active)
@@ -25,6 +32,7 @@ import os
 
 from fastapi import FastAPI
 
+from shield.admin import ShieldAdmin
 from shield.core.config import make_engine
 from shield.fastapi import (
     ShieldMiddleware,
@@ -104,3 +112,26 @@ app = FastAPI(
 app.add_middleware(ShieldMiddleware, engine=engine)
 app.include_router(router)
 apply_shield_to_openapi(app, engine)
+
+# Mount the unified admin interface:
+#   - Dashboard UI  → http://localhost:8000/shield/
+#   - REST API      → http://localhost:8000/shield/api/...  (used by the CLI)
+#
+# auth= accepts:
+#   ("user", "pass")              — single user
+#   [("alice","a1"),("bob","b2")] — multiple users
+#   MyAuthBackend()               — custom ShieldAuthBackend subclass
+#
+# secret_key= should be a stable value in production so tokens survive
+# process restarts. Omit it (or set to None) in development — a random key
+# is generated on each startup, invalidating all sessions on restart.
+app.mount(
+    "/shield",
+    ShieldAdmin(
+        engine=engine,
+        auth=("admin", "secret"),
+        prefix="/shield",
+        # secret_key="change-me-in-production",
+        # token_expiry=86400,  # seconds — default 24 h
+    ),
+)

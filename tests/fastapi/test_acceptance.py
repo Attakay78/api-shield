@@ -90,8 +90,12 @@ async def test_old_endpoint_returns_503(acceptance_app):
 
 async def test_health_always_200(acceptance_app):
     app, engine = acceptance_app
-    # Even if we force maintenance on /health, force_active must win.
-    await engine.set_maintenance("/health", reason="test")
+    # force_active routes are immune to state changes — the engine rejects them.
+    from shield.core.exceptions import RouteProtectedException
+
+    with pytest.raises(RouteProtectedException):
+        await engine.set_maintenance("/health", reason="test")
+    # health endpoint is always reachable
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/health")
     assert resp.status_code == 200

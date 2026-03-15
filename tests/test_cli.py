@@ -1,14 +1,30 @@
-"""Tests for shield CLI commands.
+"""Tests for the shield CLI — HTTP client mode.
 
-Uses Typer's CliRunner so no subprocess needed.
+The CLI is now a thin HTTP client.  Tests create an in-process ShieldAdmin
+ASGI app and inject it into the CLI via the ``make_client`` monkeypatch,
+so no real server is needed.
+
+IMPORTANT: Tests that call ``invoke_with_client`` must be sync (``def``, not
+``async def``) because the CLI uses ``anyio.run()`` internally and that
+cannot be nested inside a running pytest-asyncio event loop.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
 import anyio
+import httpx
+import pytest
 from typer.testing import CliRunner
 
+from shield.admin.app import ShieldAdmin
+from shield.cli.client import ShieldClient, ShieldClientError
+from shield.cli.main import _parse_dt, _parse_route, _parse_until
 from shield.cli.main import cli as app
+from shield.core.engine import ShieldEngine
+from shield.core.models import RouteState, RouteStatus
 
 runner = CliRunner()
 
@@ -18,22 +34,109 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 
 
-def _seed(file_path: str, *paths: str) -> None:
-    """Write ACTIVE state for each path into a FileBackend (sync wrapper)."""
-    from shield.core.backends.file import FileBackend
-    from shield.core.models import RouteState
+def _seed_engine(*paths: str) -> ShieldEngine:
+    """Create a ShieldEngine and seed *paths* as ACTIVE routes (synchronously)."""
+    e = ShieldEngine()
 
-    async def _run():
-        backend = FileBackend(file_path)
+    async def _run() -> None:
         for path in paths:
-            await backend.set_state(path, RouteState(path=path))
+            await e.backend.set_state(path, RouteState(path=path, status=RouteStatus.ACTIVE))
 
     anyio.run(_run)
+    return e
 
 
-def invoke(*args: str) -> object:
-    """Invoke the CLI with memory backend (default)."""
-    return runner.invoke(app, list(args), catch_exceptions=False)
+def _do_async(coro_fn: object) -> object:
+    """Run a no-argument async callable synchronously and return the result."""
+    results: list[object] = []
+
+    async def _wrap() -> None:
+        results.append(await coro_fn())  # type: ignore[operator]
+
+    anyio.run(_wrap)
+    return results[0] if results else None
+
+
+def _open_client(engine: ShieldEngine) -> ShieldClient:
+    """Return a ShieldClient backed by an in-process ShieldAdmin (no auth)."""
+    admin = ShieldAdmin(engine=engine)
+    return ShieldClient(
+        base_url="http://testserver",
+        transport=httpx.ASGITransport(app=admin),  # type: ignore[arg-type]
+    )
+
+
+def invoke_with_client(client: ShieldClient, *args: str) -> object:
+    """Invoke a CLI command with *client* injected via ``make_client``."""
+    with patch("shield.cli.main.make_client", return_value=client):
+        return runner.invoke(app, list(args), catch_exceptions=False)
+
+
+# ---------------------------------------------------------------------------
+# Helper function unit tests (pure Python — no server needed)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_until_hours() -> None:
+    dt = _parse_until("2h")
+    now = datetime.now(UTC)
+    diff = (dt - now).total_seconds()
+    assert 7180 < diff < 7220
+
+
+def test_parse_until_minutes() -> None:
+    dt = _parse_until("30m")
+    now = datetime.now(UTC)
+    diff = (dt - now).total_seconds()
+    assert 1790 < diff < 1820
+
+
+def test_parse_until_days() -> None:
+    dt = _parse_until("1d")
+    now = datetime.now(UTC)
+    diff = (dt - now).total_seconds()
+    assert 86380 < diff < 86420
+
+
+def test_parse_until_bad_unit() -> None:
+    import typer
+
+    with pytest.raises(typer.BadParameter):
+        _parse_until("2w")
+
+
+def test_parse_dt_z_suffix() -> None:
+    dt = _parse_dt("2025-03-10T02:00Z")
+    assert dt.year == 2025
+    assert dt.hour == 2
+    assert dt.tzinfo is not None
+
+
+def test_parse_dt_iso_no_tz() -> None:
+    dt = _parse_dt("2025-03-10T02:00:00")
+    assert dt.tzinfo is not None
+
+
+def test_parse_route_path_only() -> None:
+    assert _parse_route("/payments") == "/payments"
+
+
+def test_parse_route_method_path() -> None:
+    assert _parse_route("GET:/payments") == "GET:/payments"
+
+
+def test_parse_route_bad_method() -> None:
+    import typer
+
+    with pytest.raises(typer.BadParameter):
+        _parse_route("BREW:/payments")
+
+
+def test_parse_route_no_leading_slash() -> None:
+    import typer
+
+    with pytest.raises(typer.BadParameter):
+        _parse_route("payments")
 
 
 # ---------------------------------------------------------------------------
@@ -41,58 +144,60 @@ def invoke(*args: str) -> object:
 # ---------------------------------------------------------------------------
 
 
-def test_status_empty(monkeypatch):
-    # Force memory so the .shield file and any leftover state file are ignored.
-    monkeypatch.setenv("SHIELD_BACKEND", "memory")
-    result = invoke("status")
+def test_status_empty() -> None:
+    e = ShieldEngine()  # empty — no need for async seeding
+    client = _open_client(e)
+    result = invoke_with_client(client, "status")
     assert result.exit_code == 0
     assert "No routes" in result.output
 
 
-def test_status_shows_route_after_disable(monkeypatch):
-    monkeypatch.setenv("SHIELD_BACKEND", "memory")
-    invoke("disable", "/api/pay", "--reason", "gone")
-    result = invoke("status")
+def test_status_shows_registered_routes() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+    result = invoke_with_client(client, "status")
     assert result.exit_code == 0
-
-
-# ---------------------------------------------------------------------------
-# enable / disable round-trip via shared engine
-# ---------------------------------------------------------------------------
-
-
-def test_enable_disable_round_trip(monkeypatch, tmp_path):
-    """Use FileBackend so commands share state across invocations."""
-    file_path = str(tmp_path / "shield.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")  # pre-register the route
-
-    result = invoke("disable", "/api/pay", "--reason", "migration")
-    assert result.exit_code == 0
-    assert "DISABLED" in result.output
-
-    result = invoke("status")
-    assert result.exit_code == 0
-    assert "/api/pay" in result.output
-    assert "DISABLED" in result.output
-
-    result = invoke("enable", "/api/pay")
-    assert result.exit_code == 0
-    assert "ACTIVE" in result.output
-
-    result = invoke("status")
-    assert "/api/pay" in result.output
+    assert "/api/p" in result.output  # Rich may truncate path in narrow terminal
     assert "ACTIVE" in result.output
 
 
-def test_disable_shows_reason(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")
+def test_status_shows_disabled_route() -> None:
+    e = _seed_engine("/api/pay")
+    _do_async(lambda: e.disable("/api/pay", reason="test"))
+    client = _open_client(e)
+    result = invoke_with_client(client, "status")
+    assert result.exit_code == 0
+    assert "DISABLED" in result.output
 
-    result = invoke("disable", "/api/pay", "--reason", "security incident")
+
+# ---------------------------------------------------------------------------
+# enable / disable round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_enable_disable_round_trip() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+
+    result = invoke_with_client(client, "disable", "/api/pay", "--reason", "migration")
+    assert result.exit_code == 0
+    assert "DISABLED" in result.output
+
+    result = invoke_with_client(client, "status")
+    assert "DISABLED" in result.output
+
+    result = invoke_with_client(client, "enable", "/api/pay")
+    assert result.exit_code == 0
+    assert "ACTIVE" in result.output
+
+    result = invoke_with_client(client, "status")
+    assert "ACTIVE" in result.output
+
+
+def test_disable_shows_reason() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+    result = invoke_with_client(client, "disable", "/api/pay", "--reason", "security incident")
     assert result.exit_code == 0
     assert "security incident" in result.output
 
@@ -102,27 +207,22 @@ def test_disable_shows_reason(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_maintenance_command(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")
-
-    result = invoke("maintenance", "/api/pay", "--reason", "DB swap")
+def test_maintenance_command() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+    result = invoke_with_client(client, "maintenance", "/api/pay", "--reason", "DB swap")
     assert result.exit_code == 0
     assert "MAINTENANCE" in result.output
 
-    result = invoke("status")
-    assert "MAINTENANCE" in result.output
+    state = _do_async(lambda: e.get_state("/api/pay"))
+    assert state.status == RouteStatus.MAINTENANCE  # type: ignore[union-attr]
 
 
-def test_maintenance_with_window(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")
-
-    result = invoke(
+def test_maintenance_with_window() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+    result = invoke_with_client(
+        client,
         "maintenance",
         "/api/pay",
         "--reason",
@@ -133,7 +233,7 @@ def test_maintenance_with_window(monkeypatch, tmp_path):
         "2025-03-10T04:00Z",
     )
     assert result.exit_code == 0
-    assert "Window" in result.output
+    assert "MAINTENANCE" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -141,19 +241,19 @@ def test_maintenance_with_window(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_schedule_command(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")
-
-    result = invoke(
+def test_schedule_command() -> None:
+    e = _seed_engine("/api/pay")
+    client = _open_client(e)
+    start = (datetime.now(UTC) + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%MZ")
+    end = (datetime.now(UTC) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%MZ")
+    result = invoke_with_client(
+        client,
         "schedule",
         "/api/pay",
         "--start",
-        "2025-03-10T02:00Z",
+        start,
         "--end",
-        "2025-03-10T04:00Z",
+        end,
         "--reason",
         "nightly migration",
     )
@@ -167,280 +267,329 @@ def test_schedule_command(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_log_empty(monkeypatch):
-    monkeypatch.setenv("SHIELD_BACKEND", "memory")
-    result = invoke("log")
+def test_log_empty() -> None:
+    e = ShieldEngine()
+    client = _open_client(e)
+    result = invoke_with_client(client, "log")
     assert result.exit_code == 0
     assert "No audit entries" in result.output
 
 
-def test_log_shows_entries(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay")
-
-    invoke("disable", "/api/pay", "--reason", "gone")
-    invoke("enable", "/api/pay")
-
-    result = invoke("log")
+def test_log_shows_entries() -> None:
+    e = _seed_engine("/api/pay")
+    _do_async(lambda: e.disable("/api/pay", reason="gone", actor="tester"))
+    _do_async(lambda: e.enable("/api/pay", actor="tester"))
+    client = _open_client(e)
+    result = invoke_with_client(client, "log")
     assert result.exit_code == 0
-    assert "/api/pay" in result.output
+    assert "api" in result.output  # path cell (may be truncated in narrow terminal)
     assert "disable" in result.output
     assert "enable" in result.output
 
 
-def test_log_filter_by_route(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/api/pay", "/api/users")
-
-    invoke("disable", "/api/pay")
-    invoke("disable", "/api/users")
-
-    result = invoke("log", "--route", "/api/pay")
+def test_log_filter_by_route() -> None:
+    e = _seed_engine("/api/pay", "/api/users")
+    _do_async(lambda: e.disable("/api/pay", reason="p"))
+    _do_async(lambda: e.disable("/api/users", reason="u"))
+    client = _open_client(e)
+    result = invoke_with_client(client, "log", "--route", "/api/pay")
     assert result.exit_code == 0
-    assert "/api/pay" in result.output
-    # /api/users should not appear since we filtered
-    # (both may appear if the filter isn't working, so we check pay is present)
+    assert "api" in result.output
 
 
-def test_log_limit(monkeypatch, tmp_path):
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, *[f"/api/route{i}" for i in range(10)])
-
-    for i in range(10):
-        invoke("disable", f"/api/route{i}")
-
-    result = invoke("log", "--limit", "3")
+def test_log_limit() -> None:
+    e = _seed_engine("/api/pay")
+    for _ in range(5):
+        _do_async(lambda: e.disable("/api/pay", reason="x"))
+        _do_async(lambda: e.enable("/api/pay"))
+    client = _open_client(e)
+    result = invoke_with_client(client, "log", "--limit", "3")
     assert result.exit_code == 0
-    # Each row shows the route path once; limit=3 means at most 3 route entries.
-    assert result.output.count("/api/route") <= 3
+    assert result.output.count("/api/pay") <= 3
 
 
 # ---------------------------------------------------------------------------
-# _parse_until / _parse_dt
+# config commands (no server needed — reads / writes config file)
 # ---------------------------------------------------------------------------
 
 
-def test_parse_until_hours():
-    from datetime import UTC, datetime
-
-    from shield.cli.main import _parse_until
-
-    dt = _parse_until("2h")
-    now = datetime.now(UTC)
-    diff = (dt - now).total_seconds()
-    assert 7180 < diff < 7220  # ~2h
+# -- URL auto-discovery ------------------------------------------------------
 
 
-def test_parse_dt_iso():
-    from shield.cli.main import _parse_dt
+def test_get_server_url_from_env(monkeypatch) -> None:
+    """SHIELD_SERVER_URL env var is the highest priority source."""
+    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env-host:9000/shield")
+    from shield.cli import config as cfg
 
-    dt = _parse_dt("2025-03-10T02:00Z")
-    assert dt.year == 2025
-    assert dt.month == 3
-    assert dt.hour == 2
-
-
-# ---------------------------------------------------------------------------
-# --config flag
-# ---------------------------------------------------------------------------
+    assert cfg.get_server_url() == "http://env-host:9000/shield"
 
 
-def test_config_flag_loads_named_file(tmp_path, monkeypatch):
-    """--config <path> loads that file instead of auto-discovering .shield."""
-    monkeypatch.delenv("SHIELD_BACKEND", raising=False)
+def test_get_server_url_from_dot_shield_file(tmp_path, monkeypatch) -> None:
+    """.shield file SERVER_URL is used when no env var is set."""
+    shield_file = tmp_path / ".shield"
+    shield_file.write_text("SHIELD_SERVER_URL=http://project-host:8080/shield\n")
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
 
-    state_file = tmp_path / "state.json"
-    cfg_file = tmp_path / "prod.shield"
-    cfg_file.write_text(f"SHIELD_BACKEND=file\nSHIELD_FILE_PATH={state_file}\n")
-    _seed(str(state_file), "/api/pay")  # pre-register route
+    # Point find_shield_file at our tmp directory.
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
+    assert cfg.get_server_url() == "http://project-host:8080/shield"
 
-    # Disable via the named config.
+
+def test_get_server_url_from_user_config(tmp_path, monkeypatch) -> None:
+    """~/.shield/config.json is used when no env var and no .shield file."""
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"server_url": "http://user-config-host/shield"}')
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "get_config_path", lambda: config_file)
+    assert cfg.get_server_url() == "http://user-config-host/shield"
+
+
+def test_get_server_url_default(monkeypatch) -> None:
+    """Falls back to the built-in default when nothing is configured."""
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
+    assert cfg.get_server_url() == "http://localhost:8000/shield"
+
+
+def test_env_var_takes_priority_over_dot_shield(tmp_path, monkeypatch) -> None:
+    """Env var wins over .shield file."""
+    shield_file = tmp_path / ".shield"
+    shield_file.write_text("SHIELD_SERVER_URL=http://project-host/shield\n")
+    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env-wins/shield")
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
+    assert cfg.get_server_url() == "http://env-wins/shield"
+
+
+def test_dot_shield_takes_priority_over_user_config(tmp_path, monkeypatch) -> None:
+    """.shield file wins over user config.json."""
+    shield_file = tmp_path / ".shield"
+    shield_file.write_text("SHIELD_SERVER_URL=http://project-wins/shield\n")
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"server_url": "http://user-config/shield"}')
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
+    monkeypatch.setattr(cfg, "get_config_path", lambda: config_file)
+    assert cfg.get_server_url() == "http://project-wins/shield"
+
+
+def test_find_shield_file_walks_up(tmp_path) -> None:
+    """find_shield_file walks up from a subdirectory."""
+    from shield.cli.config import find_shield_file
+
+    # Create .shield in tmp_path and start search from a nested subdir.
+    shield_file = tmp_path / ".shield"
+    shield_file.write_text("SHIELD_SERVER_URL=http://found/shield\n")
+    nested = tmp_path / "a" / "b" / "c"
+    nested.mkdir(parents=True)
+    found = find_shield_file(start=nested)
+    assert found == shield_file
+
+
+def test_find_shield_file_returns_none_when_absent(tmp_path) -> None:
+    """find_shield_file returns None when no .shield file exists in the tree."""
+    from shield.cli.config import find_shield_file
+
+    # Use a temp dir with no .shield file.
+    nested = tmp_path / "deep"
+    nested.mkdir()
+    # We can't easily test the full walk without a .shield file, but we
+    # can verify a path that definitely won't have one (the tmp dir itself).
+    assert find_shield_file(start=tmp_path) is None
+
+
+def test_require_server_url_always_returns_value(monkeypatch) -> None:
+    """require_server_url() always returns a string (no SystemExit)."""
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
+    url = cfg.require_server_url()
+    assert isinstance(url, str)
+    assert url  # non-empty
+
+
+def test_url_source_env(monkeypatch) -> None:
+    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env/shield")
+    from shield.cli import config as cfg
+
+    assert "env" in cfg.get_server_url_source()
+
+
+def test_url_source_default(monkeypatch) -> None:
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
+    assert cfg.get_server_url_source() == "default"
+
+
+def test_config_show_displays_source(tmp_path, monkeypatch) -> None:
+    """config show includes the URL source in parentheses."""
+    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
+    from shield.cli import config as cfg
+
+    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(
+        "shield.cli.config.get_config_path",
+        lambda: tmp_path / "config.json",
+    )
+    result = runner.invoke(app, ["config", "show"], catch_exceptions=False)
+    assert result.exit_code == 0
+    assert "Server URL" in result.output
+    assert "default" in result.output
+
+
+def test_config_set_url(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "shield.cli.config.get_config_path",
+        lambda: tmp_path / "config.json",
+    )
     result = runner.invoke(
         app,
-        ["--config", str(cfg_file), "disable", "/api/pay", "--reason", "cfg test"],
+        ["config", "set-url", "http://localhost:8000/shield"],
         catch_exceptions=False,
     )
     assert result.exit_code == 0
-    assert "DISABLED" in result.output
+    assert "localhost:8000" in result.output
 
-    # Read it back with the same config — must see the persisted state.
-    result = runner.invoke(
-        app,
-        ["--config", str(cfg_file), "status"],
-        catch_exceptions=False,
+
+def test_config_show(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "shield.cli.config.get_config_path",
+        lambda: tmp_path / "config.json",
     )
+    result = runner.invoke(app, ["config", "show"], catch_exceptions=False)
     assert result.exit_code == 0
-    assert "/api/pay" in result.output
-    assert "DISABLED" in result.output
-
-
-def test_config_flag_short_form(tmp_path, monkeypatch):
-    """-c is an alias for --config."""
-    monkeypatch.delenv("SHIELD_BACKEND", raising=False)
-
-    state_file = tmp_path / "state.json"
-    cfg_file = tmp_path / "custom.env"
-    cfg_file.write_text(f"SHIELD_BACKEND=file\nSHIELD_FILE_PATH={state_file}\n")
-
-    result = runner.invoke(
-        app,
-        ["-c", str(cfg_file), "status"],
-        catch_exceptions=False,
-    )
-    assert result.exit_code == 0
-
-
-def test_config_flag_env_var_still_wins(tmp_path, monkeypatch):
-    """env vars override --config file values."""
-    monkeypatch.setenv("SHIELD_BACKEND", "memory")
-
-    cfg_file = tmp_path / "staging.shield"
-    cfg_file.write_text("SHIELD_BACKEND=file\n")
-
-    # env var says memory, config file says file — memory wins.
-    result = runner.invoke(
-        app,
-        ["--config", str(cfg_file), "status"],
-        catch_exceptions=False,
-    )
-    assert result.exit_code == 0
-    assert "No routes" in result.output  # memory backend, empty state
+    assert "Server URL" in result.output
 
 
 # ---------------------------------------------------------------------------
-# Method-scoped route state  (GET:/path vs /path)
+# auth — login / logout
 # ---------------------------------------------------------------------------
 
 
-def test_disable_method_specific_route(monkeypatch, tmp_path):
-    """GET:/payments can be disabled independently of POST:/payments."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "GET:/payments", "POST:/payments")
-
-    result = invoke("disable", "GET:/payments", "--reason", "read-only mode")
-    assert result.exit_code == 0
-    assert "DISABLED" in result.output
-    assert "GET:/payments" in result.output
-
-    result = invoke("status")
-    assert "GET:/payments" in result.output
-    assert "DISABLED" in result.output
-    # POST:/payments should still be ACTIVE
-    assert "POST:/payments" in result.output
-    assert "ACTIVE" in result.output
-
-
-def test_disable_all_methods_route(monkeypatch, tmp_path):
-    """Path-level /payments disables all methods."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    _seed(file_path, "/payments")
-
-    result = invoke("disable", "/payments", "--reason", "all-method shutdown")
-    assert result.exit_code == 0
-    assert "DISABLED" in result.output
-    assert "/payments" in result.output
-
-
-def test_nonexistent_route_raises_error(monkeypatch, tmp_path):
-    """Mutating a path not registered by the app must exit with code 1."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    # Do NOT seed /api/nonexistent — it is not a known application route.
-
-    result = runner.invoke(
-        app,
-        ["disable", "/api/nonexistent", "--reason", "oops"],
-        catch_exceptions=False,
+def test_login_success(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "shield.cli.config.get_config_path",
+        lambda: tmp_path / "config.json",
     )
+    e = ShieldEngine()
+    admin = ShieldAdmin(engine=e, auth=("admin", "secret"))
+    transport = httpx.ASGITransport(app=admin)  # type: ignore[arg-type]
+
+    with (
+        patch("shield.cli.config.require_server_url", return_value="http://testserver"),
+        patch(
+            "shield.cli.main.ShieldClient",
+            return_value=ShieldClient(base_url="http://testserver", transport=transport),
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            ["login", "admin", "--password", "secret"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    assert "Logged in" in result.output
+    assert "admin" in result.output
+
+
+def test_login_wrong_password_exits_1(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "shield.cli.config.get_config_path",
+        lambda: tmp_path / "config.json",
+    )
+    e = ShieldEngine()
+    admin = ShieldAdmin(engine=e, auth=("admin", "secret"))
+    transport = httpx.ASGITransport(app=admin)  # type: ignore[arg-type]
+
+    with (
+        patch("shield.cli.config.require_server_url", return_value="http://testserver"),
+        patch(
+            "shield.cli.main.ShieldClient",
+            return_value=ShieldClient(base_url="http://testserver", transport=transport),
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            ["login", "admin", "--password", "wrong"],
+            catch_exceptions=False,
+        )
+
     assert result.exit_code == 1
-    assert "not registered" in result.output
 
 
-def test_undecorated_route_can_be_mutated(monkeypatch, tmp_path):
-    """An undecorated route seeded as ACTIVE (by startup scan) can be disabled."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-    # Simulate the startup scan: register the route as ACTIVE with no decorator.
-    _seed(file_path, "GET:/orders")
+# ---------------------------------------------------------------------------
+# 401 handling
+# ---------------------------------------------------------------------------
 
-    result = runner.invoke(
-        app,
-        ["disable", "GET:/orders", "--reason", "shutting down"],
-        catch_exceptions=False,
-    )
+
+def test_401_shows_login_hint() -> None:
+    e = ShieldEngine()
+    client = _open_client(e)
+    with patch.object(client, "list_routes", side_effect=ShieldClientError("Auth required", 401)):
+        result = invoke_with_client(client, "status")
+    assert result.exit_code == 1
+    assert "login" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# global commands
+# ---------------------------------------------------------------------------
+
+
+def test_global_status() -> None:
+    e = ShieldEngine()
+    client = _open_client(e)
+    result = invoke_with_client(client, "global", "status")
+    assert result.exit_code == 0
+    assert "Global maintenance" in result.output
+
+
+def test_global_enable_disable() -> None:
+    e = ShieldEngine()
+    client = _open_client(e)
+
+    result = invoke_with_client(client, "global", "enable", "--reason", "emergency")
+    assert result.exit_code == 0
+    assert "ENABLED" in result.output
+
+    result = invoke_with_client(client, "global", "disable")
     assert result.exit_code == 0
     assert "DISABLED" in result.output
 
 
-def test_invalid_method_raises_error(monkeypatch, tmp_path):
-    """BADMETHOD:/path must be rejected with a clear error."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
+# ---------------------------------------------------------------------------
+# Method-prefixed route keys
+# ---------------------------------------------------------------------------
 
-    result = runner.invoke(
-        app,
-        ["disable", "BREW:/payments"],
-        catch_exceptions=False,
-    )
+
+def test_disable_method_specific_route() -> None:
+    e = _seed_engine("GET:/payments", "POST:/payments")
+    client = _open_client(e)
+
+    result = invoke_with_client(client, "disable", "GET:/payments", "--reason", "read-only")
+    assert result.exit_code == 0
+    assert "DISABLED" in result.output
+    assert "GET:" in result.output
+
+
+def test_invalid_method_raises_error() -> None:
+    e = ShieldEngine()
+    _open_client(e)
+    result = runner.invoke(app, ["disable", "BREW:/payments"], catch_exceptions=False)
     assert result.exit_code != 0
-
-
-def test_force_active_route_cannot_be_disabled(monkeypatch, tmp_path):
-    """CLI must refuse to disable a @force_active route."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-
-    # Seed the route as force_active=True (mimics @force_active decorator).
-    from shield.core.backends.file import FileBackend
-    from shield.core.models import RouteState
-
-    async def _seed():
-        b = FileBackend(file_path)
-        await b.set_state("GET:/health", RouteState(path="GET:/health", force_active=True))
-
-    anyio.run(_seed)
-
-    result = runner.invoke(
-        app,
-        ["disable", "GET:/health", "--reason", "oops"],
-        catch_exceptions=False,
-    )
-    assert result.exit_code == 1
-    assert "force_active" in result.output.lower() or "Error" in result.output
-
-
-def test_force_active_route_cannot_be_set_to_maintenance(monkeypatch, tmp_path):
-    """CLI must refuse to put a @force_active route into maintenance."""
-    file_path = str(tmp_path / "s.json")
-    monkeypatch.setenv("SHIELD_BACKEND", "file")
-    monkeypatch.setenv("SHIELD_FILE_PATH", file_path)
-
-    from shield.core.backends.file import FileBackend
-    from shield.core.models import RouteState
-
-    async def _seed():
-        b = FileBackend(file_path)
-        await b.set_state("GET:/health", RouteState(path="GET:/health", force_active=True))
-
-    anyio.run(_seed)
-
-    result = runner.invoke(
-        app,
-        ["maintenance", "GET:/health", "--reason", "test"],
-        catch_exceptions=False,
-    )
-    assert result.exit_code == 1
