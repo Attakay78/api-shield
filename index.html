@@ -1312,7 +1312,7 @@
 <p>That's it. Routes respond immediately:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GET /payments  → 503  {&quot;error&quot;: {&quot;code&quot;: &quot;MAINTENANCE_MODE&quot;, ...}}
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>GET /health    → 200  always
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>GET /debug     → 404  in production, 200 in dev/staging
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>GET /debug     → 200  in dev (default), 404 in production/staging
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>GET /v1/users  → 200  + Deprecation / Sunset / Link headers
 </span></code></pre></div>
 <p>And you can manage them from the CLI without touching code:</p>
@@ -1418,7 +1418,7 @@
 <hr />
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="tutorial/installation/"><strong>Tutorial: Installation</strong></a> — get up and running in 5 minutes</li>
+<li><a href="tutorial/installation/"><strong>Tutorial: Installation</strong></a> — get up and running in seconds</li>
 <li><a href="tutorial/first-decorator/"><strong>Tutorial: First Decorator</strong></a> — put your first route in maintenance mode</li>
 <li><a href="reference/decorators/"><strong>Reference: Decorators</strong></a> — full decorator API</li>
 <li><a href="reference/engine/"><strong>Reference: ShieldEngine</strong></a> — programmatic control</li>

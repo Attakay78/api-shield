@@ -2424,13 +2424,32 @@ Writes update the cache immediately then schedule a debounced disk flush —
 meaning rapid bursts of state changes (e.g. startup route registration)
 result in a single file write rather than N writes.</p>
 <p>The file format is auto-detected from the extension:</p>
-<p>=================== =================== ============================
-Extension           Format              Extra dependency
-=================== =================== ============================
-<code>.json</code>           JSON                <em>(none — stdlib)</em>
-<code>.yaml</code> / <code>.yml</code> YAML              <code>pip install pyyaml</code>
-<code>.toml</code>           TOML               <code>pip install tomli-w</code>
-=================== =================== ============================</p>
+<table>
+<thead>
+<tr>
+<th>Extension</th>
+<th>Format</th>
+<th>Extra dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.json</code></td>
+<td>JSON</td>
+<td><em>(none — stdlib)</em></td>
+</tr>
+<tr>
+<td><code>.yaml</code> / <code>.yml</code></td>
+<td>YAML</td>
+<td><code>pip install pyyaml</code></td>
+</tr>
+<tr>
+<td><code>.toml</code></td>
+<td>TOML</td>
+<td><code>pip install tomli-w</code></td>
+</tr>
+</tbody>
+</table>
 <p>Data structure (shown as JSON — equivalent across all formats)::</p>
 <div class="language-text highlight"><pre><span></span><code>{
     &quot;states&quot;: { &quot;GET:/payments&quot;: { ...RouteState... }, ... },
@@ -2689,7 +2708,7 @@ in-flight state changes are not lost on graceful shutdown.</p>
 <li>File lock (<code>asyncio.Lock</code>) prevents concurrent write corruption.</li>
 <li><code>subscribe()</code> raises <code>NotImplementedError</code> — dashboard falls back to polling.</li>
 </ul>
-<p>File format:</p>
+<p><strong>File format:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;states&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">&quot;GET:/payments&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET:/payments&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;maintenance&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span>

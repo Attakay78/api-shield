@@ -1656,11 +1656,11 @@
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nd">@env_only</span><span class="p">(</span><span class="s2">&quot;dev&quot;</span><span class="p">,</span> <span class="s2">&quot;staging&quot;</span><span class="p">)</span>   <span class="c1"># multiple envs</span>
 </span></code></pre></div>
 <h3 id="setting-the-current-environment">Setting the current environment<a class="headerlink" href="#setting-the-current-environment" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">ShieldEngine</span><span class="p">(</span><span class="n">current_env</span><span class="o">=</span><span class="s2">&quot;production&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">ShieldEngine</span><span class="p">(</span><span class="n">current_env</span><span class="o">=</span><span class="s2">&quot;dev&quot;</span><span class="p">)</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># or</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">current_env</span><span class="o">=</span><span class="s2">&quot;staging&quot;</span><span class="p">)</span>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># or via env var:</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># SHIELD_ENV=production</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># SHIELD_ENV=dev</span>
 </span></code></pre></div>
 <h3 id="response-wrong-environment">Response (wrong environment)<a class="headerlink" href="#response-wrong-environment" title="Permanent link">&para;</a></h3>
 <p>Returns <code>404</code> with <strong>no response body</strong> — intentionally silent to avoid leaking that the path exists.</p>
