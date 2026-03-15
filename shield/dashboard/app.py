@@ -69,7 +69,7 @@ def ShieldDashboard(
     try:
         version = importlib.metadata.version("api-shield")
     except importlib.metadata.PackageNotFoundError:
-        version = "0.1.0"
+        version = "0.2.0"
 
     starlette_app = Starlette(
         routes=[
