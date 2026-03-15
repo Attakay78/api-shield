@@ -47,6 +47,7 @@ class TestShieldGuard:
 
     async def test_maintenance_state_returns_503(self):
         engine = _engine()
+        await engine.register("/orders", {"status": "active"})
         await engine.set_maintenance("/orders", reason="Reindex")
         app = FastAPI()
 
@@ -65,6 +66,7 @@ class TestShieldGuard:
 
     async def test_maintenance_with_window_sets_retry_after(self):
         engine = _engine()
+        await engine.register("/orders", {"status": "active"})
         end = datetime(2099, 1, 1, tzinfo=UTC)
         await engine.set_maintenance(
             "/orders",
@@ -85,6 +87,7 @@ class TestShieldGuard:
 
     async def test_disabled_state_returns_503(self):
         engine = _engine()
+        await engine.register("/orders", {"status": "active"})
         await engine.disable("/orders", reason="Deprecated endpoint")
         app = FastAPI()
 
@@ -100,6 +103,7 @@ class TestShieldGuard:
 
     async def test_env_gated_wrong_env_returns_404(self):
         engine = _engine(env="production")
+        await engine.register("/debug", {"status": "active"})
         await engine.set_env_only("/debug", envs=["dev", "staging"])
         app = FastAPI()
 
@@ -114,6 +118,7 @@ class TestShieldGuard:
 
     async def test_env_gated_correct_env_passes_through(self):
         engine = _engine(env="dev")
+        await engine.register("/debug", {"status": "active"})
         await engine.set_env_only("/debug", envs=["dev"])
         app = FastAPI()
 
@@ -134,6 +139,7 @@ class TestShieldGuard:
         async def orders():
             return {"orders": []}
 
+        await engine.register("/orders", {"status": "active"})
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             first = await c.get("/orders")
             await engine.set_maintenance("/orders", reason="Live toggle")
@@ -150,6 +156,7 @@ class TestShieldGuard:
         from fastapi import HTTPException as FastAPIHTTPException
 
         engine = _engine()
+        await engine.register("/admin", {"status": "active"})
         await engine.disable("/admin", reason="Under construction")
 
         async def require_key(x_api_key: str | None = Header(default=None)) -> None:
@@ -353,6 +360,7 @@ class TestEngineBackedDeps:
 
     async def test_maintenance_engine_enforces_backend_state(self):
         engine = _engine()
+        await engine.register("/payments", {"status": "active"})
         await engine.set_maintenance("/payments", reason="Migration")
         app = FastAPI()
 
@@ -374,6 +382,7 @@ class TestEngineBackedDeps:
 
     async def test_disabled_engine_can_be_reenabled_at_runtime(self):
         engine = _engine()
+        await engine.register("/old", {"status": "active"})
         await engine.disable("/old", reason="Deprecated")
         app = FastAPI()
 
@@ -410,6 +419,7 @@ class TestEngineBackedDeps:
         async def orders():
             return {"orders": []}
 
+        await engine.register("/orders", {"status": "active"})
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             first = await c.get("/orders")
             await engine.set_maintenance("/orders", reason="Live update")
@@ -445,6 +455,7 @@ class TestConfigureShield:
 
     async def test_maintenance_resolves_engine_from_app_state(self):
         engine = _engine()
+        await engine.register("/payments", {"status": "active"})
         await engine.set_maintenance("/payments", reason="Migration")
         app = FastAPI()
         configure_shield(app, engine)  # once — no engine= on the dep
@@ -463,6 +474,7 @@ class TestConfigureShield:
 
     async def test_disabled_resolves_engine_from_app_state(self):
         engine = _engine()
+        await engine.register("/old", {"status": "active"})
         await engine.disable("/old", reason="Gone")
         app = FastAPI()
         configure_shield(app, engine)
@@ -524,6 +536,7 @@ class TestConfigureShield:
         """Explicit engine= overrides app.state.shield_engine."""
         app_engine = _engine()  # engine on app state — route is ACTIVE here
         explicit_engine = _engine()
+        await explicit_engine.register("/payments", {"status": "active"})
         await explicit_engine.set_maintenance("/payments", reason="Explicit")
 
         app = FastAPI()
@@ -546,6 +559,8 @@ class TestConfigureShield:
         """configure_shield enables engine-backed deps for ALL routes on the app.
         Both routes must be registered in the engine for enforcement to take effect."""
         engine = _engine()
+        await engine.register("/payments", {"status": "active"})
+        await engine.register("/users", {"status": "active"})
         await engine.set_maintenance("/payments", reason="Migration")
         await engine.disable("/users", reason="Gone")  # must register for dep to enforce
 

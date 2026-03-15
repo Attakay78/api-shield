@@ -16,9 +16,11 @@ from typing import Any
 from shield.core.backends.base import ShieldBackend
 from shield.core.backends.memory import MemoryBackend
 from shield.core.exceptions import (
+    AmbiguousRouteError,
     EnvGatedException,
     MaintenanceException,
     RouteDisabledException,
+    RouteNotFoundException,
     RouteProtectedException,
 )
 from shield.core.models import (
@@ -313,15 +315,62 @@ class ShieldEngine:
     # State mutation methods
     # ------------------------------------------------------------------
 
+    async def _resolve_existing(self, path: str) -> RouteState:
+        """Return the registered state for *path*, raising if not found or ambiguous.
+
+        Unlike :meth:`_get_or_create` this method is intended for **mutation**
+        operations.  It refuses to create phantom entries and surfaces ambiguity
+        so the caller (CLI / API handler) can ask the user to be more specific.
+
+        Resolution rules:
+
+        * Exact key found → return it.
+        * Bare path (no ``":"``), exactly one method-prefixed match →
+          return that match transparently.
+        * Bare path, no matches → raise :exc:`RouteNotFoundException`.
+        * Bare path, two or more matches → raise :exc:`AmbiguousRouteError`.
+        * Method-prefixed key not found → raise :exc:`RouteNotFoundException`.
+
+        Raises
+        ------
+        RouteNotFoundException
+            When *path* is not registered in the backend.
+        AmbiguousRouteError
+            When a bare *path* matches more than one method-prefixed route.
+        """
+        try:
+            return await self.backend.get_state(path)
+        except KeyError:
+            pass
+
+        # Bare path not found — check for method-prefixed variants.
+        if ":" not in path:
+            try:
+                all_states = await self.backend.list_states()
+                matches = [s for s in all_states if s.path.endswith(f":{path}")]
+            except Exception:
+                matches = []
+
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise AmbiguousRouteError(path, [s.path for s in matches])
+
+        raise RouteNotFoundException(path)
+
     async def _assert_mutable(self, path: str) -> RouteState:
-        """Return the current state, raising ``RouteProtectedException`` if
-        the route is decorated with ``@force_active``.
+        """Return the current state, raising if the route cannot be mutated.
+
+        Raises :exc:`RouteNotFoundException` when *path* is not registered,
+        :exc:`AmbiguousRouteError` when a bare path matches multiple routes,
+        and :exc:`RouteProtectedException` when the route is decorated with
+        ``@force_active``.
 
         Called at the top of every mutation method so that ``@force_active``
         routes can never have their lifecycle state changed — not by the CLI,
         dashboard, or any direct engine call.
         """
-        state = await self._get_or_create(path)
+        state = await self._resolve_existing(path)
         if state.force_active:
             raise RouteProtectedException(path)
         return state
@@ -352,7 +401,9 @@ class ShieldEngine:
         """
         self._schema_version += 1
 
-    async def enable(self, path: str, actor: str = "system", reason: str = "") -> RouteState:
+    async def enable(
+        self, path: str, actor: str = "system", reason: str = "", platform: str = "system"
+    ) -> RouteState:
         """Enable *path*, returning the updated ``RouteState``.
 
         Parameters
@@ -367,37 +418,43 @@ class ShieldEngine:
             on the route state so the reason is visible in ``shield status``.
         """
         old_state = await self._assert_mutable(path)
+        actual_path = old_state.path  # may differ from path if bare path was resolved
         new_state = old_state.model_copy(
             update={"status": RouteStatus.ACTIVE, "reason": reason, "window": None}
         )
-        await self.backend.set_state(path, new_state)
+        await self.backend.set_state(actual_path, new_state)
         self._bump_schema_version()
         await self._audit(
-            path=path,
+            path=actual_path,
             action="enable",
             actor=actor,
             reason=reason,
+            platform=platform,
             previous_status=old_state.status,
             new_status=RouteStatus.ACTIVE,
         )
-        self._fire_webhooks("enable", path, new_state)
+        self._fire_webhooks("enable", actual_path, new_state)
         return new_state
 
-    async def disable(self, path: str, reason: str = "", actor: str = "system") -> RouteState:
+    async def disable(
+        self, path: str, reason: str = "", actor: str = "system", platform: str = "system"
+    ) -> RouteState:
         """Disable *path* permanently, returning the updated ``RouteState``."""
         old_state = await self._assert_mutable(path)
+        actual_path = old_state.path
         new_state = old_state.model_copy(update={"status": RouteStatus.DISABLED, "reason": reason})
-        await self.backend.set_state(path, new_state)
+        await self.backend.set_state(actual_path, new_state)
         self._bump_schema_version()
         await self._audit(
-            path=path,
+            path=actual_path,
             action="disable",
             actor=actor,
             reason=reason,
+            platform=platform,
             previous_status=old_state.status,
             new_status=RouteStatus.DISABLED,
         )
-        self._fire_webhooks("disable", path, new_state)
+        self._fire_webhooks("disable", actual_path, new_state)
         return new_state
 
     async def set_maintenance(
@@ -406,9 +463,11 @@ class ShieldEngine:
         reason: str = "",
         window: MaintenanceWindow | None = None,
         actor: str = "system",
+        platform: str = "system",
     ) -> RouteState:
         """Put *path* into maintenance mode, returning the updated ``RouteState``."""
         old_state = await self._assert_mutable(path)
+        actual_path = old_state.path
         new_state = old_state.model_copy(
             update={
                 "status": RouteStatus.MAINTENANCE,
@@ -416,17 +475,18 @@ class ShieldEngine:
                 "window": window,
             }
         )
-        await self.backend.set_state(path, new_state)
+        await self.backend.set_state(actual_path, new_state)
         self._bump_schema_version()
         await self._audit(
-            path=path,
+            path=actual_path,
             action="maintenance_on",
             actor=actor,
             reason=reason,
+            platform=platform,
             previous_status=old_state.status,
             new_status=RouteStatus.MAINTENANCE,
         )
-        self._fire_webhooks("maintenance_on", path, new_state)
+        self._fire_webhooks("maintenance_on", actual_path, new_state)
         return new_state
 
     async def schedule_maintenance(
@@ -434,6 +494,7 @@ class ShieldEngine:
         path: str,
         window: MaintenanceWindow,
         actor: str = "system",
+        platform: str = "system",
     ) -> None:
         """Schedule a future maintenance window for *path*.
 
@@ -441,22 +502,28 @@ class ShieldEngine:
         backend so it can be recovered after a restart.
         """
         # Persist the window immediately so restart recovery can find it.
-        await self.set_maintenance(path, reason=window.reason, window=window, actor=actor)
+        await self.set_maintenance(
+            path, reason=window.reason, window=window, actor=actor, platform=platform
+        )
         await self.scheduler.schedule(path, window, actor=actor)
 
-    async def set_env_only(self, path: str, envs: list[str], actor: str = "system") -> RouteState:
+    async def set_env_only(
+        self, path: str, envs: list[str], actor: str = "system", platform: str = "system"
+    ) -> RouteState:
         """Restrict *path* to *envs*, returning the updated ``RouteState``."""
         old_state = await self._assert_mutable(path)
+        actual_path = old_state.path
         new_state = old_state.model_copy(
             update={"status": RouteStatus.ENV_GATED, "allowed_envs": envs}
         )
-        await self.backend.set_state(path, new_state)
+        await self.backend.set_state(actual_path, new_state)
         self._bump_schema_version()
         await self._audit(
-            path=path,
+            path=actual_path,
             action="env_gate",
             actor=actor,
             reason=f"Restricted to: {envs}",
+            platform=platform,
             previous_status=old_state.status,
             new_status=RouteStatus.ENV_GATED,
         )
@@ -476,6 +543,7 @@ class ShieldEngine:
         exempt_paths: list[str] | None = None,
         include_force_active: bool = False,
         actor: str = "system",
+        platform: str = "system",
     ) -> GlobalMaintenanceConfig:
         """Enable global maintenance mode, blocking all non-exempt routes.
 
@@ -508,12 +576,15 @@ class ShieldEngine:
             action="global_maintenance_on",
             actor=actor,
             reason=reason,
+            platform=platform,
             previous_status=prev,
             new_status=RouteStatus.MAINTENANCE,
         )
         return cfg
 
-    async def disable_global_maintenance(self, actor: str = "system") -> GlobalMaintenanceConfig:
+    async def disable_global_maintenance(
+        self, actor: str = "system", platform: str = "system"
+    ) -> GlobalMaintenanceConfig:
         """Disable global maintenance mode, restoring per-route state."""
         old_cfg = await self.backend.get_global_config()
         cfg = GlobalMaintenanceConfig(enabled=False)
@@ -525,6 +596,7 @@ class ShieldEngine:
             path="__global__",
             action="global_maintenance_off",
             actor=actor,
+            platform=platform,
             previous_status=prev,
             new_status=RouteStatus.ACTIVE,
         )
@@ -613,7 +685,18 @@ class ShieldEngine:
     # ------------------------------------------------------------------
 
     async def _get_or_create(self, path: str) -> RouteState:
-        """Return existing state or a default ACTIVE state for *path*."""
+        """Return existing state or a default ACTIVE state for *path*.
+
+        Used for **read** operations only (e.g. :meth:`get_state`).
+        Returns a synthetic ACTIVE state when *path* is not registered so
+        that reads never raise — the caller sees an ACTIVE route rather than
+        an error.
+
+        For **mutation** operations use :meth:`_resolve_existing` instead,
+        which raises :exc:`RouteNotFoundException` and
+        :exc:`AmbiguousRouteError` rather than silently creating phantom
+        entries.
+        """
         try:
             return await self.backend.get_state(path)
         except KeyError:
@@ -627,6 +710,7 @@ class ShieldEngine:
         new_status: RouteStatus,
         actor: str = "system",
         reason: str = "",
+        platform: str = "system",
     ) -> None:
         """Write an audit entry for a state change."""
         entry = AuditEntry(
@@ -635,6 +719,7 @@ class ShieldEngine:
             path=path,
             action=action,
             actor=actor,
+            platform=platform,
             reason=reason,
             previous_status=previous_status,
             new_status=new_status,

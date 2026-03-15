@@ -38,7 +38,8 @@ async def test_restore_skips_already_tracked_path():
     end = start + timedelta(hours=2)
     window = MaintenanceWindow(start=start, end=end, reason="Planned")
 
-    # Schedule via engine (creates task in this process).
+    # Register and schedule via engine (creates task in this process).
+    await engine.register("GET:/orders", {"status": "active"})
     await engine.schedule_maintenance("GET:/orders", window)
 
     task_before = engine.scheduler._tasks.get("GET:/orders")

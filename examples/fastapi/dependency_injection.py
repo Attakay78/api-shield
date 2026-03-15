@@ -1,5 +1,8 @@
 """FastAPI — Dependency Injection Example.
 
+Shows how to use shield decorators as FastAPI ``Depends()`` dependencies
+instead of (or alongside) the middleware model.
+
 Call ``configure_shield(app, engine)`` once and all decorator deps
 (``maintenance``, ``disabled``, ``env_only``) find the engine automatically
 via ``request.app.state.shield_engine`` — no ``engine=`` argument per route.
@@ -7,24 +10,30 @@ via ``request.app.state.shield_engine`` — no ``engine=`` argument per route.
 ``ShieldMiddleware`` calls ``configure_shield`` automatically at ASGI startup,
 so if you use middleware you don't need to call it manually.
 
-Three patterns in one import:
+Three patterns shown side by side:
 
-1. **Decorator** — stamps ``__shield_meta__``; ``ShieldRouter`` registers
-   state in the backend; ``ShieldMiddleware`` enforces globally.
+1. **Decorator only** — ``@maintenance(reason="...")`` stamps ``__shield_meta__``
+   on the function; ``ShieldRouter`` registers the state at startup;
+   ``ShieldMiddleware`` enforces it globally.
 
 2. **Dep (zero-config)** — ``Depends(maintenance(reason="..."))`` with
    ``configure_shield`` called once.  Engine resolved from ``app.state``
-   automatically; runtime-togglable via CLI/dashboard.
+   automatically.  Toggle at runtime via CLI or dashboard without redeploying.
 
 3. **Dep (explicit engine)** — ``Depends(maintenance(reason="...", engine=engine))``.
-   Targets a specific engine; useful when running multiple engines.
+   Targets a specific engine; useful when running multiple engines side by side.
 
 Run:
     uv run uvicorn examples.fastapi.dependency_injection:app --reload
 
-Setup note: routes must be registered in the engine (via ShieldRouter or
-manually) for engine-backed deps to enforce state.  Unregistered routes are
-ACTIVE by default (fail-open).
+Admin dashboard:
+    http://localhost:8000/shield/        — login: admin / secret
+
+CLI quick-start:
+    shield login admin          # password: secret
+    shield status               # see all route states
+    shield enable /payments     # toggle off maintenance without redeploy
+    shield disable /payments --reason "emergency patch"
 
 Try these requests:
 
@@ -46,6 +55,7 @@ import os
 
 from fastapi import Depends, FastAPI
 
+from shield.admin import ShieldAdmin
 from shield.core.config import make_engine
 from shield.fastapi import (
     ShieldMiddleware,
@@ -62,7 +72,7 @@ engine = make_engine(current_env=CURRENT_ENV)
 router = ShieldRouter(engine=engine)
 
 # ---------------------------------------------------------------------------
-# App assembly — configure_shield called ONCE
+# App assembly — configure_shield is called automatically by ShieldMiddleware
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
@@ -79,7 +89,7 @@ app = FastAPI(
 app.add_middleware(ShieldMiddleware, engine=engine)
 
 # ---------------------------------------------------------------------------
-# Routes — engine resolved from app.state, no engine= needed anywhere
+# Routes — engine resolved from app.state; no engine= needed per route
 # ---------------------------------------------------------------------------
 
 
@@ -95,11 +105,14 @@ async def list_users():
     return {"users": [{"id": 1, "name": "Alice"}]}
 
 
+# Pattern 1 — decorator stamps __shield_meta__; middleware enforces globally.
+# Pattern 2 — Depends() enforces at the handler level (works without middleware).
+# Both are present here so either approach can be stripped out independently.
 @router.get(
     "/payments",
     dependencies=[Depends(maintenance(reason="Scheduled DB migration"))],
 )
-@maintenance(reason="Scheduled DB migration")  # stamps __shield_meta__ for ShieldRouter
+@maintenance(reason="Scheduled DB migration")
 async def get_payments():
     """503 on startup; toggle off with: shield enable /payments"""
     return {"payments": []}
@@ -109,7 +122,7 @@ async def get_payments():
     "/old-endpoint",
     dependencies=[Depends(disabled(reason="Use /v2/endpoint instead"))],
 )
-@disabled(reason="Use /v2/endpoint instead")  # stamps __shield_meta__ for ShieldRouter
+@disabled(reason="Use /v2/endpoint instead")
 async def old_endpoint():
     """503 on startup; re-enable with: shield enable /old-endpoint"""
     return {}
@@ -119,7 +132,7 @@ async def old_endpoint():
     "/debug",
     dependencies=[Depends(env_only("dev", "staging"))],
 )
-@env_only("dev", "staging")  # stamps __shield_meta__ for ShieldRouter
+@env_only("dev", "staging")
 async def debug():
     """404 in production; 200 in dev/staging."""
     return {"env": CURRENT_ENV}
@@ -127,3 +140,17 @@ async def debug():
 
 app.include_router(router)
 apply_shield_to_openapi(app, engine)
+
+# ---------------------------------------------------------------------------
+# Admin interface — dashboard UI + REST API (used by the CLI)
+# ---------------------------------------------------------------------------
+
+app.mount(
+    "/shield",
+    ShieldAdmin(
+        engine=engine,
+        auth=("admin", "secret"),
+        prefix="/shield",
+        # secret_key="change-me-in-production",
+    ),
+)

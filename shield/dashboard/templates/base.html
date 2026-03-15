@@ -81,6 +81,23 @@
                     <span class="hidden sm:inline text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">v{{ version }}</span>
                 </a>
 
+                <!-- User / logout (shown only when auth is active) -->
+                {% if shield_actor and shield_actor != 'anonymous' %}
+                <div class="flex items-center gap-2">
+                    <span class="hidden sm:inline text-xs text-slate-500 font-mono">{{ shield_actor }}</span>
+                    <a href="{{ prefix }}/logout"
+                       class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium
+                              text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25
+                                     2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/>
+                        </svg>
+                        <span>Sign out</span>
+                    </a>
+                </div>
+                {% endif %}
+
                 <!-- Navigation tabs -->
                 <nav class="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
                     <a href="{{ prefix }}/"

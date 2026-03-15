@@ -4,7 +4,7 @@ This file shows how to wire api-shield to a storage layer it does not ship
 with by implementing the ``ShieldBackend`` abstract base class.
 
 The contract is simple: implement six async methods and api-shield handles the
-rest (engine logic, middleware, decorators, CLI, audit log).
+rest (engine logic, middleware, decorators, dashboard, CLI, audit log).
 
 Requirements:
     pip install aiosqlite
@@ -13,29 +13,31 @@ Requirements:
 Run the demo app:
     uv run uvicorn examples.fastapi.custom_backend.sqlite_backend:app --reload
 
-Use with the CLI:
-    SHIELD_BACKEND=custom \\
-    SHIELD_CUSTOM_PATH=examples.fastapi.custom_backend.sqlite_backend:make_backend \\
-    SHIELD_SQLITE_PATH=shield-state.db \\
-        shield status
+Then visit:
+    http://localhost:8000/docs           — filtered Swagger UI
+    http://localhost:8000/shield/        — admin dashboard (login: admin / secret)
+    http://localhost:8000/shield/audit   — audit log
 
-    # or put this in your .shield file:
-    #   SHIELD_BACKEND=custom
-    #   SHIELD_CUSTOM_PATH=examples.fastapi.custom_backend.sqlite_backend:make_backend
-    #   SHIELD_SQLITE_PATH=shield-state.db
+CLI quick-start (the CLI talks to the app's admin API — it never touches
+the database directly):
+    shield config set-url http://localhost:8000/shield
+    shield login admin          # password: secret
+    shield status
+    shield disable GET:/payments --reason "hotfix"
+    shield enable GET:/payments
+    shield log
 """
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import aiosqlite
 from fastapi import FastAPI
 
+from shield.admin import ShieldAdmin
 from shield.core.backends.base import ShieldBackend
 from shield.core.engine import ShieldEngine
 from shield.core.models import AuditEntry, RouteState
@@ -57,8 +59,6 @@ from shield.fastapi import (
 #   2. Implement all six @abstractmethod methods.
 #   3. Override ``startup()`` / ``shutdown()`` for async initialisation —
 #      the engine calls these automatically when used as ``async with engine:``.
-#      The CLI also calls them via its ``async with _make_engine() as engine:``
-#      pattern, so no special CLI wiring is needed.
 #   4. RouteState and AuditEntry are Pydantic models — use .model_dump_json()
 #      to serialise and .model_validate_json() to deserialise.
 #   5. get_state() must raise KeyError when the path is not found.
@@ -97,16 +97,6 @@ class SQLiteBackend(ShieldBackend):
         Path to the SQLite file.  Use ``:memory:`` for an in-process
         database (useful for tests — not shared across processes).
 
-    CLI usage
-    ---------
-    Point ``SHIELD_BACKEND`` to a zero-arg factory that returns a configured
-    instance (see ``make_backend()`` below):
-
-        SHIELD_BACKEND=myapp.backends:make_backend shield status
-
-    The factory is called with no arguments, so it must read any configuration
-    (like ``db_path``) from its own environment variables.
-
     Example
     -------
     >>> backend = SQLiteBackend("shield-state.db")
@@ -115,8 +105,8 @@ class SQLiteBackend(ShieldBackend):
     ...     states = await engine.list_states()
     """
 
-    def __init__(self, db_path: str | Path = "shield-state.db") -> None:
-        self._db_path = str(db_path)
+    def __init__(self, db_path: str = "shield-state.db") -> None:
+        self._db_path = db_path
         self._db: aiosqlite.Connection | None = None
 
     # ------------------------------------------------------------------
@@ -260,33 +250,6 @@ class SQLiteBackend(ShieldBackend):
 
 
 # ---------------------------------------------------------------------------
-# Zero-arg factory for CLI use
-#
-# The CLI resolves SHIELD_BACKEND as a dotted-path factory:
-#
-#   SHIELD_BACKEND=examples.fastapi.custom_backend.sqlite_backend:make_backend
-#
-# This function reads SHIELD_SQLITE_PATH from the environment so the CLI can
-# be configured entirely via env vars or a .shield file:
-#
-#   # .shield
-#   SHIELD_BACKEND=examples.fastapi.custom_backend.sqlite_backend:make_backend
-#   SHIELD_SQLITE_PATH=shield-state.db
-# ---------------------------------------------------------------------------
-
-
-def make_backend() -> SQLiteBackend:
-    """Construct a ``SQLiteBackend`` from environment variables.
-
-    Reads ``SHIELD_SQLITE_PATH`` (default: ``shield-state.db``).
-    Called by the CLI when ``SHIELD_BACKEND`` is set to the dotted path
-    of this function.
-    """
-    db_path = os.environ.get("SHIELD_SQLITE_PATH", "shield-state.db")
-    return SQLiteBackend(db_path=db_path)
-
-
-# ---------------------------------------------------------------------------
 # Demo FastAPI app using SQLiteBackend
 # ---------------------------------------------------------------------------
 
@@ -298,60 +261,28 @@ router = ShieldRouter(engine=engine)
 @router.get("/health")
 @force_active
 async def health():
-    """Always 200."""
+    """Always 200 — bypasses every shield check."""
     return {"status": "ok", "backend": "sqlite"}
 
 
 @router.get("/payments")
 @maintenance(reason="DB migration — back at 04:00 UTC")
 async def get_payments():
-    """503 MAINTENANCE_MODE — state persisted in SQLite."""
+    """Returns 503 MAINTENANCE_MODE — state persisted in SQLite."""
     return {"payments": []}
 
 
 @router.get("/legacy")
 @disabled(reason="Use /payments instead")
 async def legacy():
-    """503 ROUTE_DISABLED — state persisted in SQLite."""
+    """Returns 503 ROUTE_DISABLED — state persisted in SQLite."""
     return {}
 
 
 @router.get("/orders")
 async def get_orders():
-    """200 active — no decorator."""
+    """200 active — no decorator, state persists across restarts via SQLite."""
     return {"orders": [{"id": 1, "total": 49.99}]}
-
-
-@router.get("/admin/status")
-@force_active
-async def admin_status():
-    """All registered route states (read directly from SQLite)."""
-    states = await engine.list_states()
-    return {
-        "backend": "sqlite",
-        "db": "shield-state.db",
-        "routes": [{"path": s.path, "status": s.status, "reason": s.reason} for s in states],
-    }
-
-
-@router.get("/admin/audit")
-@force_active
-async def admin_audit(limit: int = 20):
-    """Audit log read from SQLite."""
-    entries = await engine.get_audit_log(limit=limit)
-    return {
-        "entries": [
-            {
-                "timestamp": e.timestamp.isoformat(),
-                "path": e.path,
-                "action": e.action,
-                "actor": e.actor,
-                "previous_status": e.previous_status,
-                "new_status": e.new_status,
-            }
-            for e in entries
-        ]
-    }
 
 
 @asynccontextmanager
@@ -365,7 +296,8 @@ app = FastAPI(
     title="api-shield — SQLite Custom Backend Example",
     description=(
         "All route state and audit log entries are persisted in `shield-state.db`. "
-        "Restart the server and the state survives."
+        "Restart the server and the state survives.\n\n"
+        "Admin UI and CLI API available at `/shield/`."
     ),
     lifespan=lifespan,
 )
@@ -373,3 +305,21 @@ app = FastAPI(
 app.add_middleware(ShieldMiddleware, engine=engine)
 app.include_router(router)
 apply_shield_to_openapi(app, engine)
+
+# Mount the unified admin interface:
+#   - Dashboard UI  → http://localhost:8000/shield/
+#   - REST API      → http://localhost:8000/shield/api/...  (used by the CLI)
+#
+# The CLI communicates with the app via this REST API — it never touches
+# the SQLite database directly.  This means the same CLI workflow works
+# regardless of which backend the app uses.
+app.mount(
+    "/shield",
+    ShieldAdmin(
+        engine=engine,
+        auth=("admin", "secret"),
+        prefix="/shield",
+        # secret_key="change-me-in-production",
+        # token_expiry=86400,  # seconds — default 24 h
+    ),
+)

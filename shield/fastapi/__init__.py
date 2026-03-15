@@ -14,6 +14,7 @@ users need only a single import line::
     )
 """
 
+from shield.admin.app import ShieldAdmin
 from shield.fastapi.decorators import (
     deprecated,
     disabled,
@@ -27,6 +28,7 @@ from shield.fastapi.openapi import apply_shield_to_openapi, setup_shield_docs
 from shield.fastapi.router import ShieldRouter, scan_routes
 
 __all__ = [
+    "ShieldAdmin",
     "ShieldMiddleware",
     "ShieldRouter",
     "ShieldGuard",

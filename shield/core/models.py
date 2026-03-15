@@ -87,6 +87,7 @@ class AuditEntry(BaseModel):
     path: str
     action: str
     actor: str = "system"
+    platform: str = "system"  # "cli", "dashboard", or "system"
     reason: str = ""
     previous_status: RouteStatus
     new_status: RouteStatus
