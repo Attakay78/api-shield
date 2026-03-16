@@ -983,6 +983,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributed Deployments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1224,6 +1252,28 @@
     <span class="md-ellipsis">
       
         Dependency Injection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook-deduplication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook Deduplication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#distributed-global-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distributed Global Maintenance
       
     </span>
   </a>
@@ -1481,11 +1531,30 @@
 <li><code>_ShieldCallable</code> extended with an optional <code>signature=</code> override and updated <code>__call__</code> to forward the <code>response</code> kwarg to <code>dep_raise</code> when present — fully backward compatible with all existing decorators</li>
 <li><code>examples/fastapi/dependency_injection.py</code> updated to include <code>@deprecated</code> as a <code>Depends()</code> example and a clear explanation of why <code>@force_active</code> cannot be used as a dependency</li>
 </ul>
+<h4 id="webhook-deduplication">Webhook Deduplication<a class="headerlink" href="#webhook-deduplication" title="Permanent link">&para;</a></h4>
+<ul>
+<li><code>ShieldBackend</code> ABC gains <code>try_claim_webhook_dispatch(dedup_key, ttl_seconds)</code> — returns <code>True</code> if this instance should fire webhooks, <code>False</code> if another instance already claimed the right for this event. Default implementation always returns <code>True</code> (single-instance backends never need dedup).</li>
+<li><code>RedisBackend</code> overrides <code>try_claim_webhook_dispatch()</code> using <code>SET NX EX</code> — the first instance to win the atomic write fires webhooks; all others skip. Fails open: a Redis error returns <code>True</code> so webhooks are over-delivered rather than silently dropped.</li>
+<li><code>ShieldEngine._fire_webhooks</code> refactored — now schedules a single <code>_dispatch_webhooks</code> task instead of one task per URL. The task computes a deterministic SHA-256 dedup key from <code>event + path + serialised RouteState</code>, claims dispatch rights via the backend, then fans out to individual webhook URLs only if the claim succeeds.</li>
+<li>Dedup key is deterministic across instances: because the scheduler produces an identical <code>RouteState</code> on all instances for the same window activation, the key is the same fleet-wide and only one instance wins.</li>
+<li>TTL on the dedup key defaults to 60 seconds — if the winning instance crashes mid-dispatch the key expires and re-delivery is possible on the next activation cycle.</li>
+</ul>
+<h4 id="distributed-global-maintenance">Distributed Global Maintenance<a class="headerlink" href="#distributed-global-maintenance" title="Permanent link">&para;</a></h4>
+<ul>
+<li><code>RedisBackend</code> now publishes a lightweight invalidation signal to <code>shield:global_invalidate</code> whenever <code>set_global_config()</code> is called — any other instance subscribed to this channel immediately drops its in-process <code>GlobalMaintenanceConfig</code> cache</li>
+<li><code>ShieldBackend</code> ABC gains <code>subscribe_global_config()</code> — an async generator that yields <code>None</code> on each remote global config change; default implementation raises <code>NotImplementedError</code> (no-op for <code>MemoryBackend</code> and <code>FileBackend</code>)</li>
+<li><code>ShieldEngine.start()</code> — starts a background <code>asyncio.Task</code> that listens for global config invalidation signals and calls <code>_invalidate_global_config_cache()</code> on each one; idempotent, safe to call multiple times</li>
+<li><code>ShieldEngine.stop()</code> — cancels and awaits the listener task; called automatically by <code>__aexit__</code></li>
+<li><code>ShieldEngine.__aenter__</code> / <code>__aexit__</code> updated to call <code>start()</code> / <code>stop()</code> so CLI scripts using <code>async with ShieldEngine(...)</code> get distributed invalidation automatically</li>
+<li><code>ShieldRouter.register_shield_routes()</code> calls <code>engine.start()</code> at application startup so FastAPI apps also start the listener without requiring the context manager</li>
+<li>For <code>MemoryBackend</code> / <code>FileBackend</code> the new code path is a transparent no-op — <code>NotImplementedError</code> is caught, the task exits immediately, and single-instance cache behaviour is unchanged</li>
+</ul>
 <h4 id="documentation-communication">Documentation &amp; Communication<a class="headerlink" href="#documentation-communication" title="Permanent link">&para;</a></h4>
 <ul>
 <li>Early Access notice added to README and docs homepage — communicates that the library is fully functional and actively developed, and invites community feedback via GitHub Issues</li>
 <li>Webhooks and Custom Responses added to the Key Features table in the docs homepage</li>
 <li>Key Features section added to <code>README.md</code></li>
+<li>New guide: <strong>Distributed Deployments</strong> (<code>docs/guides/distributed.md</code>) — covers backend capability matrix, the request lifecycle across instances, global maintenance cache invalidation architecture, scheduler behaviour and webhook deduplication in multi-instance setups, OpenAPI schema staleness, the fail-open guarantee, and a production checklist. Explains why <code>FileBackend</code> intentionally does not support cross-instance sync and when to use each backend.</li>
 </ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
 <ul>

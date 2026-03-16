@@ -969,6 +969,45 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;try_claim_webhook_dispatch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" try_claim_webhook_dispatch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.base.ShieldBackend.subscribe_global_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_global_config
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1328,6 +1367,56 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.set_global_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_global_config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;try_claim_webhook_dispatch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" try_claim_webhook_dispatch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.subscribe_global_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_global_config
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1580,6 +1669,34 @@
     
   
     Production Monitoring & Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributed Deployments
   
 
     
@@ -2139,6 +2256,78 @@ default implementation is a no-op.</p>
 <p>Backends that support pub/sub (e.g. Redis) should override this.
 Backends that do not support it raise <code>NotImplementedError</code>,
 and the dashboard will fall back to polling <code>list_states()</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">try_claim_webhook_dispatch</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">try_claim_webhook_dispatch</span><span class="p">(</span><span class="n">dedup_key</span><span class="p">,</span> <span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Attempt to claim exclusive webhook dispatch rights for <em>dedup_key</em>.</p>
+<p>Called by <code>ShieldEngine._fire_webhooks</code> before dispatching to any
+registered webhook URLs.  Returns <code>True</code> if this instance should
+fire the webhooks, <code>False</code> if another instance has already claimed
+the right for the same event.</p>
+<p>The default implementation always returns <code>True</code> — single-instance
+backends (<code>MemoryBackend</code>, <code>FileBackend</code>) never have concurrent
+instances so deduplication is unnecessary.</p>
+<p><code>RedisBackend</code> overrides this with a <code>SET NX</code> command to ensure
+only one instance fires webhooks per unique event across an entire
+multi-instance deployment.</p>
+<h5 id="shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch--parameters">Parameters<a class="headerlink" href="#shield.core.backends.base.ShieldBackend.try_claim_webhook_dispatch--parameters" title="Permanent link">&para;</a></h5>
+<p>dedup_key:
+    A deterministic string that uniquely identifies this event
+    (derived from <code>event + path + serialised RouteState</code>).
+ttl_seconds:
+    How long the claim key lives in the backend.  After this window
+    the key expires, allowing re-delivery if the claiming instance
+    crashed before it could dispatch.  Defaults to 60 seconds.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.base.ShieldBackend.subscribe_global_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">subscribe_global_config</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.base.ShieldBackend.subscribe_global_config" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">subscribe_global_config</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Stream a signal whenever the global maintenance config changes.</p>
+<p>Yields <code>None</code> on each remote change so callers can invalidate their
+in-process cache and re-fetch from the backend.</p>
+<p>Backends that support this (e.g. <code>RedisBackend</code>) override this
+method.  Others raise <code>NotImplementedError</code> — <code>ShieldEngine.start()</code>
+checks for this and simply skips starting the listener, so the engine
+falls back to the per-process cache behaviour without any error.</p>
 
 
     </div>
@@ -2945,6 +3134,107 @@ fetch-all-then-filter pattern of the previous implementation.</p>
     <div class="doc doc-contents ">
 
         <p>Yield <code>RouteState</code> objects as they are updated via pub/sub.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.redis.RedisBackend.set_global_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">set_global_config</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.redis.RedisBackend.set_global_config" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">set_global_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Persist <em>config</em> and broadcast a cache-invalidation signal.</p>
+<p>Calls the base implementation (which stores the config via
+<code>set_state</code> and publishes to <code>shield:changes</code>), then
+additionally publishes a lightweight <code>"1"</code> signal to
+<code>shield:global_invalidate</code>.  Any other instance running
+<code>subscribe_global_config()</code> receives this signal and
+immediately drops its in-process <code>GlobalMaintenanceConfig</code>
+cache so that the next <code>check()</code> call re-reads from Redis.</p>
+<p>The extra publish is best-effort: a Redis error here is logged
+and swallowed so that a transient Redis blip never prevents
+a global maintenance toggle from taking effect locally.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">try_claim_webhook_dispatch</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">try_claim_webhook_dispatch</span><span class="p">(</span><span class="n">dedup_key</span><span class="p">,</span> <span class="n">ttl_seconds</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Use Redis <code>SET NX</code> to claim exclusive webhook dispatch rights.</p>
+<p>The key <code>shield:webhook:dedup:{dedup_key}</code> is written with
+<code>NX</code> (only if absent) and a TTL.  The instance that wins the
+atomic write fires the webhooks; all others receive <code>None</code> from
+Redis and skip dispatch.</p>
+<p>Fails open: a Redis error logs a warning and returns <code>True</code> so
+that webhooks are over-delivered rather than silently dropped.</p>
+<h5 id="shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch--parameters">Parameters<a class="headerlink" href="#shield.core.backends.redis.RedisBackend.try_claim_webhook_dispatch--parameters" title="Permanent link">&para;</a></h5>
+<p>dedup_key:
+    Deterministic key identifying the event (hash of event + path
+    + serialised state — computed by <code>ShieldEngine</code>).
+ttl_seconds:
+    Key TTL.  After this window the key expires, allowing
+    re-delivery if the winning instance crashed mid-dispatch.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.redis.RedisBackend.subscribe_global_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">subscribe_global_config</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.redis.RedisBackend.subscribe_global_config" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">subscribe_global_config</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Yield <code>None</code> whenever the global maintenance config changes.</p>
+<p>Subscribes to <code>shield:global_invalidate</code>.  Each message
+arrival means another instance has written a new
+<code>GlobalMaintenanceConfig</code> to Redis and this instance should
+drop its in-process cache.</p>
+<p>The generator runs indefinitely — callers (<code>ShieldEngine</code>)
+are expected to run it inside a cancellable <code>asyncio.Task</code>.</p>
 
 
     </div>
