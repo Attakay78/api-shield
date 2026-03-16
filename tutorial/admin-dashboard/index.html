@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1326,6 +1324,137 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mounting-shieldadmin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mounting ShieldAdmin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dashboard-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard UI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dashboard UI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#actions-per-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions per route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#live-updates-sse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live updates (SSE)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit log
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REST API
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next step
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1388,7 +1517,7 @@
 
 
 <h1 id="admin-dashboard">Admin Dashboard<a class="headerlink" href="#admin-dashboard" title="Permanent link">&para;</a></h1>
-<p><code>ShieldAdmin</code> is the unified admin interface — it mounts the HTMX dashboard UI and the REST API (used by the CLI) under a single path.</p>
+<p><code>ShieldAdmin</code> is the unified admin interface. It mounts the HTMX dashboard UI and the REST API (used by the CLI) under a single path.</p>
 <hr />
 <h2 id="mounting-shieldadmin">Mounting ShieldAdmin<a class="headerlink" href="#mounting-shieldadmin" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
@@ -1448,7 +1577,7 @@
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Token invalidation</p>
-<p>When you change <code>auth=</code> (new user, changed password), all previously issued tokens are automatically invalidated on restart — even if <code>secret_key</code> is stable. This is handled by mixing an auth fingerprint into the HMAC signing key.</p>
+<p>When you change <code>auth=</code> (new user, changed password), all previously issued tokens are automatically invalidated on restart, even if <code>secret_key</code> is stable. This is handled by mixing an auth fingerprint into the HMAC signing key.</p>
 </div>
 <hr />
 <h2 id="dashboard-ui">Dashboard UI<a class="headerlink" href="#dashboard-ui" title="Permanent link">&para;</a></h2>
@@ -1496,9 +1625,9 @@
 </table>
 <h3 id="actions-per-route">Actions per route<a class="headerlink" href="#actions-per-route" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Enable</strong> — restore route to <code>ACTIVE</code></li>
-<li><strong>Maintenance</strong> — put in maintenance with optional reason + window</li>
-<li><strong>Disable</strong> — permanently disable with reason</li>
+<li><strong>Enable</strong>: restore route to <code>ACTIVE</code></li>
+<li><strong>Maintenance</strong>: put in maintenance with optional reason + window</li>
+<li><strong>Disable</strong>: permanently disable with reason</li>
 </ul>
 <h3 id="live-updates-sse">Live updates (SSE)<a class="headerlink" href="#live-updates-sse" title="Permanent link">&para;</a></h3>
 <p>The dashboard connects to the <code>/shield/events</code> SSE endpoint. When state changes (from another browser tab, CLI command, or API call), the affected row updates in real time without a page reload.</p>
@@ -1624,7 +1753,7 @@
 <tr>
 <td><code>auth</code></td>
 <td><code>None</code> (open)</td>
-<td>Credentials — see forms above</td>
+<td>Credentials (see forms above)</td>
 </tr>
 <tr>
 <td><code>prefix</code></td>
@@ -1634,7 +1763,7 @@
 <tr>
 <td><code>secret_key</code></td>
 <td>random</td>
-<td>HMAC signing key — set a stable value in production</td>
+<td>HMAC signing key; set a stable value in production</td>
 </tr>
 <tr>
 <td><code>token_expiry</code></td>
@@ -1770,7 +1899,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

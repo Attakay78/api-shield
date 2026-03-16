@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1365,6 +1363,176 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring scripts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitoring scripts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#poll-route-health-via-the-rest-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Poll route health via the REST API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-monitoring-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python monitoring script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook-alerting-slack-pagerduty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook alerting (Slack / PagerDuty)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-automation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment automation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment automation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prepost-deploy-maintenance-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre/post deploy maintenance pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-level-rolling-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route-level rolling deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-deploy-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions — deploy workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes-prepost-deploy-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kubernetes — pre/post deploy hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduled-maintenance-via-cron-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduled maintenance via cron + CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-log-in-monitoring-pipelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit log in monitoring pipelines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variable-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variable reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1431,7 +1599,7 @@
 <hr />
 <h2 id="monitoring-scripts">Monitoring scripts<a class="headerlink" href="#monitoring-scripts" title="Permanent link">&para;</a></h2>
 <h3 id="poll-route-health-via-the-rest-api">Poll route health via the REST API<a class="headerlink" href="#poll-route-health-via-the-rest-api" title="Permanent link">&para;</a></h3>
-<p>The <code>ShieldAdmin</code> REST API is JSON over HTTP — any monitoring tool that can make an HTTP request can query it. No <code>shield</code> CLI install needed on the monitoring host.</p>
+<p>The <code>ShieldAdmin</code> REST API is JSON over HTTP, so any monitoring tool that can make an HTTP request can query it. No <code>shield</code> CLI install needed on the monitoring host.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/usr/bin/env bash</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># check-routes.sh — exit 1 if any route is unexpectedly disabled</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
@@ -1531,7 +1699,7 @@
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">&quot;state&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GET:/payments&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;maintenance&quot;</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Webhook failures are non-blocking — they are logged and never affect the request path.</p>
+<p>Webhook failures are non-blocking; they are logged and never affect the request path.</p>
 <hr />
 <h2 id="deployment-automation">Deployment automation<a class="headerlink" href="#deployment-automation" title="Permanent link">&para;</a></h2>
 <h3 id="prepost-deploy-maintenance-pattern">Pre/post deploy maintenance pattern<a class="headerlink" href="#prepost-deploy-maintenance-pattern" title="Permanent link">&para;</a></h3>
@@ -1927,7 +2095,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

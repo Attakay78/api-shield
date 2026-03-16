@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1431,6 +1429,242 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-core-question-where-does-state-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The core question: where does state live?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backend-capability-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend capability matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memorybackend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MemoryBackend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filebackend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FileBackend
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FileBackend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works-internally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works internally
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-multi-instance-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The multi-instance problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-filebackend-is-the-right-choice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When FileBackend is the right choice
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#redisbackend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RedisBackend
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RedisBackend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-route-state-immediate-consistency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-route state: immediate consistency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-maintenance-distributed-cache-invalidation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global maintenance: distributed cache invalidation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-request-lifecycle-across-instances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The request lifecycle across instances
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduler-behaviour-across-instances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduler behaviour across instances
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webhook-deduplication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook deduplication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#openapi-schema-staleness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI schema staleness
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-the-right-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the right backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fail-open-guarantee" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fail-open guarantee
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-checklist-for-multi-instance-deployments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production checklist for multi-instance deployments
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1493,10 +1727,10 @@
 
 
 <h1 id="distributed-deployments">Distributed Deployments<a class="headerlink" href="#distributed-deployments" title="Permanent link">&para;</a></h1>
-<p>This guide explains how api-shield behaves when your application runs across multiple instances — load-balanced replicas, rolling deploys, or horizontally-scaled containers. It covers what each backend guarantees, where the boundaries are, and how to choose the right setup for your architecture.</p>
+<p>This guide explains how api-shield behaves when your application runs across multiple instances: load-balanced replicas, rolling deploys, or horizontally-scaled containers. It covers what each backend guarantees, where the boundaries are, and how to choose the right setup for your architecture.</p>
 <hr />
 <h2 id="the-core-question-where-does-state-live">The core question: where does state live?<a class="headerlink" href="#the-core-question-where-does-state-live" title="Permanent link">&para;</a></h2>
-<p>Every request that hits api-shield goes through a single chokepoint — <code>engine.check()</code>. The engine reads route state from the backend, evaluates it against the request, and either allows it through or raises a <code>ShieldException</code>. In a single-instance deployment this is straightforward. In a multi-instance deployment the question becomes: <strong>when Instance A changes the state of a route, how quickly does Instance B see that change?</strong></p>
+<p>Every request that hits api-shield goes through a single chokepoint: <code>engine.check()</code>. The engine reads route state from the backend, evaluates it against the request, and either allows it through or raises a <code>ShieldException</code>. In a single-instance deployment this is straightforward. In a multi-instance deployment the question becomes: <strong>when Instance A changes the state of a route, how quickly does Instance B see that change?</strong></p>
 <p>The answer depends entirely on which backend you use.</p>
 <hr />
 <h2 id="backend-capability-matrix">Backend capability matrix<a class="headerlink" href="#backend-capability-matrix" title="Permanent link">&para;</a></h2>
@@ -1570,13 +1804,13 @@
 <h2 id="memorybackend">MemoryBackend<a class="headerlink" href="#memorybackend" title="Permanent link">&para;</a></h2>
 <p>State lives in a Python <code>dict</code> inside the <code>ShieldEngine</code> object. It is never written to disk, never shared over a network, and is lost the moment the process exits.</p>
 <p><strong>In a multi-instance deployment, each instance has its own isolated world.</strong> A <code>shield disable</code> command that reaches Instance A through the admin API will disable the route on Instance A only. Instance B continues serving the route as if nothing happened.</p>
-<p><code>subscribe()</code> is implemented using <code>asyncio.Queue</code>. This works correctly for the in-process dashboard SSE feed — the dashboard and the engine share the same Python process, so changes are visible immediately. It provides no cross-process benefit.</p>
+<p><code>subscribe()</code> is implemented using <code>asyncio.Queue</code>. This works correctly for the in-process dashboard SSE feed, since the dashboard and the engine share the same Python process and changes are visible immediately. It provides no cross-process benefit.</p>
 <p><strong>Do not use <code>MemoryBackend</code> in any deployment where more than one process serves traffic.</strong></p>
 <hr />
 <h2 id="filebackend">FileBackend<a class="headerlink" href="#filebackend" title="Permanent link">&para;</a></h2>
 <p>State is written to a JSON (or YAML/TOML) file on disk. The file survives restarts. A second process pointing to the same file path can read the same state.</p>
 <h3 id="how-it-works-internally">How it works internally<a class="headerlink" href="#how-it-works-internally" title="Permanent link">&para;</a></h3>
-<p><code>FileBackend</code> maintains a <strong>write-through in-memory cache</strong>. All reads are served from <code>_states: dict[str, Any]</code> in memory — zero file I/O on the hot path. Writes update the dict immediately (O(1)) and schedule a <strong>debounced flush</strong> (50ms window) to disk. State mutations (<code>set_state</code>, <code>delete_state</code>) bypass the debounce and flush synchronously for durability.</p>
+<p><code>FileBackend</code> maintains a <strong>write-through in-memory cache</strong>. All reads are served from <code>_states: dict[str, Any]</code> in memory, with zero file I/O on the hot path. Writes update the dict immediately (O(1)) and schedule a <strong>debounced flush</strong> (50ms window) to disk. State mutations (<code>set_state</code>, <code>delete_state</code>) bypass the debounce and flush synchronously for durability.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Request path:                 Write path:
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                              engine.disable()
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>engine.check()                    │
@@ -1607,7 +1841,7 @@
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                                    shield CLI (reads same file,
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>                                    writes via REST API to app)
 </span></code></pre></div>
-<p>The CLI talks to the app's <code>ShieldAdmin</code> REST API. The API writes to the in-memory cache (which flushes to disk). The file persists across restarts. This is the complete, correct workflow for <code>FileBackend</code> — no cross-instance sync is needed because there is only one instance.</p>
+<p>The CLI talks to the app's <code>ShieldAdmin</code> REST API. The API writes to the in-memory cache (which flushes to disk). The file persists across restarts. This is the complete, correct workflow for <code>FileBackend</code>. No cross-instance sync is needed because there is only one instance.</p>
 <p><strong>Do not use <code>FileBackend</code> across multiple instances that serve concurrent traffic.</strong></p>
 <hr />
 <h2 id="redisbackend">RedisBackend<a class="headerlink" href="#redisbackend" title="Permanent link">&para;</a></h2>
@@ -1628,10 +1862,10 @@
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">pipe</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s2">&quot;shield:changes&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>     <span class="c1"># notify subscribers</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">await</span> <span class="n">pipe</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
 </span></code></pre></div>
-<p>The write and the notification are atomic. Any instance subscribed to <code>shield:changes</code> (the dashboard SSE endpoint) receives the new <code>RouteState</code> immediately. The next <code>engine.check()</code> call on any instance reads fresh state from Redis — there is no in-process per-route state cache.</p>
+<p>The write and the notification are atomic. Any instance subscribed to <code>shield:changes</code> (the dashboard SSE endpoint) receives the new <code>RouteState</code> immediately. The next <code>engine.check()</code> call on any instance reads fresh state from Redis, as there is no in-process per-route state cache.</p>
 <h3 id="global-maintenance-distributed-cache-invalidation">Global maintenance: distributed cache invalidation<a class="headerlink" href="#global-maintenance-distributed-cache-invalidation" title="Permanent link">&para;</a></h3>
 <p>Global maintenance (<code>engine.enable_global_maintenance()</code>) is applied to every request before per-route checks. Because it is checked on every single request, the engine caches the <code>GlobalMaintenanceConfig</code> in-process to avoid a Redis round-trip on the hot path.</p>
-<p>The risk in a multi-instance deployment: Instance A enables global maintenance and invalidates its local cache. Instance B's cache still holds the old (disabled) config — it will serve requests as if global maintenance is off until its cache is cleared.</p>
+<p>The risk in a multi-instance deployment: Instance A enables global maintenance and invalidates its local cache. Instance B's cache still holds the old (disabled) config, so it will serve requests as if global maintenance is off until its cache is cleared.</p>
 <p>This is solved through a dedicated invalidation channel:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Instance A                         Redis                    Instance B
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>─────────                          ─────                    ─────────
@@ -1646,12 +1880,12 @@
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>                                                           next check() re-fetches
 </span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>                                                           GlobalMaintenanceConfig from Redis
 </span></code></pre></div>
-<p><code>ShieldEngine.start()</code> creates a background <code>asyncio.Task</code> that runs <code>_run_global_config_listener()</code>. This task iterates <code>backend.subscribe_global_config()</code> indefinitely — each message arrival from <code>shield:global_invalidate</code> triggers an immediate cache flush. The next <code>engine.check()</code> call re-fetches <code>GlobalMaintenanceConfig</code> from Redis, observing the change made by Instance A.</p>
-<p>For <code>MemoryBackend</code> and <code>FileBackend</code>, <code>subscribe_global_config()</code> raises <code>NotImplementedError</code>. The listener task catches this, exits immediately, and the engine falls back to per-process cache behaviour — no error, no performance impact.</p>
+<p><code>ShieldEngine.start()</code> creates a background <code>asyncio.Task</code> that runs <code>_run_global_config_listener()</code>. This task iterates <code>backend.subscribe_global_config()</code> indefinitely. Each message arrival from <code>shield:global_invalidate</code> triggers an immediate cache flush. The next <code>engine.check()</code> call re-fetches <code>GlobalMaintenanceConfig</code> from Redis, observing the change made by Instance A.</p>
+<p>For <code>MemoryBackend</code> and <code>FileBackend</code>, <code>subscribe_global_config()</code> raises <code>NotImplementedError</code>. The listener task catches this, exits immediately, and the engine falls back to per-process cache behaviour with no error and no performance impact.</p>
 <p><code>start()</code> is called automatically in two places:</p>
 <ul>
-<li><code>ShieldEngine.__aenter__</code> — for CLI scripts using <code>async with ShieldEngine(...) as engine:</code></li>
-<li><code>ShieldRouter.register_shield_routes()</code> — at FastAPI application startup</li>
+<li><code>ShieldEngine.__aenter__</code>: for CLI scripts using <code>async with ShieldEngine(...) as engine:</code></li>
+<li><code>ShieldRouter.register_shield_routes()</code>: at FastAPI application startup</li>
 </ul>
 <p>You do not need to call <code>start()</code> manually unless you are using the engine outside of these two contexts.</p>
 <h3 id="the-request-lifecycle-across-instances">The request lifecycle across instances<a class="headerlink" href="#the-request-lifecycle-across-instances" title="Permanent link">&para;</a></h3>
@@ -1680,12 +1914,12 @@
 </span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>                                                     │
 </span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>                                                ShieldMiddleware → 503 JSON response
 </span></code></pre></div>
-<p>There is no in-process cache for per-route state. Every <code>engine.check()</code> call on <code>RedisBackend</code> is a single <code>GET</code> command. Round-trip latency on a local Redis is typically under 0.5ms — well within the &lt; 2ms budget defined in the performance spec.</p>
+<p>There is no in-process cache for per-route state. Every <code>engine.check()</code> call on <code>RedisBackend</code> is a single <code>GET</code> command. Round-trip latency on a local Redis is typically under 0.5ms, well within the &lt; 2ms budget defined in the performance spec.</p>
 <h3 id="scheduler-behaviour-across-instances">Scheduler behaviour across instances<a class="headerlink" href="#scheduler-behaviour-across-instances" title="Permanent link">&para;</a></h3>
 <p>Each instance runs its own <code>MaintenanceScheduler</code>. When a maintenance window is scheduled, it is persisted to Redis. On startup, each instance calls <code>scheduler.restore_from_backend()</code> which reads all future windows from the backend and re-schedules them as local <code>asyncio.Task</code> objects.</p>
 <p>When the window's <code>start</code> time arrives, every instance independently calls <code>engine.set_maintenance()</code>. Because <code>set_maintenance()</code> is idempotent (writing the same <code>MAINTENANCE</code> state twice is a no-op from Redis's perspective), this is safe.</p>
 <h3 id="webhook-deduplication">Webhook deduplication<a class="headerlink" href="#webhook-deduplication" title="Permanent link">&para;</a></h3>
-<p>Without deduplication, webhooks would fire once per instance per event — three instances means three <code>maintenance_on</code> deliveries for a single window activation. api-shield prevents this with a <code>SET NX</code> claim in Redis before any HTTP POST is sent.</p>
+<p>Without deduplication, webhooks would fire once per instance per event: three instances would mean three <code>maintenance_on</code> deliveries for a single window activation. api-shield prevents this with a <code>SET NX</code> claim in Redis before any HTTP POST is sent.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Window activates simultaneously on all instances
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├── Instance A: _dispatch_webhooks(&quot;maintenance_on&quot;, &quot;/api/pay&quot;, state)
@@ -1700,11 +1934,11 @@
 </span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>│
 </span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>└── Instance C: same as B — skips
 </span></code></pre></div>
-<p>The dedup key is a SHA-256 hash of <code>event + path + serialised RouteState</code>. Because the scheduler produces an identical <code>RouteState</code> on all instances for the same window activation (same path, same status, same window start/end), the key is fleet-wide deterministic — only the first instance to win the atomic <code>SET NX</code> fires.</p>
+<p>The dedup key is a SHA-256 hash of <code>event + path + serialised RouteState</code>. Because the scheduler produces an identical <code>RouteState</code> on all instances for the same window activation (same path, same status, same window start/end), the key is fleet-wide deterministic. Only the first instance to win the atomic <code>SET NX</code> fires.</p>
 <p>The dedup key expires after 60 seconds. If the winning instance crashes before completing delivery, the key expires and re-delivery is possible on the next scheduler poll cycle.</p>
 <h3 id="openapi-schema-staleness">OpenAPI schema staleness<a class="headerlink" href="#openapi-schema-staleness" title="Permanent link">&para;</a></h3>
-<p>The OpenAPI schema filter (<code>apply_shield_to_openapi</code>) uses a monotonic <code>_schema_version</code> counter inside each <code>ShieldEngine</code> instance to decide when to rebuild the cached schema. This counter is incremented on every local state change — it is not shared across instances.</p>
-<p><strong>When Instance A disables a route, Instance B's <code>/docs</code> and <code>/openapi.json</code> will continue to show that route until Instance B's own schema cache is invalidated (by a local state change or a restart).</strong> For most production deployments this is acceptable — developer-facing docs are not on the critical request path, and the actual request handling (via <code>engine.check()</code>) is always consistent thanks to Redis.</p>
+<p>The OpenAPI schema filter (<code>apply_shield_to_openapi</code>) uses a monotonic <code>_schema_version</code> counter inside each <code>ShieldEngine</code> instance to decide when to rebuild the cached schema. This counter is incremented on every local state change and is not shared across instances.</p>
+<p><strong>When Instance A disables a route, Instance B's <code>/docs</code> and <code>/openapi.json</code> will continue to show that route until Instance B's own schema cache is invalidated (by a local state change or a restart).</strong> For most production deployments this is acceptable, as developer-facing docs are not on the critical request path and the actual request handling (via <code>engine.check()</code>) is always consistent thanks to Redis.</p>
 <p>If you need fully consistent OpenAPI schemas across instances, you can force a cache refresh by calling <code>app.openapi.cache_clear()</code> (or the equivalent for your schema caching setup) in response to <code>shield:changes</code> pub/sub messages.</p>
 <hr />
 <h2 id="choosing-the-right-backend">Choosing the right backend<a class="headerlink" href="#choosing-the-right-backend" title="Permanent link">&para;</a></h2>
@@ -1731,13 +1965,13 @@
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;shield: backend error — failing open&quot;</span><span class="p">)</span>
 </span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="k">return</span> <span class="kc">None</span>    <span class="c1"># allow the request through</span>
 </span></code></pre></div>
-<p>If Redis goes down, all <code>engine.check()</code> calls fail-open — every request passes through as if all routes are <code>ACTIVE</code>. Shield logs the errors at <code>ERROR</code> level but never surfaces them as HTTP failures to your clients. Your API continues to serve traffic; you just lose the protection layer temporarily.</p>
+<p>If Redis goes down, all <code>engine.check()</code> calls fail-open: every request passes through as if all routes are <code>ACTIVE</code>. Shield logs the errors at <code>ERROR</code> level but never surfaces them as HTTP failures to your clients. Your API continues to serve traffic; you just lose the protection layer temporarily.</p>
 <p>The same applies to global maintenance: if reading <code>GlobalMaintenanceConfig</code> from the backend raises an exception, the exception is caught and the request is allowed through.</p>
 <hr />
 <h2 id="production-checklist-for-multi-instance-deployments">Production checklist for multi-instance deployments<a class="headerlink" href="#production-checklist-for-multi-instance-deployments" title="Permanent link">&para;</a></h2>
 <ul>
 <li>[ ] Use <code>RedisBackend</code> with a dedicated Redis instance (not shared with application cache)</li>
-<li>[ ] Set <code>SHIELD_REDIS_URL</code> via environment variable — do not hardcode credentials</li>
+<li>[ ] Set <code>SHIELD_REDIS_URL</code> via environment variable; do not hardcode credentials</li>
 <li>[ ] Use Redis database <code>0</code> for application data, a separate DB (e.g. <code>15</code>) for tests</li>
 <li>[ ] Mount <code>ShieldAdmin</code> behind authentication (<code>auth=("user", "pass")</code> or a custom <code>ShieldAuthBackend</code>)</li>
 <li>[ ] Configure webhooks to a single endpoint (e.g. Slack, PagerDuty) rather than per-instance receivers to avoid duplicate alerts from the scheduler</li>
@@ -1869,7 +2103,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

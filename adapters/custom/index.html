@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1360,6 +1358,171 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serialisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serialisation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example-sqlite-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full example: SQLite backend
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Full example: SQLite backend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wire-it-to-the-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire it to the engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distributed-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distributed support
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Distributed support">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-distributed-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three distributed methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PostgreSQL example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-your-store-needs-to-support-each-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What your store needs to support each method
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-framework-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building a framework adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1422,7 +1585,7 @@
 
 
 <h1 id="building-your-own-backend">Building Your Own Backend<a class="headerlink" href="#building-your-own-backend" title="Permanent link">&para;</a></h1>
-<p>Any storage layer can be used as a backend by subclassing <code>ShieldBackend</code>. api-shield handles everything else — the engine, middleware, decorators, CLI, and audit log all work unchanged.</p>
+<p>Any storage layer can be used as a backend by subclassing <code>ShieldBackend</code>. api-shield handles everything else: the engine, middleware, decorators, CLI, and audit log all work unchanged.</p>
 <hr />
 <h2 id="the-contract">The contract<a class="headerlink" href="#the-contract" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.backends.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShieldBackend</span>
@@ -1472,7 +1635,7 @@
 </tr>
 <tr>
 <td>Fail-open on errors</td>
-<td>Let exceptions bubble up — <code>ShieldEngine</code> wraps every backend call and allows requests through on failure</td>
+<td>Let exceptions bubble up; <code>ShieldEngine</code> wraps every backend call and allows requests through on failure</td>
 </tr>
 <tr>
 <td>Thread safety</td>
@@ -1484,7 +1647,7 @@
 </tr>
 <tr>
 <td>Global maintenance</td>
-<td>Inherited from <code>ShieldBackend</code> base — no extra work unless you want a dedicated storage path</td>
+<td>Inherited from <code>ShieldBackend</code> base; no extra work unless you want a dedicated storage path</td>
 </tr>
 </tbody>
 </table>
@@ -1634,10 +1797,10 @@
 </span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">app</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span><span class="n">ShieldMiddleware</span><span class="p">,</span> <span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">)</span>
 </span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/shield&quot;</span><span class="p">,</span> <span class="n">ShieldAdmin</span><span class="p">(</span><span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;secret&quot;</span><span class="p">)))</span>
 </span></code></pre></div>
-<p>Everything works from here — decorators, CLI, dashboard, audit log — with SQLite as the storage layer.</p>
+<p>Everything works from here (decorators, CLI, dashboard, audit log) with SQLite as the storage layer.</p>
 <hr />
 <h2 id="distributed-support">Distributed support<a class="headerlink" href="#distributed-support" title="Permanent link">&para;</a></h2>
-<p>The six abstract methods give you persistence. To unlock full distributed behaviour — live dashboard updates, cross-instance global maintenance sync, and webhook deduplication — implement three additional optional methods. Each one has a default that works correctly for single-instance deployments, so you can add them incrementally.</p>
+<p>The six abstract methods give you persistence. To unlock full distributed behaviour (live dashboard updates, cross-instance global maintenance sync, and webhook deduplication), implement three additional optional methods. Each one has a default that works correctly for single-instance deployments, so you can add them incrementally.</p>
 <hr />
 <h3 id="the-three-distributed-methods">The three distributed methods<a class="headerlink" href="#the-three-distributed-methods" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
@@ -1714,13 +1877,13 @@
 </tr>
 <tr>
 <td><code>try_claim_webhook_dispatch()</code></td>
-<td>Always returns <code>True</code> — every instance fires webhooks (over-delivery)</td>
+<td>Always returns <code>True</code>; every instance fires webhooks (over-delivery)</td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h3 id="postgresql-example">PostgreSQL example<a class="headerlink" href="#postgresql-example" title="Permanent link">&para;</a></h3>
-<p>PostgreSQL's <code>LISTEN</code> / <code>NOTIFY</code> is a built-in pub/sub mechanism that works across connections and processes — no extra broker needed.</p>
+<p>PostgreSQL's <code>LISTEN</code> / <code>NOTIFY</code> is a built-in pub/sub mechanism that works across connections and processes, with no extra broker needed.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="sd">&quot;&quot;&quot;PostgreSQL distributed backend using asyncpg + LISTEN/NOTIFY.</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="sd">pip install asyncpg</span>
@@ -1934,11 +2097,11 @@
 </tr>
 <tr>
 <td><code>subscribe_global_config()</code></td>
-<td>Same pub/sub as above — just a separate channel/topic</td>
+<td>Same pub/sub as above, just a separate channel/topic</td>
 </tr>
 <tr>
 <td><code>try_claim_webhook_dispatch()</code></td>
-<td>Atomic conditional write — "insert only if absent" (SQL <code>INSERT … ON CONFLICT DO NOTHING</code>, DynamoDB <code>PutItem</code> with <code>attribute_not_exists</code>, etcd transactions, Zookeeper ephemeral nodes, Memcached <code>add</code>)</td>
+<td>Atomic conditional write: "insert only if absent" (SQL <code>INSERT … ON CONFLICT DO NOTHING</code>, DynamoDB <code>PutItem</code> with <code>attribute_not_exists</code>, etcd transactions, Zookeeper ephemeral nodes, Memcached <code>add</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -1946,9 +2109,9 @@
 <h2 id="building-a-framework-adapter">Building a framework adapter<a class="headerlink" href="#building-a-framework-adapter" title="Permanent link">&para;</a></h2>
 <p>If you want to support a framework other than FastAPI, the pattern is:</p>
 <ol>
-<li><strong>Middleware</strong> — catch <code>MaintenanceException</code>, <code>RouteDisabledException</code>, <code>EnvGatedException</code> from <code>engine.check()</code> and return appropriate responses.</li>
-<li><strong>Route scanning</strong> — at startup, iterate the framework's route list, detect <code>__shield_meta__</code>, and call <code>engine.register()</code>.</li>
-<li><strong>Decorators</strong> — reuse <code>shield.fastapi.decorators</code> as-is (they only stamp metadata; they are framework-agnostic).</li>
+<li><strong>Middleware</strong>: catch <code>MaintenanceException</code>, <code>RouteDisabledException</code>, <code>EnvGatedException</code> from <code>engine.check()</code> and return appropriate responses.</li>
+<li><strong>Route scanning</strong>: at startup, iterate the framework's route list, detect <code>__shield_meta__</code>, and call <code>engine.register()</code>.</li>
+<li><strong>Decorators</strong>: reuse <code>shield.fastapi.decorators</code> as-is (they only stamp metadata; they are framework-agnostic).</li>
 </ol>
 <p>The shield decorators, engine, and backends have zero framework dependencies and can power any adapter.</p>
 
@@ -2075,7 +2238,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

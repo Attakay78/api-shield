@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1309,6 +1307,120 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#basic-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-middleware-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the middleware does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route registration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#paths-excluded-from-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Paths excluded from checks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-maintenance-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global maintenance mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#openapi-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next step
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1413,19 +1525,19 @@
 </span></code></pre></div>
 <hr />
 <h2 id="route-registration">Route registration<a class="headerlink" href="#route-registration" title="Permanent link">&para;</a></h2>
-<p>The middleware auto-registers routes on first startup by scanning for <code>__shield_meta__</code> on route handlers. This works with any router type — plain <code>APIRouter</code>, <code>ShieldRouter</code>, or routes added directly to the <code>FastAPI</code> app.</p>
-<p>If a route already has persisted state in the backend (e.g. written by a previous CLI command), the decorator default is <strong>ignored</strong> and the persisted state wins. This means runtime changes survive restarts.</p>
+<p>The middleware auto-registers routes on first startup by scanning for <code>__shield_meta__</code> on route handlers. This works with any router type: plain <code>APIRouter</code>, <code>ShieldRouter</code>, or routes added directly to the <code>FastAPI</code> app.</p>
+<p>If a route already has persisted state in the backend (for example, written by a previous CLI command), the decorator default is <strong>ignored</strong> and the persisted state wins. This means runtime changes survive restarts.</p>
 <hr />
 <h2 id="paths-excluded-from-checks">Paths excluded from checks<a class="headerlink" href="#paths-excluded-from-checks" title="Permanent link">&para;</a></h2>
 <p>The following paths always pass through regardless of shield state:</p>
 <ul>
-<li><code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code> — API documentation</li>
-<li><code>/shield/</code> — admin dashboard prefix</li>
+<li><code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code>: API documentation</li>
+<li><code>/shield/</code>: admin dashboard prefix</li>
 </ul>
 <p>You can exclude additional paths by using <code>@force_active</code> on those routes.</p>
 <hr />
 <h2 id="global-maintenance-mode">Global maintenance mode<a class="headerlink" href="#global-maintenance-mode" title="Permanent link">&para;</a></h2>
-<p>The middleware also enforces <strong>global</strong> maintenance mode — a single switch that blocks every route at once:</p>
+<p>The middleware also enforces <strong>global</strong> maintenance mode, a single switch that blocks every route at once:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Block everything immediately</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">enable_global_maintenance</span><span class="p">(</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Emergency patch — back in 15 minutes&quot;</span><span class="p">,</span>
@@ -1483,7 +1595,7 @@
 </table>
 <hr />
 <h2 id="openapi-integration">OpenAPI integration<a class="headerlink" href="#openapi-integration" title="Permanent link">&para;</a></h2>
-<p>Add OpenAPI filtering to hide disabled/env-gated routes from <code>/docs</code> and <code>/redoc</code>:</p>
+<p>Add OpenAPI filtering to hide disabled and env-gated routes from <code>/docs</code> and <code>/redoc</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.fastapi.openapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_shield_to_openapi</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">apply_shield_to_openapi</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">engine</span><span class="p">)</span>  <span class="c1"># call after add_middleware</span>
@@ -1622,7 +1734,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

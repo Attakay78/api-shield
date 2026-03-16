@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1359,6 +1357,170 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#first-time-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First-time setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="First-time setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-start-your-app-with-shieldadmin-mounted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Start your app with ShieldAdmin mounted
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-the-server-url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Configure the server URL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-log-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Log in
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global maintenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auth-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-url-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server URL discovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#route-key-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route key format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next step
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1421,18 +1583,17 @@
 
 
 <h1 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h1>
-<p>The <code>shield</code> CLI is a <strong>thin HTTP client</strong> — it talks to a running <code>ShieldAdmin</code> instance over HTTP. Install it separately if you only need the command-line tool:</p>
+<p>The <code>shield</code> CLI is a thin HTTP client that talks to a running <code>ShieldAdmin</code> instance over HTTP. Install it separately if you only need the command-line tool:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;api-shield[cli]&quot;</span>
 </span></code></pre></div>
 <hr />
 <h2 id="first-time-setup">First-time setup<a class="headerlink" href="#first-time-setup" title="Permanent link">&para;</a></h2>
 <h3 id="1-start-your-app-with-shieldadmin-mounted">1. Start your app with ShieldAdmin mounted<a class="headerlink" href="#1-start-your-app-with-shieldadmin-mounted" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/shield&quot;</span><span class="p">,</span> <span class="n">ShieldAdmin</span><span class="p">(</span><span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;secret&quot;</span><span class="p">)))</span>
+<div class="language-python highlight"><span class="filename">main.py</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/shield&quot;</span><span class="p">,</span> <span class="n">ShieldAdmin</span><span class="p">(</span><span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;secret&quot;</span><span class="p">)))</span>
 </span></code></pre></div>
 <h3 id="2-configure-the-server-url">2. Configure the server URL<a class="headerlink" href="#2-configure-the-server-url" title="Permanent link">&para;</a></h3>
 <p>Drop a <code>.shield</code> file in your project root (commit it alongside your code so the whole team gets the right URL automatically):</p>
-<div class="language-ini highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># .shield</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="na">SHIELD_SERVER_URL</span><span class="o">=</span><span class="s">http://localhost:8000/shield</span>
+<div class="language-ini highlight"><span class="filename">.shield</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="na">SHIELD_SERVER_URL</span><span class="o">=</span><span class="s">http://localhost:8000/shield</span>
 </span></code></pre></div>
 <p>Or set it manually:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>shield<span class="w"> </span>config<span class="w"> </span>set-url<span class="w"> </span>http://localhost:8000/shield
@@ -1444,124 +1605,170 @@
 <p>Credentials are stored in <code>~/.shield/config.json</code> with an expiry timestamp.</p>
 <hr />
 <h2 id="route-management">Route management<a class="headerlink" href="#route-management" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Show all registered routes</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>shield<span class="w"> </span>status
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>shield<span class="w"> </span>status<span class="w">                          </span><span class="c1"># show all registered routes</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>shield<span class="w"> </span>status<span class="w"> </span>GET:/payments<span class="w">            </span><span class="c1"># inspect one route</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Inspect one route</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>shield<span class="w"> </span>status<span class="w"> </span>GET:/payments
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>shield<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>GET:/payments<span class="w">            </span><span class="c1"># restore to ACTIVE</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>shield<span class="w"> </span>disable<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Use /v2/payments instead&quot;</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Enable a route</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>shield<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>GET:/payments
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Disable permanently</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>shield<span class="w"> </span>disable<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Use /v2/payments instead&quot;</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># Put in maintenance (immediate)</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>shield<span class="w"> </span>maintenance<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;DB migration&quot;</span>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="c1"># Put in maintenance with a window</span>
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>shield<span class="w"> </span>maintenance<span class="w"> </span>GET:/payments<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">  </span>--reason<span class="w"> </span><span class="s2">&quot;Planned migration&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">  </span>--start<span class="w"> </span><span class="m">2025</span>-06-01T02:00Z<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">  </span>--end<span class="w">   </span><span class="m">2025</span>-06-01T04:00Z
-</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
-</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="c1"># Schedule a future maintenance window (without activating now)</span>
-</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>shield<span class="w"> </span>schedule<span class="w"> </span>GET:/payments<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">  </span>--start<span class="w"> </span><span class="m">2025</span>-06-01T02:00Z<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">  </span>--end<span class="w">   </span><span class="m">2025</span>-06-01T04:00Z<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">  </span>--reason<span class="w"> </span><span class="s2">&quot;Planned migration&quot;</span>
-</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a>
-</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="c1"># Auto re-enable after a duration</span>
-</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a>shield<span class="w"> </span>disable<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;hotfix&quot;</span><span class="w"> </span>--until<span class="w"> </span>2h
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>shield<span class="w"> </span>maintenance<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;DB migration&quot;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>shield<span class="w"> </span>maintenance<span class="w"> </span>GET:/payments<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span>--reason<span class="w"> </span><span class="s2">&quot;Planned migration&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>--start<span class="w"> </span><span class="m">2025</span>-06-01T02:00Z<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span>--end<span class="w">   </span><span class="m">2025</span>-06-01T04:00Z
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>shield<span class="w"> </span>schedule<span class="w"> </span>GET:/payments<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">  </span>--start<span class="w"> </span><span class="m">2025</span>-06-01T02:00Z<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">  </span>--end<span class="w">   </span><span class="m">2025</span>-06-01T04:00Z<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">  </span>--reason<span class="w"> </span><span class="s2">&quot;Planned migration&quot;</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>shield<span class="w"> </span>disable<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;hotfix&quot;</span><span class="w"> </span>--until<span class="w"> </span>2h
 </span></code></pre></div>
-<p>Sample <code>shield status</code> output:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>┌─────────────────────┬─────────────┬──────────────────────┬──────────────┐
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│ Route               │ Status      │ Reason               │ Since        │
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├─────────────────────┼─────────────┼──────────────────────┼──────────────┤
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│ GET /payments       │ MAINTENANCE │ DB migration         │ 2 hours ago  │
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│ GET /debug          │ ENV_GATED   │ dev, staging only    │ startup      │
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│ GET /health         │ ACTIVE      │                      │              │
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>└─────────────────────┴─────────────┴──────────────────────┴──────────────┘
-</span></code></pre></div>
+<details class="example">
+<summary>Sample <code>shield status</code> output</summary>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Status</th>
+<th>Reason</th>
+<th>Since</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET /payments</td>
+<td>MAINTENANCE</td>
+<td>DB migration</td>
+<td>2 hours ago</td>
+</tr>
+<tr>
+<td>GET /debug</td>
+<td>ENV_GATED</td>
+<td>dev, staging only</td>
+<td>startup</td>
+</tr>
+<tr>
+<td>GET /health</td>
+<td>ACTIVE</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</details>
 <hr />
 <h2 id="global-maintenance">Global maintenance<a class="headerlink" href="#global-maintenance" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Enable global maintenance (blocks all non-exempt routes)</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Deploying v2&quot;</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># With exempt paths</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Deploying v2&quot;</span><span class="w"> </span>--exempt<span class="w"> </span>/health<span class="w"> </span>--exempt<span class="w"> </span>GET:/status
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Block even @force_active routes</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Hard lockdown&quot;</span><span class="w"> </span>--include-force-active
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Add/remove exemptions while active</span>
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>shield<span class="w"> </span>global<span class="w"> </span>exempt-add<span class="w"> </span>/monitoring/ping
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>shield<span class="w"> </span>global<span class="w"> </span>exempt-remove<span class="w"> </span>/monitoring/ping
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1"># Check current state</span>
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>shield<span class="w"> </span>global<span class="w"> </span>status
-</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
-</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># Restore normal operation</span>
-</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>shield<span class="w"> </span>global<span class="w"> </span>disable
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Deploying v2&quot;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Exempt specific paths so they keep responding</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Deploying v2&quot;</span><span class="w"> </span>--exempt<span class="w"> </span>/health<span class="w"> </span>--exempt<span class="w"> </span>GET:/status
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Block even @force_active routes</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>shield<span class="w"> </span>global<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Hard lockdown&quot;</span><span class="w"> </span>--include-force-active
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Adjust exemptions while active</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>shield<span class="w"> </span>global<span class="w"> </span>exempt-add<span class="w"> </span>/monitoring/ping
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>shield<span class="w"> </span>global<span class="w"> </span>exempt-remove<span class="w"> </span>/monitoring/ping
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>shield<span class="w"> </span>global<span class="w"> </span>status<span class="w">    </span><span class="c1"># check current state</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>shield<span class="w"> </span>global<span class="w"> </span>disable<span class="w">   </span><span class="c1"># restore normal operation</span>
 </span></code></pre></div>
 <hr />
 <h2 id="audit-log">Audit log<a class="headerlink" href="#audit-log" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Last 20 entries</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>shield<span class="w"> </span>log
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Filter by route</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>shield<span class="w"> </span>log<span class="w"> </span>--route<span class="w"> </span>GET:/payments
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># More entries</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>shield<span class="w"> </span>log<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>shield<span class="w"> </span>log<span class="w">                          </span><span class="c1"># last 20 entries</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>shield<span class="w"> </span>log<span class="w"> </span>--route<span class="w"> </span>GET:/payments<span class="w">    </span><span class="c1"># filter by route</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>shield<span class="w"> </span>log<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w">              </span><span class="c1"># show more entries</span>
 </span></code></pre></div>
-<p>Sample output:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>┌─────────────────────┬───────────────┬──────────┬──────────┬─────────────────────┐
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>│ Timestamp           │ Route         │ Action   │ Actor    │ Reason              │
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>├─────────────────────┼───────────────┼──────────┼──────────┼─────────────────────┤
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>│ 2025-06-01 02:00:01 │ GET:/payments │ maintain │ alice    │ DB migration        │
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>│ 2025-06-01 01:59:00 │ GET:/debug    │ disable  │ system   │                     │
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>└─────────────────────┴───────────────┴──────────┴──────────┴─────────────────────┘
-</span></code></pre></div>
+<details class="example">
+<summary>Sample <code>shield log</code> output</summary>
+<table>
+<thead>
+<tr>
+<th>Timestamp</th>
+<th>Route</th>
+<th>Action</th>
+<th>Actor</th>
+<th>Platform</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2025-06-01 02:00:01</td>
+<td>GET:/payments</td>
+<td>maintenance</td>
+<td>alice</td>
+<td>cli</td>
+<td>DB migration</td>
+</tr>
+<tr>
+<td>2025-06-01 01:59:00</td>
+<td>GET:/debug</td>
+<td>disable</td>
+<td>system</td>
+<td>system</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</details>
 <hr />
 <h2 id="auth-commands">Auth commands<a class="headerlink" href="#auth-commands" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Log in (prompts for password)</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>shield<span class="w"> </span>login<span class="w"> </span>admin
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Or inline (useful in CI)</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>shield<span class="w"> </span>login<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SHIELD_PASS</span><span class="s2">&quot;</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Check current session</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>shield<span class="w"> </span>config<span class="w"> </span>show
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># Log out (revokes server-side token + clears local credentials)</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>shield<span class="w"> </span><span class="nb">logout</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>shield<span class="w"> </span>login<span class="w"> </span>admin<span class="w">                          </span><span class="c1"># prompts for password interactively</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>shield<span class="w"> </span>login<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SHIELD_PASS</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># inline, useful in CI</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>shield<span class="w"> </span>config<span class="w"> </span>show<span class="w">   </span><span class="c1"># check current session and resolved URL</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>shield<span class="w"> </span><span class="nb">logout</span><span class="w">        </span><span class="c1"># revokes server-side token and clears local credentials</span>
 </span></code></pre></div>
 <hr />
 <h2 id="config-commands">Config commands<a class="headerlink" href="#config-commands" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Override server URL</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>shield<span class="w"> </span>config<span class="w"> </span>set-url<span class="w"> </span>http://prod.example.com/shield
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Show resolved URL + source + current session</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>shield<span class="w"> </span>config<span class="w"> </span>show
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>shield<span class="w"> </span>config<span class="w"> </span>set-url<span class="w"> </span>http://prod.example.com/shield<span class="w">   </span><span class="c1"># override server URL</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>shield<span class="w"> </span>config<span class="w"> </span>show<span class="w">                                      </span><span class="c1"># show URL, source, session</span>
 </span></code></pre></div>
 <hr />
 <h2 id="server-url-discovery">Server URL discovery<a class="headerlink" href="#server-url-discovery" title="Permanent link">&para;</a></h2>
 <p>The CLI resolves the server URL using this priority order (highest wins):</p>
-<ol>
-<li><code>SHIELD_SERVER_URL</code> environment variable</li>
-<li><code>SHIELD_SERVER_URL</code> in a <code>.shield</code> file (walks up from cwd)</li>
-<li><code>server_url</code> in <code>~/.shield/config.json</code></li>
-<li>Default: <code>http://localhost:8000/shield</code></li>
-</ol>
-<hr />
-<h2 id="route-key-format">Route key format<a class="headerlink" href="#route-key-format" title="Permanent link">&para;</a></h2>
-<p>Routes are stored with method-prefixed keys:</p>
 <table>
 <thead>
 <tr>
-<th>What you type</th>
-<th>Stored as</th>
+<th>Priority</th>
+<th>Source</th>
+<th>How to set</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>SHIELD_SERVER_URL</code> environment variable</td>
+<td><code>export SHIELD_SERVER_URL=http://...</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>SHIELD_SERVER_URL</code> in a <code>.shield</code> file (walked up from cwd)</td>
+<td>Add to project root</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>server_url</code> in <code>~/.shield/config.json</code></td>
+<td><code>shield config set-url ...</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Default</td>
+<td><code>http://localhost:8000/shield</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="route-key-format">Route key format<a class="headerlink" href="#route-key-format" title="Permanent link">&para;</a></h2>
+<p>Routes are identified by a method-prefixed key. Use the same format in all CLI commands:</p>
+<table>
+<thead>
+<tr>
+<th>Decorator</th>
+<th>Route key</th>
 </tr>
 </thead>
 <tbody>
@@ -1573,10 +1780,14 @@
 <td><code>@router.post("/payments")</code></td>
 <td><code>POST:/payments</code></td>
 </tr>
+<tr>
+<td><code>@router.get("/api/v1/users")</code></td>
+<td><code>GET:/api/v1/users</code></td>
+</tr>
 </tbody>
 </table>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>shield<span class="w"> </span>disable<span class="w"> </span><span class="s2">&quot;GET:/payments&quot;</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>shield<span class="w"> </span><span class="nb">enable</span><span class="w"> </span><span class="s2">&quot;/payments&quot;</span><span class="w">   </span><span class="c1"># applies to all methods under /payments</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>shield<span class="w"> </span>disable<span class="w"> </span><span class="s2">&quot;GET:/payments&quot;</span><span class="w">   </span><span class="c1"># method-specific</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>shield<span class="w"> </span><span class="nb">enable</span><span class="w"> </span><span class="s2">&quot;/payments&quot;</span><span class="w">        </span><span class="c1"># applies to all methods under /payments</span>
 </span></code></pre></div>
 <hr />
 <h2 id="next-step">Next step<a class="headerlink" href="#next-step" title="Permanent link">&para;</a></h2>
@@ -1705,7 +1916,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>

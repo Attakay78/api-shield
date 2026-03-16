@@ -362,9 +362,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1260,6 +1258,76 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#30-second-quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        30-second quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decorators-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decorators at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1290,11 +1358,11 @@
 </div>
 <h1 id="api-shield">api-shield<a class="headerlink" href="#api-shield" title="Permanent link">&para;</a></h1>
 <div class="admonition warning">
-<p class="admonition-title">Early Access — your feedback shapes the roadmap</p>
-<p><code>api-shield</code> is fully functional and ready to use. We are actively building on a solid foundation and would love to hear from you. If you have feedback, feature ideas, or suggestions, <strong><a href="https://github.com/Attakay78/api-shield/issues">open an issue on GitHub</a></strong> — every voice helps make the library better for everyone.</p>
+<p class="admonition-title">Early Access: your feedback shapes the roadmap</p>
+<p><code>api-shield</code> is fully functional and ready to use. We are actively building on a solid foundation and would love to hear from you. If you have feedback, feature ideas, or suggestions, <strong><a href="https://github.com/Attakay78/api-shield/issues">open an issue on GitHub</a></strong>. Every voice helps make the library better for everyone.</p>
 </div>
-<p><strong>Route lifecycle management for Python web frameworks — maintenance mode, environment gating, deprecation, admin panels, and more. No restarts required.</strong></p>
-<p>Most "maintenance mode" tools are blunt instruments: shut everything down or nothing at all. <code>api-shield</code> treats each route as a first-class entity with its own lifecycle. State changes take effect immediately through middleware — no redeployment, no server restart.</p>
+<p><strong>Route lifecycle management for Python web frameworks: maintenance mode, environment gating, deprecation, admin panels, and more. No restarts required.</strong></p>
+<p>Most "maintenance mode" tools are blunt instruments: shut everything down or nothing at all. <code>api-shield</code> treats each route as a first-class entity with its own lifecycle. State changes take effect immediately through middleware, with no redeployment and no server restart.</p>
 <hr />
 <h2 id="30-second-quickstart">30-second quickstart<a class="headerlink" href="#30-second-quickstart" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;api-shield[all]&quot;</span>
@@ -1365,7 +1433,7 @@
 </tr>
 <tr>
 <td>⚡ <strong>Zero-restart control</strong></td>
-<td>State changes are immediate — no redeployment needed</td>
+<td>State changes are immediate, with no redeployment needed</td>
 </tr>
 <tr>
 <td>🛡️ <strong>Fail-open by default</strong></td>
@@ -1377,7 +1445,7 @@
 </tr>
 <tr>
 <td>🖥️ <strong>Admin dashboard</strong></td>
-<td>HTMX-powered UI with live SSE updates — no JS framework required</td>
+<td>HTMX-powered UI with live SSE updates, no JS framework required</td>
 </tr>
 <tr>
 <td>🖱️ <strong>REST API + CLI</strong></td>
@@ -1385,23 +1453,23 @@
 </tr>
 <tr>
 <td>📄 <strong>OpenAPI integration</strong></td>
-<td>Disabled / env-gated routes hidden from <code>/docs</code>; deprecated routes flagged automatically</td>
+<td>Disabled and env-gated routes hidden from <code>/docs</code>; deprecated routes flagged automatically</td>
 </tr>
 <tr>
 <td>📋 <strong>Audit log</strong></td>
-<td>Every state change is recorded: who, when, what route, old status → new status</td>
+<td>Every state change is recorded: who, when, what route, old status, new status</td>
 </tr>
 <tr>
 <td>⏰ <strong>Scheduled windows</strong></td>
-<td><code>asyncio</code>-native scheduler — maintenance windows activate and deactivate automatically</td>
+<td><code>asyncio</code>-native scheduler that activates and deactivates maintenance windows automatically</td>
 </tr>
 <tr>
 <td>🔔 <strong>Webhooks</strong></td>
-<td>Fire HTTP POST on every state change — built-in Slack formatter and custom formatters supported</td>
+<td>Fire HTTP POST on every state change, with a built-in Slack formatter and support for custom formatters</td>
 </tr>
 <tr>
 <td>🎨 <strong>Custom responses</strong></td>
-<td>Return HTML, redirects, or any response shape for blocked routes — per-route or app-wide default</td>
+<td>Return HTML, redirects, or any response shape for blocked routes, per-route or as an app-wide default</td>
 </tr>
 </tbody>
 </table>
@@ -1446,11 +1514,11 @@
 <hr />
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="tutorial/installation/"><strong>Tutorial: Installation</strong></a> — get up and running in seconds</li>
-<li><a href="tutorial/first-decorator/"><strong>Tutorial: First Decorator</strong></a> — put your first route in maintenance mode</li>
-<li><a href="reference/decorators/"><strong>Reference: Decorators</strong></a> — full decorator API</li>
-<li><a href="reference/engine/"><strong>Reference: ShieldEngine</strong></a> — programmatic control</li>
-<li><a href="reference/cli/"><strong>Reference: CLI</strong></a> — all CLI commands</li>
+<li><a href="tutorial/installation/"><strong>Tutorial: Installation</strong></a>: get up and running in seconds</li>
+<li><a href="tutorial/first-decorator/"><strong>Tutorial: First Decorator</strong></a>: put your first route in maintenance mode</li>
+<li><a href="reference/decorators/"><strong>Reference: Decorators</strong></a>: full decorator API</li>
+<li><a href="reference/engine/"><strong>Reference: ShieldEngine</strong></a>: programmatic control</li>
+<li><a href="reference/cli/"><strong>Reference: CLI</strong></a>: all CLI commands</li>
 </ul>
 
 
@@ -1560,7 +1628,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="assets/javascripts/bundle.79ae519e.min.js"></script>

@@ -364,9 +364,7 @@
   
 
 
-  
-
-<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="api-shield" class="md-nav__button md-logo" aria-label="api-shield" data-md-component="logo">
       
@@ -1298,6 +1296,109 @@
               </div>
             
             
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-create-a-simple-fastapi-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a simple FastAPI app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-run-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Run it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-verify-the-behaviour" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Verify the behaviour
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-decorators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Available decorators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime-changes-without-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime changes without restart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next step
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           
             <div class="md-content" data-md-component="content">
@@ -1419,13 +1520,13 @@
 </span></code></pre></div>
 <ol>
 <li>
-<p><code>@maintenance(...)</code> stamps <code>__shield_meta__ = {"status": "maintenance", "reason": "..."}</code> on the function. The function itself is <strong>not modified</strong> — it still runs normally if called directly.</p>
+<p><code>@maintenance(...)</code> stamps <code>__shield_meta__ = {"status": "maintenance", "reason": "..."}</code> on the function. The function itself is <strong>not modified</strong>; it still runs normally if called directly.</p>
 </li>
 <li>
 <p>When <code>app.include_router(router)</code> is called, <code>ShieldRouter</code> scans all routes for <code>__shield_meta__</code> and calls <code>engine.register()</code> for each one.</p>
 </li>
 <li>
-<p>On every HTTP request, <code>ShieldMiddleware</code> calls <code>engine.check(path)</code>. If the route is in maintenance, the engine raises <code>MaintenanceException</code> and the middleware returns a 503 response — the route handler never executes.</p>
+<p>On every HTTP request, <code>ShieldMiddleware</code> calls <code>engine.check(path)</code>. If the route is in maintenance, the engine raises <code>MaintenanceException</code> and the middleware returns a 503 response. The route handler never executes.</p>
 </li>
 </ol>
 <hr />
@@ -1440,11 +1541,11 @@
 <tbody>
 <tr>
 <td><code>@maintenance(reason, start, end)</code></td>
-<td>503 — temporarily unavailable</td>
+<td>503, temporarily unavailable</td>
 </tr>
 <tr>
 <td><code>@disabled(reason)</code></td>
-<td>503 — permanently off</td>
+<td>503, permanently off</td>
 </tr>
 <tr>
 <td><code>@env_only("dev", "staging")</code></td>
@@ -1456,20 +1557,20 @@
 </tr>
 <tr>
 <td><code>@force_active</code></td>
-<td>Always 200 — bypasses all checks</td>
+<td>Always 200, bypasses all checks</td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="runtime-changes-without-restart">Runtime changes without restart<a class="headerlink" href="#runtime-changes-without-restart" title="Permanent link">&para;</a></h2>
-<p>Once the middleware is in place, you can change route state at runtime — no code changes, no restart:</p>
+<p>Once the middleware is in place, you can change route state at runtime with no code changes and no restart:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Enable the route programmatically</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">enable</span><span class="p">(</span><span class="s2">&quot;GET:/payments&quot;</span><span class="p">)</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Put it back in maintenance</span>
 </span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">set_maintenance</span><span class="p">(</span><span class="s2">&quot;GET:/payments&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Second migration wave&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Or via the CLI (requires <code>ShieldAdmin</code> mounted — see <a href="../admin-dashboard/">Admin Dashboard</a>):</p>
+<p>Or via the CLI (requires <code>ShieldAdmin</code> mounted; see <a href="../admin-dashboard/">Admin Dashboard</a>):</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>shield<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>GET:/payments
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>shield<span class="w"> </span>maintenance<span class="w"> </span>GET:/payments<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Second migration wave&quot;</span>
 </span></code></pre></div>
@@ -1600,7 +1701,7 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
