@@ -1136,6 +1136,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.base.ShieldBackend.subscribe_rate_limit_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_rate_limit_policy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1770,6 +1781,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_global_config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.subscribe_rate_limit_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_rate_limit_policy
       
     </span>
   </a>
@@ -2527,6 +2549,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.base.ShieldBackend.subscribe_rate_limit_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_rate_limit_policy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3161,6 +3194,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_global_config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shield.core.backends.redis.RedisBackend.subscribe_rate_limit_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;subscribe_rate_limit_policy
       
     </span>
   </a>
@@ -3877,6 +3921,37 @@ the same path/method pair.</p>
         <p>Remove the persisted rate limit policy for <em>path</em>/<em>method</em>.</p>
 <p>No-op if no policy is stored for that pair.
 Default implementation is a no-op.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.base.ShieldBackend.subscribe_rate_limit_policy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">subscribe_rate_limit_policy</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.base.ShieldBackend.subscribe_rate_limit_policy" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">subscribe_rate_limit_policy</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Stream rate limit policy changes as they occur.</p>
+<p>Each yielded dict has the shape::</p>
+<div class="language-text highlight"><pre><span></span><code>{&quot;action&quot;: &quot;set&quot;,    &quot;key&quot;: &quot;GET:/api/orders&quot;, &quot;policy&quot;: {...}}
+{&quot;action&quot;: &quot;delete&quot;, &quot;key&quot;: &quot;GET:/api/orders&quot;}
+</code></pre></div>
+<p>Backends that support pub/sub (e.g. <code>RedisBackend</code>) override this.
+Others raise <code>NotImplementedError</code> — <code>ShieldEngine.start()</code> treats
+that as "single-instance mode" and skips the listener task.</p>
 
 
     </div>
@@ -5121,7 +5196,8 @@ ttl_seconds:
 
     <div class="doc doc-contents ">
 
-        <p>Persist <em>policy_data</em> for <em>path</em>/<em>method</em> in Redis.</p>
+        <p>Persist <em>policy_data</em> for <em>path</em>/<em>method</em> in Redis and broadcast to
+all other instances via <code>shield:rl-policy-change</code>.</p>
 
 
     </div>
@@ -5169,7 +5245,8 @@ ttl_seconds:
 
     <div class="doc doc-contents ">
 
-        <p>Remove the persisted rate limit policy for <em>path</em>/<em>method</em> from Redis.</p>
+        <p>Remove the persisted rate limit policy for <em>path</em>/<em>method</em> from Redis
+and broadcast the deletion to all other instances.</p>
 
 
     </div>
@@ -5200,6 +5277,37 @@ arrival means another instance has written a new
 drop its in-process cache.</p>
 <p>The generator runs indefinitely — callers (<code>ShieldEngine</code>)
 are expected to run it inside a cancellable <code>asyncio.Task</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="shield.core.backends.redis.RedisBackend.subscribe_rate_limit_policy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">subscribe_rate_limit_policy</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#shield.core.backends.redis.RedisBackend.subscribe_rate_limit_policy" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">subscribe_rate_limit_policy</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Yield policy-change events whenever another instance sets or deletes
+a rate limit policy.</p>
+<p>Each yielded dict has one of two shapes::</p>
+<div class="language-text highlight"><pre><span></span><code>{&quot;action&quot;: &quot;set&quot;,    &quot;key&quot;: &quot;GET:/api/orders&quot;, &quot;policy&quot;: {...}}
+{&quot;action&quot;: &quot;delete&quot;, &quot;key&quot;: &quot;GET:/api/orders&quot;}
+</code></pre></div>
+<p>The generator runs indefinitely inside a cancellable <code>asyncio.Task</code>
+managed by <code>ShieldEngine</code>.</p>
 
 
     </div>

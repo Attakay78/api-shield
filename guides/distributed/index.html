@@ -1256,6 +1256,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rate-limit-policies-distributed-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limit policies: distributed sync
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-request-lifecycle-across-instances" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1679,6 +1690,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rate-limit-policies-distributed-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limit policies: distributed sync
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-request-lifecycle-across-instances" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1871,6 +1893,12 @@
 <td>Yes — pub/sub</td>
 </tr>
 <tr>
+<td>Rate limit policy sync (real-time)</td>
+<td>In-process only</td>
+<td>No</td>
+<td>Yes — pub/sub</td>
+</tr>
+<tr>
 <td>Dashboard SSE live updates</td>
 <td>In-process only</td>
 <td>No — polling fallback</td>
@@ -1884,6 +1912,12 @@
 </tr>
 <tr>
 <td><code>subscribe_global_config()</code></td>
+<td><code>NotImplementedError</code></td>
+<td><code>NotImplementedError</code></td>
+<td>Redis pub/sub</td>
+</tr>
+<tr>
+<td><code>subscribe_rate_limit_policy()</code></td>
 <td><code>NotImplementedError</code></td>
 <td><code>NotImplementedError</code></td>
 <td>Redis pub/sub</td>
@@ -1953,8 +1987,11 @@
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>shield:route-index           SET      All registered route paths (safe SMEMBERS instead of KEYS scan)
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>shield:audit                 LIST     Global audit log, newest-first (LPUSH + LTRIM 1000)
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>shield:audit:path:{path}     LIST     Per-path audit log for O(limit) filtered queries
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>shield:global_invalidate     CHANNEL  Pub/sub — fires on every global maintenance config change
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>shield:changes               CHANNEL  Pub/sub — fires on every set_state call
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>shield:rlpolicy:{METHOD:path} STRING  JSON-serialised RateLimitPolicy
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>shield:rl-policy-index       SET      All registered rate limit policy keys
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>shield:global_invalidate     CHANNEL  Pub/sub — fires on every global maintenance config change
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>shield:rl-policy-change      CHANNEL  Pub/sub — fires on every rate limit policy set or delete
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>shield:changes               CHANNEL  Pub/sub — fires on every set_state call
 </span></code></pre></div>
 <p><code>shield:route-index</code> exists specifically to avoid <code>KEYS shield:state:*</code>. <code>KEYS</code> is an O(keyspace) blocking command that freezes Redis on busy production instances. <code>SMEMBERS</code> on the dedicated route-index set is safe to use at any time.</p>
 <h3 id="per-route-state-immediate-consistency">Per-route state: immediate consistency<a class="headerlink" href="#per-route-state-immediate-consistency" title="Permanent link">&para;</a></h3>
@@ -1990,31 +2027,46 @@
 <li><code>ShieldRouter.register_shield_routes()</code>: at FastAPI application startup</li>
 </ul>
 <p>You do not need to call <code>start()</code> manually unless you are using the engine outside of these two contexts.</p>
-<h3 id="the-request-lifecycle-across-instances">The request lifecycle across instances<a class="headerlink" href="#the-request-lifecycle-across-instances" title="Permanent link">&para;</a></h3>
-<p>Here is the complete flow for a request arriving at Instance B when Instance A has placed <code>/api/payments</code> in maintenance:</p>
+<h3 id="rate-limit-policies-distributed-sync">Rate limit policies: distributed sync<a class="headerlink" href="#rate-limit-policies-distributed-sync" title="Permanent link">&para;</a></h3>
+<p>Rate limit policies (<code>@rate_limit</code> limits, algorithm, key strategy) are cached in each instance's <code>_rate_limit_policies</code> dict for fast O(1) lookup on every request. Without cross-instance sync, a policy update applied via the admin API or CLI would only take effect on the worker that handled that request — all other workers would continue enforcing the old limit.</p>
+<p>This is solved with the same invalidation pattern used for global maintenance:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Instance A                         Redis                    Instance B
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>─────────                          ─────                    ─────────
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>engine.set_maintenance(&quot;/api/payments&quot;)
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>engine.set_rate_limit_policy(...)
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  │
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  └── backend.set_state(&quot;GET:/api/payments&quot;, state)
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        ├── SET shield:state:GET:/api/payments  ──────────→ (key updated in Redis)
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        ├── SADD shield:route-index             ──────────→ (index updated)
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        └── PUBLISH shield:changes              ──────────→ dashboard SSE subscriber
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>                                                             yields RouteState to clients
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>                                                POST /api/payments
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>                                                     │
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>                                                engine.check(&quot;/api/payments&quot;, &quot;POST&quot;)
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>                                                     │
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>                                                backend.get_state(&quot;GET:/api/payments&quot;)
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>                                                     │
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>                                                GET shield:state:GET:/api/payments  ←──── Redis
-</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>                                                     │
-</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>                                                RouteState(status=MAINTENANCE)
-</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>                                                     │
-</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>                                                raise MaintenanceException
-</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>                                                     │
-</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>                                                ShieldMiddleware → 503 JSON response
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ├── _rate_limit_policies[key] = new_policy   (local update)
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  ├── SET shield:rlpolicy:{key}  ──────────────────────────→ (persisted)
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  └── PUBLISH shield:rl-policy-change  ──────────────────→  _run_rl_policy_listener()
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        {&quot;action&quot;: &quot;set&quot;, &quot;key&quot;: &quot;GET:/api/orders&quot;,              │
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>         &quot;policy&quot;: {...}}                                   _rate_limit_policies[key] = new_policy
+</span></code></pre></div>
+<p><code>ShieldEngine.start()</code> creates a <code>shield-rl-policy-listener</code> background task. Each message on <code>shield:rl-policy-change</code> carries the full policy payload (for <code>set</code>) or just the key (for <code>delete</code>), so the receiving instance applies the delta directly without an extra Redis round-trip.</p>
+<p>For <code>MemoryBackend</code> and <code>FileBackend</code>, <code>subscribe_rate_limit_policy()</code> raises <code>NotImplementedError</code>. The listener exits silently — single-instance deployments need no cross-process sync.</p>
+<h3 id="the-request-lifecycle-across-instances">The request lifecycle across instances<a class="headerlink" href="#the-request-lifecycle-across-instances" title="Permanent link">&para;</a></h3>
+<p>Here is the complete flow for a request arriving at Instance B when Instance A has placed <code>/api/payments</code> in maintenance:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Instance A                         Redis                    Instance B
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>─────────                          ─────                    ─────────
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>engine.set_maintenance(&quot;/api/payments&quot;)
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  │
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  └── backend.set_state(&quot;GET:/api/payments&quot;, state)
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        ├── SET shield:state:GET:/api/payments  ──────────→ (key updated in Redis)
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        ├── SADD shield:route-index             ──────────→ (index updated)
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        └── PUBLISH shield:changes              ──────────→ dashboard SSE subscriber
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>                                                             yields RouteState to clients
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>                                                POST /api/payments
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>                                                     │
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>                                                engine.check(&quot;/api/payments&quot;, &quot;POST&quot;)
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>                                                     │
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>                                                backend.get_state(&quot;GET:/api/payments&quot;)
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>                                                     │
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>                                                GET shield:state:GET:/api/payments  ←──── Redis
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>                                                     │
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>                                                RouteState(status=MAINTENANCE)
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>                                                     │
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>                                                raise MaintenanceException
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>                                                     │
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>                                                ShieldMiddleware → 503 JSON response
 </span></code></pre></div>
 <p>There is no in-process cache for per-route state. Every <code>engine.check()</code> call on <code>RedisBackend</code> is a single <code>GET</code> command. Round-trip latency on a local Redis is typically under 0.5ms, well within the &lt; 2ms budget defined in the performance spec.</p>
 <h3 id="scheduler-behaviour-across-instances">Scheduler behaviour across instances<a class="headerlink" href="#scheduler-behaviour-across-instances" title="Permanent link">&para;</a></h3>
@@ -2022,19 +2074,19 @@
 <p>When the window's <code>start</code> time arrives, every instance independently calls <code>engine.set_maintenance()</code>. Because <code>set_maintenance()</code> is idempotent (writing the same <code>MAINTENANCE</code> state twice is a no-op from Redis's perspective), this is safe.</p>
 <h3 id="webhook-deduplication">Webhook deduplication<a class="headerlink" href="#webhook-deduplication" title="Permanent link">&para;</a></h3>
 <p>Without deduplication, webhooks would fire once per instance per event: three instances would mean three <code>maintenance_on</code> deliveries for a single window activation. api-shield prevents this with a <code>SET NX</code> claim in Redis before any HTTP POST is sent.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Window activates simultaneously on all instances
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├── Instance A: _dispatch_webhooks(&quot;maintenance_on&quot;, &quot;/api/pay&quot;, state)
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│     ├── dedup_key = sha256(&quot;maintenance_on:/api/pay:{...state...}&quot;)
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│     ├── SET shield:webhook:dedup:{key} 1 NX EX 60  → &quot;OK&quot;  ✅ claimed
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│     └── POST http://example.com/hook  (fires)
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>├── Instance B: _dispatch_webhooks(&quot;maintenance_on&quot;, &quot;/api/pay&quot;, state)
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>│     ├── dedup_key = sha256(&quot;maintenance_on:/api/pay:{...state...}&quot;)  ← identical
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>│     ├── SET shield:webhook:dedup:{key} 1 NX EX 60  → nil  ❌ already claimed
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>│     └── skip  (no POST)
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>│
-</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>└── Instance C: same as B — skips
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Window activates simultaneously on all instances
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>│
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>├── Instance A: _dispatch_webhooks(&quot;maintenance_on&quot;, &quot;/api/pay&quot;, state)
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>│     ├── dedup_key = sha256(&quot;maintenance_on:/api/pay:{...state...}&quot;)
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>│     ├── SET shield:webhook:dedup:{key} 1 NX EX 60  → &quot;OK&quot;  ✅ claimed
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>│     └── POST http://example.com/hook  (fires)
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>│
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>├── Instance B: _dispatch_webhooks(&quot;maintenance_on&quot;, &quot;/api/pay&quot;, state)
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>│     ├── dedup_key = sha256(&quot;maintenance_on:/api/pay:{...state...}&quot;)  ← identical
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>│     ├── SET shield:webhook:dedup:{key} 1 NX EX 60  → nil  ❌ already claimed
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>│     └── skip  (no POST)
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>│
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>└── Instance C: same as B — skips
 </span></code></pre></div>
 <p>The dedup key is a SHA-256 hash of <code>event + path + serialised RouteState</code>. Because the scheduler produces an identical <code>RouteState</code> on all instances for the same window activation (same path, same status, same window start/end), the key is fleet-wide deterministic. Only the first instance to win the atomic <code>SET NX</code> fires.</p>
 <p>The dedup key expires after 60 seconds. If the winning instance crashes before completing delivery, the key expires and re-delivery is possible on the next scheduler poll cycle.</p>
@@ -2044,28 +2096,28 @@
 <p>If you need fully consistent OpenAPI schemas across instances, you can force a cache refresh by calling <code>app.openapi.cache_clear()</code> (or the equivalent for your schema caching setup) in response to <code>shield:changes</code> pub/sub messages.</p>
 <hr />
 <h2 id="choosing-the-right-backend">Choosing the right backend<a class="headerlink" href="#choosing-the-right-backend" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Do you need state to survive a restart?
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>│
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>├── No  → MemoryBackend (development / tests)
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>│
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>└── Yes
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    │
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    Do you run more than one instance?
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    │
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    ├── No  → FileBackend (simple single-instance prod)
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    │
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    └── Yes → RedisBackend (multi-instance / load-balanced prod)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Do you need state to survive a restart?
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>│
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├── No  → MemoryBackend (development / tests)
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>└── Yes
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    │
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    Do you run more than one instance?
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    │
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    ├── No  → FileBackend (simple single-instance prod)
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    │
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    └── Yes → RedisBackend (multi-instance / load-balanced prod)
 </span></code></pre></div>
 <hr />
 <h2 id="fail-open-guarantee">Fail-open guarantee<a class="headerlink" href="#fail-open-guarantee" title="Permanent link">&para;</a></h2>
 <p>Regardless of backend, api-shield will <strong>never take down your API due to its own backend being unreachable</strong>. Every <code>backend.get_state()</code> call is wrapped in a try/except inside <code>engine.check()</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">try</span><span class="p">:</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">continue</span>       <span class="c1"># path not registered → treat as ACTIVE</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;shield: backend error — failing open&quot;</span><span class="p">)</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="k">return</span> <span class="kc">None</span>    <span class="c1"># allow the request through</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="k">continue</span>       <span class="c1"># path not registered → treat as ACTIVE</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;shield: backend error — failing open&quot;</span><span class="p">)</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="k">return</span> <span class="kc">None</span>    <span class="c1"># allow the request through</span>
 </span></code></pre></div>
 <p>If Redis goes down, all <code>engine.check()</code> calls fail-open: every request passes through as if all routes are <code>ACTIVE</code>. Shield logs the errors at <code>ERROR</code> level but never surfaces them as HTTP failures to your clients. Your API continues to serve traffic; you just lose the protection layer temporarily.</p>
 <p>The same applies to global maintenance: if reading <code>GlobalMaintenanceConfig</code> from the backend raises an exception, the exception is caught and the request is allowed through.</p>

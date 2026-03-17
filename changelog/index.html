@@ -1313,6 +1313,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#050" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.5.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#040" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1592,6 +1620,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#050" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.5.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#040" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1857,7 +1913,16 @@
 <p>All notable changes to this project will be documented here.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>, and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
 <hr />
-<h2 id="unreleased"><a href="https://github.com/Attakay78/api-shield/compare/v0.4.0...HEAD">Unreleased</a><a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<h2 id="unreleased"><a href="https://github.com/Attakay78/api-shield/compare/v0.5.0...HEAD">Unreleased</a><a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="050"><a href="https://github.com/Attakay78/api-shield/compare/v0.4.0...v0.5.0">0.5.0</a><a class="headerlink" href="#050" title="Permanent link">&para;</a></h2>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Rate limit policies not synced across workers</strong> (<code>RedisBackend</code>): updating a policy via the admin API or CLI only updated the in-process dict of the worker that handled the request. Other workers continued enforcing the old (decorator-declared) limit until restart. Fixed by adding a <code>shield:rl-policy-change</code> Redis pub/sub channel, every <code>set</code> and <code>delete</code> now broadcasts the change to all instances, which apply it to their local <code>_rate_limit_policies</code> dict immediately via a new background listener task (<code>shield-rl-policy-listener</code>), mirroring the existing <code>shield:global_invalidate</code> pattern.</li>
+<li><strong>Rate limit policies reverted to decorator defaults on restart</strong> (<code>ShieldRouter</code>): <code>register_shield_routes()</code> called <code>restore_rate_limit_policies()</code> (via <code>register_batch</code>) before re-registering decorator-declared policies, so persisted admin/CLI updates were immediately overwritten on every app startup. Fixed by registering decorator policies first and running <code>restore_rate_limit_policies()</code> last, consistent with the order already used by <code>scan_routes()</code>.</li>
+<li><strong><code>RedisRateLimitStorage.reset()</code> blocked the event loop</strong>: the underlying <code>limits</code> library exposes a synchronous Redis client; calling <code>.scan()</code> and <code>.delete()</code> directly inside <code>async def reset()</code> stalled the event loop during every admin reset and route <code>enable()</code> call. Fixed by offloading the SCAN + DELETE loop to <code>asyncio.to_thread()</code>.</li>
+<li><strong><code>enable()</code> reset rate limit counters with seven sequential calls</strong>: a <code>for _method in (…)</code> loop called <code>_rate_limiter.reset()</code> once per HTTP method. Replaced with a single <code>reset_all_for_path()</code> call (<code>method=None</code>), which is the existing one-shot API on <code>ShieldRateLimiter</code>.</li>
+</ul>
 <hr />
 <h2 id="040"><a href="https://github.com/Attakay78/api-shield/compare/v0.3.0...v0.4.0">0.4.0</a><a class="headerlink" href="#040" title="Permanent link">&para;</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
