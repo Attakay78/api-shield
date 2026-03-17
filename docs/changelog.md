@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 
+- **CLI table pagination**: `shield status`, `shield log`, `shield rl list`, and `shield rl hits` now support `--page` and `--per-page` (default 20) instead of a flat `--limit`; a footer shows the current slice and the next/prev page flag to run. The `shield log` status column now combines old and new state into a single `old > new` cell and shows a coloured label for rate limit audit actions. The `shield rl hits` table drops the `Key` and `Method` columns in favour of a single `Path` column showing `METHOD /route`.
 - **`@env_only` now returns 403 with JSON**: env-gated routes blocked by the wrong environment return `403 ENV_GATED` with `current_env`, `allowed_envs`, and `path` instead of a silent empty 404.
 - **Tailwind CSS v3 → v4**: replaced `tailwind.config.js` with a CSS-first config in `input.css` (`@import "tailwindcss"`, `@source`, `@theme`). Dashboard CSS is pre-built and committed; no Node.js required at install time.
 - **No CDN dependency**: `shield.min.css` is now served as a local static file instead of the Tailwind CDN script, eliminating the production warning and removing the runtime network dependency.
