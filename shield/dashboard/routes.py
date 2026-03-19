@@ -407,6 +407,54 @@ async def global_maintenance_disable(request: Request) -> HTMLResponse:
     return HTMLResponse(_render_global_widget(tpl, config, prefix))
 
 
+async def modal_env_gate(request: Request) -> HTMLResponse:
+    """Return the env-gate modal form pre-filled with the current allowed envs."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    path_key = request.path_params["path_key"]
+    route_path = _decode_path(path_key)
+    slug = path_slug(route_path)
+
+    try:
+        state = await engine.get_state(route_path)
+        current_envs = ", ".join(state.allowed_envs or [])
+    except Exception:
+        current_envs = ""
+
+    html = tpl.env.get_template("partials/modal_env_gate.html").render(
+        route_path=route_path,
+        path_slug=slug,
+        submit_path=f"{prefix}/env/{path_key}",
+        current_envs=current_envs,
+    )
+    return HTMLResponse(html)
+
+
+async def env_gate(request: Request) -> HTMLResponse:
+    """Apply env-gating from form data and return the updated route row.
+
+    Expected form fields: ``envs`` — comma-separated environment names.
+    """
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    route_path = _decode_path(request.path_params["path_key"])
+
+    form_data = await request.form()
+    raw = str(form_data.get("envs", ""))
+    envs = [e.strip() for e in raw.replace(",", " ").split() if e.strip()]
+
+    try:
+        new_state = await engine.set_env_only(
+            route_path, envs, actor=_actor(request), platform=_platform(request)
+        )
+    except RouteProtectedException:
+        new_state = await engine.get_state(route_path)
+
+    return HTMLResponse(_render_route_row(tpl, new_state, prefix))
+
+
 async def action_modal(request: Request) -> HTMLResponse:
     """Return the styled action confirmation modal content.
 
@@ -454,12 +502,14 @@ async def rate_limits_page(request: Request) -> Response:
     page = int(request.query_params.get("page", 1))
     policies = list(engine._rate_limit_policies.values())
     paged = _paginate(policies, page)
+    global_rl = await engine.get_global_rate_limit()
     return tpl.TemplateResponse(
         request,
         "rate_limits.html",
         {
             "policies": paged["items"],
             "pagination": paged,
+            "global_rl": global_rl,
             "prefix": prefix,
             "active_tab": "rate_limits",
             "version": request.app.state.version,
@@ -635,6 +685,106 @@ async def rl_delete(request: Request) -> HTMLResponse:
     )
     # Return an empty string — HTMX outerHTML-swaps the row away.
     return HTMLResponse("")
+
+
+async def modal_global_rl(request: Request) -> HTMLResponse:
+    """Return the global rate limit set/edit modal form."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/modal_global_rl.html").render(
+        grl=grl,
+        prefix=prefix,
+    )
+    return HTMLResponse(html)
+
+
+async def modal_global_rl_delete(request: Request) -> HTMLResponse:
+    """Return the global rate limit delete confirmation modal."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    html = tpl.env.get_template("partials/modal_global_rl_delete.html").render(prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def modal_global_rl_reset(request: Request) -> HTMLResponse:
+    """Return the global rate limit reset confirmation modal."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    html = tpl.env.get_template("partials/modal_global_rl_reset.html").render(prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def global_rl_set(request: Request) -> HTMLResponse:
+    """Save global rate limit policy from form data and refresh the card."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    form = await request.form()
+    limit = str(form.get("limit", "")).strip()
+    algorithm = str(form.get("algorithm", "fixed_window")).strip() or None
+    key_strategy = str(form.get("key_strategy", "ip")).strip() or None
+    burst = int(str(form.get("burst", 0) or 0))
+    exempt_raw = str(form.get("exempt_routes", "")).strip()
+    exempt_routes = [r.strip() for r in exempt_raw.splitlines() if r.strip()]
+    if limit:
+        await engine.set_global_rate_limit(
+            limit=limit,
+            algorithm=algorithm,
+            key_strategy=key_strategy,
+            burst=burst,
+            exempt_routes=exempt_routes,
+            actor=_actor(request),
+            platform=_platform(request),
+        )
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/global_rl_card.html").render(grl=grl, prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def global_rl_delete(request: Request) -> HTMLResponse:
+    """Delete global rate limit policy and refresh the card."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    await engine.delete_global_rate_limit(actor=_actor(request), platform=_platform(request))
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/global_rl_card.html").render(grl=grl, prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def global_rl_reset(request: Request) -> HTMLResponse:
+    """Reset global rate limit counters and refresh the card."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    await engine.reset_global_rate_limit(actor=_actor(request), platform=_platform(request))
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/global_rl_card.html").render(grl=grl, prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def global_rl_enable(request: Request) -> HTMLResponse:
+    """Enable (resume) the global rate limit policy and refresh the card."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    await engine.enable_global_rate_limit(actor=_actor(request), platform=_platform(request))
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/global_rl_card.html").render(grl=grl, prefix=prefix)
+    return HTMLResponse(html)
+
+
+async def global_rl_disable(request: Request) -> HTMLResponse:
+    """Disable (pause) the global rate limit policy and refresh the card."""
+    engine = _engine(request)
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    await engine.disable_global_rate_limit(actor=_actor(request), platform=_platform(request))
+    grl = await engine.get_global_rate_limit()
+    html = tpl.env.get_template("partials/global_rl_card.html").render(grl=grl, prefix=prefix)
+    return HTMLResponse(html)
 
 
 async def rate_limits_hits_partial(request: Request) -> Response:

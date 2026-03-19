@@ -281,6 +281,10 @@ def ShieldAdmin(
             Route("/routes", _dash.routes_partial),
             Route("/modal/global/enable", _dash.modal_global_enable),
             Route("/modal/global/disable", _dash.modal_global_disable),
+            Route("/modal/global-rl", _dash.modal_global_rl),
+            Route("/modal/global-rl/delete", _dash.modal_global_rl_delete),
+            Route("/modal/global-rl/reset", _dash.modal_global_rl_reset),
+            Route("/modal/env/{path_key}", _dash.modal_env_gate),
             Route("/modal/{action}/{path_key}", _dash.action_modal),
             Route(
                 "/global-maintenance/enable",
@@ -295,6 +299,7 @@ def ShieldAdmin(
             Route("/toggle/{path_key}", _dash.toggle, methods=["POST"]),
             Route("/disable/{path_key}", _dash.disable, methods=["POST"]),
             Route("/enable/{path_key}", _dash.enable, methods=["POST"]),
+            Route("/env/{path_key}", _dash.env_gate, methods=["POST"]),
             Route("/schedule", _dash.schedule, methods=["POST"]),
             Route("/schedule/{path_key}", _dash.cancel_schedule, methods=["DELETE"]),
             Route("/audit", _dash.audit_page),
@@ -309,6 +314,11 @@ def ShieldAdmin(
             Route("/rl/reset/{path_key}", _dash.rl_reset, methods=["POST"]),
             Route("/rl/edit/{path_key}", _dash.rl_edit, methods=["POST"]),
             Route("/rl/delete/{path_key}", _dash.rl_delete, methods=["POST"]),
+            Route("/global-rl/set", _dash.global_rl_set, methods=["POST"]),
+            Route("/global-rl/delete", _dash.global_rl_delete, methods=["POST"]),
+            Route("/global-rl/reset", _dash.global_rl_reset, methods=["POST"]),
+            Route("/global-rl/enable", _dash.global_rl_enable, methods=["POST"]),
+            Route("/global-rl/disable", _dash.global_rl_disable, methods=["POST"]),
             Route("/events", _dash.events),
             # ── REST API (CLI) ────────────────────────────────────────────
             Route("/api/auth/login", _api.auth_login, methods=["POST"]),
@@ -346,6 +356,32 @@ def ShieldAdmin(
                 "/api/rate-limits/{path_key}",
                 _api.delete_rate_limit_policy_api,
                 methods=["DELETE"],
+            ),
+            Route("/api/global-rate-limit", _api.get_global_rate_limit, methods=["GET"]),
+            Route(
+                "/api/global-rate-limit",
+                _api.set_global_rate_limit_api,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/global-rate-limit",
+                _api.delete_global_rate_limit_api,
+                methods=["DELETE"],
+            ),
+            Route(
+                "/api/global-rate-limit/reset",
+                _api.reset_global_rate_limit_api,
+                methods=["DELETE"],
+            ),
+            Route(
+                "/api/global-rate-limit/enable",
+                _api.enable_global_rate_limit_api,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/global-rate-limit/disable",
+                _api.disable_global_rate_limit_api,
+                methods=["POST"],
             ),
         ],
     )

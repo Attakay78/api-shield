@@ -260,6 +260,83 @@ for s in states:
 
 ---
 
+## Sync API — `engine.sync`
+
+Every async engine method has a synchronous mirror available via `engine.sync`. This is useful for **sync FastAPI route handlers** (plain `def`, not `async def`) and background threads, where you cannot use `await`.
+
+FastAPI automatically runs sync handlers in a worker thread, which is exactly the context `engine.sync` requires. No additional setup is needed — just use `engine.sync.*` instead of `await engine.*`.
+
+!!! warning "Do not call from inside `async def`"
+    `engine.sync.*` uses `anyio.from_thread.run()` internally. Calling it from inside an async function (on the event loop thread) will deadlock. Use `await engine.*` there instead.
+
+=== "Async handler (normal)"
+
+    ```python
+    @router.post("/admin/deploy")
+    @force_active
+    async def deploy():
+        await engine.disable("GET:/payments", reason="deploy in progress")
+        await run_migration()
+        await engine.enable("GET:/payments")
+        return {"deployed": True}
+    ```
+
+=== "Sync handler (engine.sync)"
+
+    ```python
+    @router.post("/admin/deploy")
+    @force_active
+    def deploy():  # FastAPI runs this in a worker thread automatically
+        engine.sync.disable("GET:/payments", reason="deploy in progress")
+        run_migration()
+        engine.sync.enable("GET:/payments")
+        return {"deployed": True}
+    ```
+
+=== "Background thread"
+
+    ```python
+    import threading
+
+    def nightly_job():
+        engine.sync.set_maintenance("GET:/reports", reason="nightly rebuild")
+        rebuild_reports()
+        engine.sync.enable("GET:/reports")
+
+    threading.Thread(target=nightly_job, daemon=True).start()
+    ```
+
+### Available methods
+
+`engine.sync` exposes the same public API as the async engine:
+
+| `engine.sync.*` | Async equivalent |
+|---|---|
+| `enable(path, actor, reason)` | `await engine.enable(...)` |
+| `disable(path, reason, actor)` | `await engine.disable(...)` |
+| `set_maintenance(path, reason, window, actor)` | `await engine.set_maintenance(...)` |
+| `schedule_maintenance(path, window, actor)` | `await engine.schedule_maintenance(...)` |
+| `set_env_only(path, envs, actor)` | `await engine.set_env_only(...)` |
+| `get_global_maintenance()` | `await engine.get_global_maintenance()` |
+| `enable_global_maintenance(reason, ...)` | `await engine.enable_global_maintenance(...)` |
+| `disable_global_maintenance(actor)` | `await engine.disable_global_maintenance(...)` |
+| `set_global_exempt_paths(paths)` | `await engine.set_global_exempt_paths(...)` |
+| `get_rate_limit_hits(path, limit)` | `await engine.get_rate_limit_hits(...)` |
+| `set_rate_limit_policy(path, method, limit, ...)` | `await engine.set_rate_limit_policy(...)` |
+| `delete_rate_limit_policy(path, method, actor)` | `await engine.delete_rate_limit_policy(...)` |
+| `reset_rate_limit(path, method, actor)` | `await engine.reset_rate_limit(...)` |
+| `set_global_rate_limit(limit, ...)` | `await engine.set_global_rate_limit(...)` |
+| `get_global_rate_limit()` | `await engine.get_global_rate_limit()` |
+| `delete_global_rate_limit(actor)` | `await engine.delete_global_rate_limit(...)` |
+| `reset_global_rate_limit(actor)` | `await engine.reset_global_rate_limit(...)` |
+| `enable_global_rate_limit(actor)` | `await engine.enable_global_rate_limit(...)` |
+| `disable_global_rate_limit(actor)` | `await engine.disable_global_rate_limit(...)` |
+| `get_state(path)` | `await engine.get_state(path)` |
+| `list_states()` | `await engine.list_states()` |
+| `get_audit_log(path, limit)` | `await engine.get_audit_log(...)` |
+
+---
+
 ## Scheduled maintenance
 
 ### `schedule_maintenance`
@@ -470,6 +547,80 @@ async def list_rate_limit_policies() -> list[RateLimitPolicy]
 ```
 
 Return all registered rate limit policies.
+
+---
+
+## Global rate limit
+
+A single policy applied across all routes with higher precedence than per-route limits. Checked first on every request — a request blocked by the global limit never touches the per-route counter. Per-route checks only run after the global limit passes (or the route is exempt, or no global limit is configured).
+
+### `set_global_rate_limit`
+
+```python
+async def set_global_rate_limit(
+    limit: str,
+    *,
+    algorithm: str | None = None,
+    key_strategy: str | None = None,
+    on_missing_key: str | None = None,
+    burst: int = 0,
+    exempt_routes: list[str] | None = None,
+    actor: str = "system",
+    platform: str = "",
+) -> GlobalRateLimitPolicy
+```
+
+Create or replace the global rate limit policy. Logged as `global_rl_set` or `global_rl_updated`.
+
+---
+
+### `get_global_rate_limit`
+
+```python
+async def get_global_rate_limit() -> GlobalRateLimitPolicy | None
+```
+
+Return the current policy, or `None` if not configured.
+
+---
+
+### `delete_global_rate_limit`
+
+```python
+async def delete_global_rate_limit(*, actor: str = "system") -> None
+```
+
+Remove the global policy. Logged as `global_rl_deleted`.
+
+---
+
+### `reset_global_rate_limit`
+
+```python
+async def reset_global_rate_limit(*, actor: str = "system") -> None
+```
+
+Clear all global counters. Policy is kept. Logged as `global_rl_reset`.
+
+---
+
+### `enable_global_rate_limit`
+
+```python
+async def enable_global_rate_limit(*, actor: str = "system") -> None
+```
+
+Resume a paused global policy. No-op if already enabled. Logged as `global_rl_enabled`.
+
+---
+
+### `disable_global_rate_limit`
+
+```python
+async def disable_global_rate_limit(*, actor: str = "system") -> None
+```
+
+Pause the global policy without removing it. Per-route policies are unaffected. Logged as `global_rl_disabled`.
 
 ---
 
