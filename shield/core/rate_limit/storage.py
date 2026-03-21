@@ -665,23 +665,8 @@ def create_rate_limit_storage(
         from shield.core.backends.redis import RedisBackend
 
         if isinstance(effective, RedisBackend):
-            # Extract the Redis URL from the connection pool.
-            pool = getattr(effective, "_pool", None)
-            url: str = (
-                pool.connection_kwargs.get("host", "redis://localhost")
-                if pool
-                else "redis://localhost"
-            )
-            # Prefer the full URL from pool kwargs if available.
-            connection_kwargs = pool.connection_kwargs if pool else {}
-            host = connection_kwargs.get("host", "localhost")
-            port = connection_kwargs.get("port", 6379)
-            db = connection_kwargs.get("db", 0)
-            password = connection_kwargs.get("password")
-            if password:
-                url = f"redis://:{password}@{host}:{port}/{db}"
-            else:
-                url = f"redis://{host}:{port}/{db}"
+            # RedisBackend stores the original URL in self._url.
+            url: str = getattr(effective, "_url", "redis://localhost:6379/0")
             return RedisRateLimitStorage(redis_url=url)
     except ImportError:
         pass

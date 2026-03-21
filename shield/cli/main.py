@@ -343,6 +343,13 @@ def status(
         None,
         help="Route: /path or METHOD:/path. Omit for all routes.",
     ),
+    service: str | None = typer.Option(
+        None,
+        "--service",
+        "-s",
+        envvar="SHIELD_SERVICE",
+        help="Filter to routes for a specific service. Falls back to SHIELD_SERVICE env var.",
+    ),
     page: int = typer.Option(1, "--page", "-p", help="Page number (when listing all routes)."),
     per_page: int = typer.Option(_DEFAULT_PER_PAGE, "--per-page", help="Rows per page."),
 ) -> None:
@@ -355,17 +362,27 @@ def status(
             states = [await client.get_route(key)]
             paginated, has_prev, has_next, first_num, last_num = states, False, False, 1, 1
         else:
-            all_states = sorted(await client.list_routes(), key=lambda x: x["path"])
+            all_states = sorted(await client.list_routes(service=service), key=lambda x: x["path"])
             paginated, has_prev, has_next, first_num, last_num = _paginate(
                 all_states, page, per_page
             )
 
         if not paginated:
-            console.print("[dim]No routes registered.[/dim]")
+            msg = (
+                f"No routes registered for service [bold]{service}[/bold]."
+                if service
+                else "No routes registered."
+            )
+            console.print(f"[dim]{msg}[/dim]")
             return
+
+        # Show Service column only when listing all services (no filter active).
+        show_service = not service and any(s.get("service") for s in paginated)
 
         table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
         table.add_column("Route", style="cyan")
+        if show_service:
+            table.add_column("Service", style="dim")
         table.add_column("Status")
         table.add_column("Reason")
         table.add_column("Envs")
@@ -382,14 +399,25 @@ def status(
                 except Exception:
                     window_end = window["end"]
             envs = s.get("allowed_envs") or []
-            table.add_row(
-                s["path"],
+            # Strip service prefix from path for display.
+            svc = s.get("service") or ""
+            raw_path = s["path"]
+            display_path = (
+                raw_path[len(svc) + 1 :] if svc and raw_path.startswith(f"{svc}:") else raw_path
+            )
+            row = [display_path]
+            if show_service:
+                row.append(svc or "—")
+            row += [
                 f"[{colour}]{s['status'].upper()}[/{colour}]",
                 s.get("reason") or "—",
                 ", ".join(envs) if envs else "—",
                 window_end or "—",
-            )
+            ]
+            table.add_row(*row)
 
+        if service:
+            console.print(f"[dim]Service: [bold]{service}[/bold][/dim]")
         console.print(table)
         if not route and (has_prev or has_next):
             _print_page_footer(page, per_page, first_num, last_num, has_prev, has_next)
@@ -397,15 +425,61 @@ def status(
     _run(_run_status)
 
 
+@cli.command("services")
+def list_services_cmd() -> None:
+    """List all services that have registered routes with this Shield Server."""
+
+    async def _run_services() -> None:
+        client = make_client()
+        try:
+            services = await client.list_services()
+        except Exception:
+            services = []
+        if not services:
+            console.print("[dim]No services registered.[/dim]")
+            return
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Service", style="cyan")
+        for svc in services:
+            table.add_row(svc)
+        console.print(table)
+
+    _run(_run_services)
+
+
+@cli.command("current-service")
+def current_service_cmd() -> None:
+    """Show the active service context (set via SHIELD_SERVICE env var)."""
+    import os
+
+    svc = os.environ.get("SHIELD_SERVICE", "")
+    if svc:
+        console.print(
+            f"Active service: [cyan bold]{svc}[/cyan bold]  [dim](from SHIELD_SERVICE)[/dim]"
+        )
+    else:
+        console.print(
+            "[dim]No active service set.[/dim]\n"
+            "Set one with: [cyan]export SHIELD_SERVICE=<service-name>[/cyan]"
+        )
+
+
 @cli.command("enable")
 def enable(
     route: str = typer.Argument(..., help="Route: /path or METHOD:/path"),
     reason: str = typer.Option("", "--reason", "-r", help="Optional note for the audit log."),
+    service: str | None = typer.Option(
+        None,
+        "--service",
+        "-s",
+        envvar="SHIELD_SERVICE",
+        help="Service name (SDK multi-service mode). Falls back to SHIELD_SERVICE env var.",
+    ),
 ) -> None:
     """Enable a route that is in maintenance or disabled state."""
 
     async def _run_enable() -> None:
-        key = _parse_route(route)
+        key = f"{service}:{_parse_route(route)}" if service else _parse_route(route)
         client = make_client()
         try:
             keys_to_apply = [key]
@@ -432,11 +506,18 @@ def disable_cmd(
     until: str | None = typer.Option(
         None, "--until", help="Re-enable after duration (e.g. 2h, 30m, 1d)."
     ),
+    service: str | None = typer.Option(
+        None,
+        "--service",
+        "-s",
+        envvar="SHIELD_SERVICE",
+        help="Service name (SDK multi-service mode). Falls back to SHIELD_SERVICE env var.",
+    ),
 ) -> None:
     """Permanently disable a route (returns 503 to all callers)."""
 
     async def _run_disable() -> None:
-        key = _parse_route(route)
+        key = f"{service}:{_parse_route(route)}" if service else _parse_route(route)
         client = make_client()
         try:
             keys_to_apply = [key]
@@ -476,11 +557,18 @@ def maintenance_cmd(
     reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason."),
     start: str | None = typer.Option(None, "--start", help="Window start (ISO-8601)."),
     end: str | None = typer.Option(None, "--end", help="Window end (ISO-8601)."),
+    service: str | None = typer.Option(
+        None,
+        "--service",
+        "-s",
+        envvar="SHIELD_SERVICE",
+        help="Service name (SDK multi-service mode). Falls back to SHIELD_SERVICE env var.",
+    ),
 ) -> None:
     """Put a route into maintenance mode immediately."""
 
     async def _run_maintenance() -> None:
-        key = _parse_route(route)
+        key = f"{service}:{_parse_route(route)}" if service else _parse_route(route)
         start_iso = _parse_dt(start).isoformat() if start else None
         end_iso = _parse_dt(end).isoformat() if end else None
         client = make_client()
@@ -511,11 +599,18 @@ def schedule_cmd(
     start: str = typer.Option(..., "--start", help="Window start (ISO-8601)."),
     end: str = typer.Option(..., "--end", help="Window end (ISO-8601)."),
     reason: str = typer.Option("", "--reason", "-r", help="Maintenance reason."),
+    service: str | None = typer.Option(
+        None,
+        "--service",
+        "-s",
+        envvar="SHIELD_SERVICE",
+        help="Service name (SDK multi-service mode). Falls back to SHIELD_SERVICE env var.",
+    ),
 ) -> None:
     """Schedule a future maintenance window (auto-activates and deactivates)."""
 
     async def _run_schedule() -> None:
-        key = _parse_route(route)
+        key = f"{service}:{_parse_route(route)}" if service else _parse_route(route)
         start_dt = _parse_dt(start)
         end_dt = _parse_dt(end)
         client = make_client()

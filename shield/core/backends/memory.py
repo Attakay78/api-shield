@@ -52,6 +52,8 @@ class MemoryBackend(ShieldBackend):
         self._rl_hits_by_path: defaultdict[str, list[RateLimitHit]] = defaultdict(list)
         # Rate limit policy store — keyed "METHOD:/path" → policy dict.
         self._rl_policies: dict[str, dict[str, Any]] = {}
+        # Subscribers for rate limit policy changes.
+        self._rl_policy_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
 
     async def get_state(self, path: str) -> RouteState:
         """Return the current state for *path*.
@@ -148,13 +150,31 @@ class MemoryBackend(ShieldBackend):
     async def set_rate_limit_policy(
         self, path: str, method: str, policy_data: dict[str, Any]
     ) -> None:
-        """Persist *policy_data* for *path*/*method*."""
-        self._rl_policies[f"{method.upper()}:{path}"] = policy_data
+        """Persist *policy_data* for *path*/*method* and notify subscribers."""
+        key = f"{method.upper()}:{path}"
+        self._rl_policies[key] = policy_data
+        event: dict[str, Any] = {"action": "set", "key": key, "policy": policy_data}
+        for q in self._rl_policy_subscribers:
+            await q.put(event)
 
     async def get_rate_limit_policies(self) -> list[dict[str, Any]]:
         """Return all persisted rate limit policies."""
         return list(self._rl_policies.values())
 
     async def delete_rate_limit_policy(self, path: str, method: str) -> None:
-        """Remove the persisted rate limit policy for *path*/*method*."""
-        self._rl_policies.pop(f"{method.upper()}:{path}", None)
+        """Remove the persisted rate limit policy for *path*/*method* and notify subscribers."""
+        key = f"{method.upper()}:{path}"
+        self._rl_policies.pop(key, None)
+        event: dict[str, Any] = {"action": "delete", "key": key}
+        for q in self._rl_policy_subscribers:
+            await q.put(event)
+
+    async def subscribe_rate_limit_policy(self) -> AsyncIterator[dict[str, Any]]:
+        """Yield rate limit policy change events as they occur."""
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._rl_policy_subscribers.append(queue)
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            self._rl_policy_subscribers.remove(queue)

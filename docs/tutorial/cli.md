@@ -111,6 +111,49 @@ shield env clear /api/debug                      # remove the gate, restore to A
 
 ---
 
+## Multi-service context
+
+When the Shield Server manages multiple services, scope every command to the right service.
+
+### Option A — `SHIELD_SERVICE` env var (recommended)
+
+```bash
+export SHIELD_SERVICE=payments-service
+shield status               # only payments-service routes
+shield disable GET:/payments --reason "hotfix"
+shield enable  GET:/payments
+```
+
+All route commands (`status`, `enable`, `disable`, `maintenance`, `schedule`) read `SHIELD_SERVICE` automatically. An explicit `--service` flag always overrides it.
+
+### Option B — `--service` flag per command
+
+```bash
+shield status --service payments-service
+shield disable GET:/payments --service payments-service --reason "hotfix"
+```
+
+### Discover active context and connected services
+
+```bash
+shield current-service          # show which service SHIELD_SERVICE points to
+shield services                 # list all services registered with the Shield Server
+```
+
+??? example "Sample `shield services` output"
+
+    ```
+    Connected services
+    ┌──────────────────────┐
+    │ Service              │
+    ├──────────────────────┤
+    │ orders-service       │
+    │ payments-service     │
+    └──────────────────────┘
+    ```
+
+---
+
 ## Rate limits
 
 Manage rate limit policies and view blocked requests. Requires `api-shield[rate-limit]` on the server.
@@ -131,6 +174,9 @@ shield rl hits --per-page 50               # 50 rows per page
 shield rate-limits list
 shield rate-limits set GET:/public/posts 20/minute
 ```
+
+!!! tip "SDK clients receive policy changes in real time"
+    When using Shield Server + ShieldSDK, rate limit policies set via `shield rl set` are broadcast over the SSE stream and applied to every connected SDK client immediately — no restart required.
 
 ??? example "Sample `shield rl list` output"
 

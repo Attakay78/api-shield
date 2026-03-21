@@ -14,7 +14,7 @@
     <div class="flex items-center gap-2 self-start sm:self-auto">
         {# Manual refresh button — no background polling #}
         <button
-            hx-get="{{ prefix }}/audit/rows"
+            hx-get="{{ prefix }}/audit/rows{% if selected_service %}?service={{ selected_service }}{% endif %}"
             hx-target="#audit-table-body"
             hx-swap="innerHTML"
             hx-indicator="#refresh-spinner"

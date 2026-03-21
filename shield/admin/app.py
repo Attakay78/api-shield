@@ -215,6 +215,7 @@ def ShieldAdmin(
     engine: ShieldEngine,
     auth: AuthConfig = None,
     token_expiry: int = 86400,
+    sdk_token_expiry: int = 31536000,
     secret_key: str | None = None,
     prefix: str = "/shield",
 ) -> ASGIApp:
@@ -234,8 +235,13 @@ def ShieldAdmin(
         ``(username, password)`` tuple, a list of such tuples, or a custom
         :class:`~shield.admin.auth.ShieldAuthBackend` instance.
     token_expiry:
-        Session / token lifetime in seconds.  Default: 86400 (24 h).
-        After expiry the user must re-authenticate.
+        Session / token lifetime in seconds for dashboard and CLI users.
+        Default: 86400 (24 h).  After expiry the user must re-authenticate.
+    sdk_token_expiry:
+        Token lifetime in seconds for SDK service tokens issued with
+        ``platform="sdk"``.  Default: 31536000 (1 year).  This lets
+        service apps authenticate once and run indefinitely without
+        human intervention, while keeping human user sessions short.
     secret_key:
         HMAC signing key for tokens.  Use a stable value in production so
         tokens survive process restarts.  Defaults to a random key (tokens
@@ -257,6 +263,30 @@ def ShieldAdmin(
     )
     templates.env.globals["path_slug"] = _dash.path_slug
 
+    def _clean_path(state: object) -> str:
+        """Return the display path without the service prefix.
+
+        SDK routes are stored with ``path = "{service}:{original_path}"``.
+        This filter strips the prefix so the dashboard shows ``/api/payments``
+        rather than ``payments-service:/api/payments``.
+        """
+        svc = getattr(state, "service", None)
+        raw = getattr(state, "path", "")
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    def _clean_entry_path(entry: object) -> str:
+        """Same as _clean_path but works on AuditEntry objects."""
+        svc = getattr(entry, "service", None)
+        raw = getattr(entry, "path", "")
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    templates.env.filters["clean_path"] = _clean_path
+    templates.env.filters["clean_entry_path"] = _clean_entry_path
+
     try:
         version = importlib.metadata.version("api-shield")
     except importlib.metadata.PackageNotFoundError:
@@ -266,6 +296,7 @@ def ShieldAdmin(
     token_manager = TokenManager(
         secret_key=secret_key,
         expiry_seconds=token_expiry,
+        sdk_token_expiry=sdk_token_expiry,
         auth_fingerprint=auth_fingerprint(auth),
     )
 
@@ -310,9 +341,11 @@ def ShieldAdmin(
             Route("/blocked", _dash.rl_hits_page),
             Route("/modal/rl/reset/{path_key}", _dash.modal_rl_reset),
             Route("/modal/rl/edit/{path_key}", _dash.modal_rl_edit),
+            Route("/modal/rl/add/{path_key}", _dash.modal_rl_add),
             Route("/modal/rl/delete/{path_key}", _dash.modal_rl_delete),
             Route("/rl/reset/{path_key}", _dash.rl_reset, methods=["POST"]),
             Route("/rl/edit/{path_key}", _dash.rl_edit, methods=["POST"]),
+            Route("/rl/add", _dash.rl_add, methods=["POST"]),
             Route("/rl/delete/{path_key}", _dash.rl_delete, methods=["POST"]),
             Route("/global-rl/set", _dash.global_rl_set, methods=["POST"]),
             Route("/global-rl/delete", _dash.global_rl_delete, methods=["POST"]),
@@ -383,6 +416,12 @@ def ShieldAdmin(
                 _api.disable_global_rate_limit_api,
                 methods=["POST"],
             ),
+            # ── SDK endpoints (ShieldServerBackend / ShieldSDK) ──────────
+            Route("/api/sdk/events", _api.sdk_events, methods=["GET"]),
+            Route("/api/sdk/register", _api.sdk_register, methods=["POST"]),
+            Route("/api/sdk/audit", _api.sdk_audit, methods=["POST"]),
+            # ── Service discovery ────────────────────────────────────────
+            Route("/api/services", _api.list_services, methods=["GET"]),
         ],
     )
 

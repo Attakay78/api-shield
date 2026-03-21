@@ -30,6 +30,7 @@ class RouteState(BaseModel):
     """Full lifecycle state for a single route."""
 
     path: str
+    service: str | None = None  # set by ShieldSDK to group routes by service name
     status: RouteStatus = RouteStatus.ACTIVE
     reason: str = ""
     allowed_envs: list[str] = Field(default_factory=list)
@@ -90,6 +91,7 @@ class AuditEntry(BaseModel):
     id: str  # uuid4
     timestamp: datetime
     path: str
+    service: str | None = None  # mirrors RouteState.service for filtering
     action: str
     actor: str = "system"
     platform: str = "system"  # "cli", "dashboard", or "system"

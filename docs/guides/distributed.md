@@ -24,7 +24,7 @@ The answer depends entirely on which backend you use.
 | Dashboard SSE live updates | In-process only | No — polling fallback | Yes |
 | `subscribe()` pub/sub | `asyncio.Queue` | `NotImplementedError` | Redis pub/sub |
 | `subscribe_global_config()` | `NotImplementedError` | `NotImplementedError` | Redis pub/sub |
-| `subscribe_rate_limit_policy()` | `NotImplementedError` | `NotImplementedError` | Redis pub/sub |
+| `subscribe_rate_limit_policy()` | `asyncio.Queue` | `NotImplementedError` | Redis pub/sub |
 | Fail-open on backend error | Always | Always | Always |
 | Recommended for | Dev / tests | Single-instance prod | Multi-instance prod |
 
@@ -181,7 +181,9 @@ engine.set_rate_limit_policy(...)
 
 `ShieldEngine.start()` creates a `shield-rl-policy-listener` background task. Each message on `shield:rl-policy-change` carries the full policy payload (for `set`) or just the key (for `delete`), so the receiving instance applies the delta directly without an extra Redis round-trip.
 
-For `MemoryBackend` and `FileBackend`, `subscribe_rate_limit_policy()` raises `NotImplementedError`. The listener exits silently — single-instance deployments need no cross-process sync.
+For `FileBackend`, `subscribe_rate_limit_policy()` raises `NotImplementedError`. The listener exits silently — `FileBackend` is single-process only, so cross-process sync is unnecessary.
+
+`MemoryBackend` now implements `subscribe_rate_limit_policy()` via an `asyncio.Queue`, meaning the Shield Server can broadcast RL policy events to all SDK clients connected over SSE — see [Rate limit policy SSE propagation](#rate-limit-policy-sse-propagation) below.
 
 ### The request lifecycle across instances
 
@@ -252,6 +254,35 @@ The OpenAPI schema filter (`apply_shield_to_openapi`) uses a monotonic `_schema_
 **When Instance A disables a route, Instance B's `/docs` and `/openapi.json` will continue to show that route until Instance B's own schema cache is invalidated (by a local state change or a restart).** For most production deployments this is acceptable, as developer-facing docs are not on the critical request path and the actual request handling (via `engine.check()`) is always consistent thanks to Redis.
 
 If you need fully consistent OpenAPI schemas across instances, you can force a cache refresh by calling `app.openapi.cache_clear()` (or the equivalent for your schema caching setup) in response to `shield:changes` pub/sub messages.
+
+---
+
+## Rate limit policy SSE propagation
+
+When using **Shield Server + ShieldSDK**, rate limit policies set via the CLI (`shield rl set`) or the dashboard are immediately broadcast to all connected SDK clients over the persistent SSE stream — no restart required.
+
+The SSE stream now carries typed envelopes:
+
+```
+data: {"type": "state",     "payload": {...RouteState...}}
+data: {"type": "rl_policy", "action": "set",    "key": "GET:/api/pay", "policy": {...}}
+data: {"type": "rl_policy", "action": "delete", "key": "GET:/api/pay"}
+```
+
+When `ShieldServerBackend` receives an `rl_policy` event, it updates its local `_rl_policy_cache` and notifies the engine's existing `_run_rl_policy_listener()` background task, which applies the policy change to `engine._rate_limit_policies` immediately. The propagation path is:
+
+```
+shield rl set GET:/api/pay 100/minute
+  → Shield Server engine.set_rate_limit_policy()
+  → MemoryBackend._rl_policy_subscribers (asyncio.Queue fan-out)
+  → sdk_events SSE stream (typed envelope)
+  → ShieldServerBackend._listen_sse() (background task)
+  → _run_rl_policy_listener() (background task)
+  → engine._rate_limit_policies updated
+  → next request enforces new limit  ← typically < 5 ms end-to-end on a LAN
+```
+
+Per-request enforcement reads `engine._rate_limit_policies` synchronously — no network hop, no lock, zero added latency.
 
 ---
 

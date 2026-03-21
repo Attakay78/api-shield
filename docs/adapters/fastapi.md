@@ -533,6 +533,22 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     Fully self-contained webhook demo: three receivers (generic JSON, Slack-formatted, and a custom payload) are mounted on the same app — no external service needed. Change a route state via the CLI or dashboard and watch the events appear at `/webhook-log`.
 
+    Webhooks are always registered on the engine that owns state mutations:
+
+    - **Embedded mode** — register on the engine before passing it to `ShieldAdmin`
+    - **Shield Server mode** — build the engine explicitly and register on it before passing to `ShieldAdmin`; SDK service apps never fire webhooks
+
+    ```python
+    # Shield Server mode
+    from shield.core.engine import ShieldEngine
+    from shield.core.webhooks import SlackWebhookFormatter
+    from shield.admin.app import ShieldAdmin
+
+    engine = ShieldEngine(backend=RedisBackend(...))
+    engine.add_webhook("https://hooks.slack.com/...", formatter=SlackWebhookFormatter())
+    shield_app = ShieldAdmin(engine=engine, auth=("admin", "secret"))
+    ```
+
     **Webhook receivers (all `@force_active`):**
 
     | Endpoint | Payload format |
@@ -611,6 +627,172 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     ```python title="examples/fastapi/rate_limiting.py"
     --8<-- "examples/fastapi/rate_limiting.py"
+    ```
+
+---
+
+### Shield Server (single service)
+
+??? example "Centralized Shield Server + one service via ShieldSDK"
+
+    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/shield_server.py){ .md-button }
+
+    Demonstrates the centralized Shield Server architecture: one Shield Server process owns all route state, and one service app connects via `ShieldSDK`. State is enforced locally — zero per-request network overhead.
+
+    **Two ASGI apps — run each in its own terminal:**
+
+    ```bash
+    # Shield Server (port 8001)
+    uv run uvicorn examples.fastapi.shield_server:shield_app --port 8001 --reload
+
+    # Service app (port 8000)
+    uv run uvicorn examples.fastapi.shield_server:service_app --port 8000 --reload
+    ```
+
+    **Then visit:**
+
+    - `http://localhost:8001/` — Shield dashboard (`admin` / `secret`)
+    - `http://localhost:8000/docs` — service Swagger UI
+
+    **Expected behavior:**
+
+    | Endpoint | Response | Why |
+    |---|---|---|
+    | `GET /health` | 200 always | `@force_active` |
+    | `GET /api/payments` | 503 `MAINTENANCE_MODE` | starts in maintenance |
+    | `GET /api/orders` | 200 | active on startup |
+    | `GET /api/legacy` | 503 `ROUTE_DISABLED` | `@disabled` |
+    | `GET /api/v1/products` | 200 + deprecation headers | `@deprecated` |
+
+    **SDK authentication options:**
+
+    ```python
+    # Option 1 — Auto-login (recommended): SDK logs in on startup, no token management
+    sdk = ShieldSDK(
+        server_url="http://localhost:8001",
+        app_id="payments-service",
+        username="admin",
+        password="secret",   # inject from env in production
+    )
+
+    # Option 2 — Pre-issued token
+    sdk = ShieldSDK(
+        server_url="http://localhost:8001",
+        app_id="payments-service",
+        token="<token-from-shield-login>",
+    )
+
+    # Option 3 — No auth on the Shield Server
+    sdk = ShieldSDK(server_url="http://localhost:8001", app_id="payments-service")
+    ```
+
+    **CLI — always targets the Shield Server:**
+
+    ```bash
+    shield config set-url http://localhost:8001
+    shield login admin              # password: secret
+    shield status
+    shield enable /api/payments
+    shield disable /api/orders --reason "hotfix"
+    shield maintenance /api/payments --reason "DB migration"
+    shield audit
+    ```
+
+    **Full source:**
+
+    ```python title="examples/fastapi/shield_server.py"
+    --8<-- "examples/fastapi/shield_server.py"
+    ```
+
+---
+
+### Shield Server (multi-service)
+
+??? example "Two independent services sharing one Shield Server"
+
+    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/multi_service.py){ .md-button }
+
+    Demonstrates two independent FastAPI services (`payments-service` and `orders-service`) both connecting to the same Shield Server. Each service registers its routes under its own `app_id` namespace so the dashboard service dropdown and CLI `SHIELD_SERVICE` env var can manage them independently or together.
+
+    Each service authenticates using `username`/`password` so the SDK obtains its own long-lived `sdk`-platform token on startup — no manual token management required. The Shield Server is configured with separate expiry times for human sessions and service tokens:
+
+    ```python
+    shield_app = ShieldServer(
+        backend=MemoryBackend(),
+        auth=("admin", "secret"),
+        token_expiry=3600,          # dashboard / CLI: 1 hour
+        sdk_token_expiry=31536000,  # SDK services: 1 year
+    )
+
+    payments_sdk = ShieldSDK(
+        server_url="http://shield-server:9000",
+        app_id="payments-service",
+        username="admin",
+        password="secret",          # inject from env in production
+    )
+    ```
+
+    **Three ASGI apps — run each in its own terminal:**
+
+    ```bash
+    # Shield Server (port 8001)
+    uv run uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
+
+    # Payments service (port 8000)
+    uv run uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
+
+    # Orders service (port 8002)
+    uv run uvicorn examples.fastapi.multi_service:orders_app --port 8002 --reload
+    ```
+
+    **Then visit:**
+
+    - `http://localhost:8001/` — Shield dashboard (use service dropdown to switch)
+    - `http://localhost:8000/docs` — Payments Swagger UI
+    - `http://localhost:8002/docs` — Orders Swagger UI
+
+    **Expected behavior:**
+
+    | Service | Endpoint | Response | Why |
+    |---|---|---|---|
+    | payments | `GET /health` | 200 always | `@force_active` |
+    | payments | `GET /api/payments` | 503 `MAINTENANCE_MODE` | starts in maintenance |
+    | payments | `GET /api/refunds` | 200 | active |
+    | payments | `GET /api/v1/invoices` | 200 + deprecation headers | `@deprecated` |
+    | orders | `GET /health` | 200 always | `@force_active` |
+    | orders | `GET /api/orders` | 200 | active |
+    | orders | `GET /api/shipments` | 503 `ROUTE_DISABLED` | `@disabled` |
+    | orders | `GET /api/cart` | 200 | active |
+
+    **CLI — multi-service workflow:**
+
+    ```bash
+    shield config set-url http://localhost:8001
+    shield login admin              # password: secret
+    shield services                 # list all connected services
+
+    # Scope to payments via env var
+    export SHIELD_SERVICE=payments-service
+    shield status
+    shield enable /api/payments
+    shield current-service          # confirm active context
+
+    # Switch to orders with explicit flag (overrides env var)
+    shield status --service orders-service
+    shield disable /api/cart --reason "redesign" --service orders-service
+
+    # Unscoped — operates across all services
+    unset SHIELD_SERVICE
+    shield status
+    shield audit
+    shield global disable --reason "emergency maintenance"
+    shield global enable
+    ```
+
+    **Full source:**
+
+    ```python title="examples/fastapi/multi_service.py"
+    --8<-- "examples/fastapi/multi_service.py"
     ```
 
 ---

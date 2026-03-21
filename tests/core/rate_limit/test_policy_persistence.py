@@ -141,10 +141,20 @@ class TestFileBackendPolicyPersistence:
 
 
 class TestEngineRateLimitPersistence:
+    """Engine-level rate limit persistence tests.
+
+    All tests register the route first — ``set_rate_limit_policy`` now
+    validates that the path is registered before creating a policy.
+    """
+
+    async def _register(self, engine, path: str = "/api/items") -> None:
+        await engine.register(path, {"status": "active"})
+
     async def test_set_rate_limit_policy_registers_live(self):
         from shield.core.engine import ShieldEngine
 
         engine = ShieldEngine()
+        await self._register(engine)
         policy = await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         assert policy.limit == "10/minute"
         assert "GET:/api/items" in engine._rate_limit_policies
@@ -153,6 +163,7 @@ class TestEngineRateLimitPersistence:
         from shield.core.engine import ShieldEngine
 
         engine = ShieldEngine()
+        await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         policies = await engine.backend.get_rate_limit_policies()
         assert len(policies) == 1
@@ -162,6 +173,7 @@ class TestEngineRateLimitPersistence:
         from shield.core.engine import ShieldEngine
 
         engine = ShieldEngine()
+        await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         await engine.delete_rate_limit_policy("/api/items", "GET")
         assert "GET:/api/items" not in engine._rate_limit_policies
@@ -170,6 +182,7 @@ class TestEngineRateLimitPersistence:
         from shield.core.engine import ShieldEngine
 
         engine = ShieldEngine()
+        await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         await engine.delete_rate_limit_policy("/api/items", "GET")
         policies = await engine.backend.get_rate_limit_policies()
@@ -180,6 +193,7 @@ class TestEngineRateLimitPersistence:
 
         # Persist a policy directly to the backend (simulating a prior CLI call).
         engine1 = ShieldEngine()
+        await self._register(engine1)
         await engine1.set_rate_limit_policy("/api/items", "GET", "10/minute")
 
         # Simulate a new engine instance on the same backend after a restart.
@@ -194,6 +208,7 @@ class TestEngineRateLimitPersistence:
         from shield.core.rate_limit.models import RateLimitAlgorithm
 
         engine = ShieldEngine()
+        await self._register(engine)
         policy = await engine.set_rate_limit_policy(
             "/api/items", "GET", "10/minute", algorithm="fixed_window"
         )
@@ -204,7 +219,17 @@ class TestEngineRateLimitPersistence:
         from shield.core.rate_limit.models import RateLimitKeyStrategy
 
         engine = ShieldEngine()
+        await self._register(engine)
         policy = await engine.set_rate_limit_policy(
             "/api/items", "GET", "10/minute", key_strategy="global"
         )
         assert policy.key_strategy == RateLimitKeyStrategy.GLOBAL
+
+    async def test_set_policy_for_unknown_route_raises(self):
+        """set_rate_limit_policy must reject paths that are not registered."""
+        from shield.core.engine import ShieldEngine
+        from shield.core.exceptions import RouteNotFoundException
+
+        engine = ShieldEngine()
+        with pytest.raises(RouteNotFoundException):
+            await engine.set_rate_limit_policy("/does/not/exist", "GET", "10/minute")

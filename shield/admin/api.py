@@ -18,12 +18,14 @@ that audit log entries record who made the change and from which surface.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from shield.core.engine import ShieldEngine
 from shield.core.exceptions import (
@@ -31,7 +33,7 @@ from shield.core.exceptions import (
     RouteNotFoundException,
     RouteProtectedException,
 )
-from shield.core.models import MaintenanceWindow
+from shield.core.models import AuditEntry, MaintenanceWindow, RouteState
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +102,9 @@ async def auth_login(request: Request) -> JSONResponse:
 
     username = body.get("username", "") if isinstance(body, dict) else ""
     password = body.get("password", "") if isinstance(body, dict) else ""
+    platform = body.get("platform", "cli") if isinstance(body, dict) else "cli"
+    if platform not in ("cli", "sdk"):
+        platform = "cli"
 
     if not username or not password:
         return _err("username and password are required")
@@ -107,7 +112,7 @@ async def auth_login(request: Request) -> JSONResponse:
     if not auth_backend.authenticate_user(username, password):
         return _err("Invalid credentials", 401)
 
-    token, expires_at = tm.create(username, platform="cli")
+    token, expires_at = tm.create(username, platform=platform)
     return JSONResponse(
         {
             "token": token,
@@ -136,8 +141,14 @@ async def auth_me(request: Request) -> JSONResponse:
 
 
 async def list_routes(request: Request) -> JSONResponse:
-    """GET /api/routes — list all registered route states."""
+    """GET /api/routes — list all registered route states.
+
+    Optional query param ``?service=<name>`` filters to a single service.
+    """
     states = await _engine(request).list_states()
+    service = request.query_params.get("service")
+    if service:
+        states = [s for s in states if s.service == service]
     return JSONResponse([s.model_dump(mode="json") for s in states])
 
 
@@ -300,13 +311,21 @@ async def cancel_schedule_route(request: Request) -> JSONResponse:
 
 
 async def list_audit(request: Request) -> JSONResponse:
-    """GET /api/audit — return audit log entries (newest first)."""
+    """GET /api/audit — return audit log entries (newest first).
+
+    Optional query params:
+    - ``?route=<path>`` — filter by exact route path
+    - ``?service=<name>`` — filter to a single service (SDK mode)
+    """
     route = request.query_params.get("route")
+    service = request.query_params.get("service")
     try:
         limit = int(request.query_params.get("limit", "50"))
     except ValueError:
         limit = 50
     entries = await _engine(request).get_audit_log(path=route, limit=limit)
+    if service:
+        entries = [e for e in entries if e.service == service]
     return JSONResponse([e.model_dump(mode="json") for e in entries])
 
 
@@ -408,6 +427,8 @@ async def set_rate_limit_policy_api(request: Request) -> JSONResponse:
             burst=int(body.get("burst", 0)),
             actor=actor,
         )
+    except RouteNotFoundException as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
@@ -508,4 +529,178 @@ async def disable_global_rate_limit_api(request: Request) -> JSONResponse:
     engine = _engine(request)
     actor = _actor(request)
     await engine.disable_global_rate_limit(actor=actor, platform=_platform(request))
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# SDK endpoints — used by ShieldServerBackend / ShieldSDK clients
+# ---------------------------------------------------------------------------
+
+
+async def sdk_events(request: Request) -> StreamingResponse:
+    """GET /api/sdk/events — SSE stream of typed route state and RL policy changes.
+
+    SDK clients (``ShieldServerBackend``) connect here to keep their
+    local cache current without polling.  Each event is a typed JSON
+    envelope:
+
+    * Route state change::
+
+        data: {"type": "state", "payload": {...RouteState...}}
+
+    * Rate limit policy change::
+
+        data: {"type": "rl_policy", "action": "set", "key": "GET:/api/pay", "policy": {...}}
+        data: {"type": "rl_policy", "action": "delete", "key": "GET:/api/pay"}
+
+    When a backend does not support ``subscribe()`` (e.g. FileBackend)
+    the endpoint falls back to 15-second keepalive pings so clients
+    maintain their connection and rely on the full re-sync performed
+    after each reconnect.
+    """
+    import json as _json
+
+    engine = _engine(request)
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    tasks: list[asyncio.Task[None]] = []
+
+    async def _feed_states() -> None:
+        try:
+            async for state in engine.backend.subscribe():
+                envelope = _json.dumps({"type": "state", "payload": state.model_dump(mode="json")})
+                await queue.put(f"data: {envelope}\n\n")
+        except NotImplementedError:
+            pass
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("shield: SDK SSE state subscription error")
+
+    async def _feed_rl_policies() -> None:
+        try:
+            async for event in engine.backend.subscribe_rate_limit_policy():
+                envelope = _json.dumps({"type": "rl_policy", **event})
+                await queue.put(f"data: {envelope}\n\n")
+        except NotImplementedError:
+            pass
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("shield: SDK SSE RL policy subscription error")
+
+    async def _generate() -> object:
+        tasks.append(asyncio.create_task(_feed_states()))
+        tasks.append(asyncio.create_task(_feed_rl_policies()))
+        try:
+            while True:
+                try:
+                    # Block until an event arrives or 15 s elapses.
+                    msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield msg
+                except TimeoutError:
+                    # No event in 15 s — send a keepalive comment to hold the connection.
+                    yield ": keepalive\n\n"
+                except asyncio.CancelledError:
+                    break
+        finally:
+            for t in tasks:
+                t.cancel()
+
+    return StreamingResponse(
+        _generate(),  # type: ignore[arg-type]
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def sdk_register(request: Request) -> JSONResponse:
+    """POST /api/sdk/register — batch-register routes from an SDK client.
+
+    Applies server-wins semantics: routes that already exist in the
+    backend are left untouched and their current state is returned.
+    New routes are created with the initial state supplied by the SDK.
+
+    The SDK sends states with ``path = "{app_id}:{original_path}"`` and
+    ``service = app_id`` already set.  This endpoint trusts those values
+    directly — no further rewriting is done here.
+
+    Request body::
+
+        {
+            "app_id": "payments-service",
+            "states": [ ...RouteState dicts with service-prefixed paths... ]
+        }
+
+    Response::
+
+        {"states": [ ...current RouteState dicts... ]}
+    """
+    engine = _engine(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    app_id = body.get("app_id", "unknown") if isinstance(body, dict) else "unknown"
+    states_data = body.get("states", []) if isinstance(body, dict) else []
+    if not isinstance(states_data, list):
+        return _err("states must be a list")
+
+    results: list[dict[str, Any]] = []
+    for state_dict in states_data:
+        try:
+            incoming = RouteState.model_validate(state_dict)
+        except Exception:
+            continue
+
+        # Ensure service field is always populated from app_id for legacy clients
+        # that do not set it themselves.
+        if not incoming.service:
+            incoming = incoming.model_copy(update={"service": app_id})
+
+        # Server-wins: if this namespaced key already exists, keep server state.
+        try:
+            existing = await engine.backend.get_state(incoming.path)
+            results.append(existing.model_dump(mode="json"))
+        except KeyError:
+            await engine.backend.set_state(incoming.path, incoming)
+            results.append(incoming.model_dump(mode="json"))
+
+    logger.debug("shield: SDK registered %d route(s) from app_id=%s", len(results), app_id)
+    return JSONResponse({"states": results})
+
+
+async def list_services(request: Request) -> JSONResponse:
+    """GET /api/services — return the distinct service names across all routes.
+
+    Used by the dashboard dropdown and CLI to discover which services have
+    registered routes with this Shield Server.  Routes without a service
+    (embedded-mode routes) are not included.
+    """
+    states = await _engine(request).list_states()
+    services = sorted({s.service for s in states if s.service})
+    return JSONResponse(services)
+
+
+async def sdk_audit(request: Request) -> JSONResponse:
+    """POST /api/sdk/audit — receive an audit entry forwarded by an SDK client.
+
+    SDK clients forward audit entries here so the Shield Server maintains
+    a unified audit log across all connected services.
+    """
+    engine = _engine(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    try:
+        entry = AuditEntry.model_validate(body)
+    except Exception as exc:
+        return _err(f"Invalid audit entry: {exc}")
+
+    await engine.backend.write_audit(entry)
     return JSONResponse({"ok": True})

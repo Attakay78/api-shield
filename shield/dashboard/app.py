@@ -65,6 +65,24 @@ def ShieldDashboard(
     templates.env.filters["encode_path"] = lambda p: (
         base64.urlsafe_b64encode(p.encode()).decode().rstrip("=")
     )
+
+    def _clean_path(state: object) -> str:
+        svc = getattr(state, "service", None)
+        raw = getattr(state, "path", "")
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    def _clean_entry_path(entry: object) -> str:
+        svc = getattr(entry, "service", None)
+        raw = getattr(entry, "path", "")
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    templates.env.filters["clean_path"] = _clean_path
+    templates.env.filters["clean_entry_path"] = _clean_entry_path
+
     # Expose path_slug as a global so templates can call it without import.
     templates.env.globals["path_slug"] = r.path_slug
 

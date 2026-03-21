@@ -162,6 +162,7 @@ class TokenManager:
         self,
         secret_key: str | None = None,
         expiry_seconds: int = 86400,
+        sdk_token_expiry: int = 31536000,
         auth_fingerprint: str = "",
     ) -> None:
         """
@@ -171,7 +172,13 @@ class TokenManager:
             HMAC signing key.  If ``None`` a random key is generated —
             tokens will be invalidated on process restart.
         expiry_seconds:
-            Token lifetime in seconds.  Default: 86400 (24 hours).
+            Token lifetime in seconds for dashboard and CLI users.
+            Default: 86400 (24 hours).
+        sdk_token_expiry:
+            Token lifetime in seconds for SDK service tokens
+            (``platform="sdk"``).  Default: 31536000 (1 year).
+            Set this independently so service apps never need manual
+            re-authentication while human users still get short sessions.
         auth_fingerprint:
             Short hash of the current auth credentials (produced by
             :func:`auth_fingerprint`).  Mixed into the signing key so that
@@ -186,6 +193,7 @@ class TokenManager:
             raw = f"{raw}:{auth_fingerprint}"
         self._key: bytes = raw.encode()
         self._expiry = expiry_seconds
+        self._sdk_expiry = sdk_token_expiry
         self._revoked: set[str] = set()
 
     @property
@@ -197,8 +205,12 @@ class TokenManager:
         """Issue a new signed token.
 
         Returns ``(token_string, expires_at_unix_timestamp)``.
+
+        SDK service tokens (``platform="sdk"``) use ``sdk_token_expiry``
+        so they can be long-lived without affecting human user sessions.
         """
-        expires_at = time.time() + self._expiry
+        expiry = self._sdk_expiry if platform == "sdk" else self._expiry
+        expires_at = time.time() + expiry
         payload = {
             "sub": username,
             "exp": expires_at,

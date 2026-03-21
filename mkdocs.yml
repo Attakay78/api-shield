@@ -110,8 +110,9 @@ nav:
       - Exceptions: reference/exceptions.md
       - CLI Commands: reference/cli.md
   - Guides:
-      - Production Monitoring & Deployment: guides/production.md
+      - Shield Server (Multi-Service): guides/shield-server.md
       - Distributed Deployments: guides/distributed.md
+      - Production Monitoring & Deployment: guides/production.md
   - Adapters:
       - Overview: adapters/index.md
       - FastAPI: adapters/fastapi.md
