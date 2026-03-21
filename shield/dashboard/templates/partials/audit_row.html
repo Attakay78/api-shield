@@ -13,7 +13,10 @@
         {{ entry.timestamp.strftime("%H:%M:%S") }}
     </td>
     <td class="px-4 py-3" data-label="Route">
-        <code class="text-xs font-mono text-slate-700">{{ entry.path }}</code>
+        <code class="text-xs font-mono text-slate-700">{{ entry | clean_entry_path }}</code>
+        {% if entry.service %}
+        <span class="mt-0.5 block text-[10px] font-mono text-slate-400">{{ entry.service }}</span>
+        {% endif %}
     </td>
     <td class="px-4 py-3" data-label="Action">
         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 font-mono">

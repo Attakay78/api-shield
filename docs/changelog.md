@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Unprotected routes table not updating after adding a policy**: routes stayed visible in the "Unprotected Routes" section after a rate limit was set because the filter compared `METHOD:/path` display values against path-only strings stripped of the method prefix; comparison now uses the full composite key correctly.
+- **Invalid rate limit strings accepted silently**: submitting a malformed limit (e.g. `2/minutesedrr`) was stored and caused a 500 on every request; the engine now validates the limit string before persisting and the dashboard modal surfaces an inline error with the correct format hint.
+
+### Added
+
+- **`SHIELD_SERVICE` env var fallback on all `--service` CLI options**: `shield status`, `shield enable`, `shield disable`, `shield maintenance`, and `shield schedule` all read `SHIELD_SERVICE` automatically — set it once with `export SHIELD_SERVICE=payments-service` and every command scopes itself to that service without repeating `--service`. An explicit `--service` flag always wins.
+- **`shield current-service` command**: shows the active service context from the `SHIELD_SERVICE` environment variable, or a hint to set it when the variable is absent.
+- **`shield services` command**: lists all distinct service names registered with the Shield Server, so you can discover which services are connected before switching context.
+- **Dashboard "Unprotected Routes" section**: the Rate Limits page now surfaces all routes that have no rate limit policy, with an "Add Limit" button per row that opens a modal to configure method, limit, algorithm, and key strategy in-place — no CLI required.
+- **Route existence validation in `set_rate_limit_policy()`**: attempting to add a rate limit policy for a route that does not exist now raises `RouteNotFoundException` immediately; the REST API returns `404` and the CLI prints a clear error, preventing phantom policies from accumulating.
+- **`ShieldSDK.rate_limit_backend` parameter**: pass a `RedisBackend` instance to share rate limit counters across all replicas of a service connected to the same Shield Server; without it each replica enforces limits independently.
+- **Rate limit policy SSE propagation to SDK clients**: policies set or deleted via the CLI or dashboard are now broadcast over the Shield Server's SSE stream as typed `rl_policy` envelopes and applied to every connected SDK client in real time — no restart required.
+- **`ShieldSDK` auto-login (`username` / `password` params)**: pass credentials directly to `ShieldSDK` instead of a pre-issued token; on startup the SDK calls `POST /api/auth/login` with `platform="sdk"` and caches the resulting long-lived token for the life of the process — no manual token management required.
+- **Separate SDK token lifetime (`sdk_token_expiry`)**: `ShieldServer` and `ShieldAdmin` now accept `sdk_token_expiry` (default 1 year) independently from `token_expiry` (default 24 h for dashboard / CLI users), so service apps can run indefinitely without re-authentication while human sessions remain short-lived.
+- **`platform` field on `POST /api/auth/login`**: the login endpoint now accepts `"cli"` (default) or `"sdk"` in the request body; `"sdk"` tokens use `sdk_token_expiry` and are intended for machine-to-machine service authentication.
+
+---
+
 ## [0.7.0]
 
 ### Added

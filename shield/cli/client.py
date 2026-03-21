@@ -116,11 +116,21 @@ class ShieldClient:
 
     # ── Routes ───────────────────────────────────────────────────────────
 
-    async def list_routes(self) -> list[dict[str, Any]]:
-        """GET /api/routes — list all registered route states."""
+    async def list_routes(self, service: str | None = None) -> list[dict[str, Any]]:
+        """GET /api/routes — list all registered route states.
+
+        Pass *service* to filter to routes belonging to one service (SDK mode).
+        """
         async with self._make_client() as c:
-            resp = await c.get("/api/routes")
+            params = {"service": service} if service else {}
+            resp = await c.get("/api/routes", params=params)
             return cast(list[dict[str, Any]], self._check(resp))
+
+    async def list_services(self) -> list[str]:
+        """GET /api/services — list all service names registered with this server."""
+        async with self._make_client() as c:
+            resp = await c.get("/api/services")
+            return cast(list[str], self._check(resp))
 
     async def get_route(self, path_key: str) -> dict[str, Any]:
         """GET /api/routes/{path_key} — get state for one route."""

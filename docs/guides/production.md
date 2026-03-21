@@ -98,21 +98,56 @@ if __name__ == "__main__":
 
 ### Webhook alerting (Slack / PagerDuty)
 
-api-shield fires webhooks on every state change. Wire a Slack webhook to get instant alerts without polling:
+api-shield fires webhooks on every state change — enable, disable, maintenance on/off. Webhook delivery always originates from the process that owns the engine where state mutations happen. Where you register them depends on your deployment mode.
+
+#### Embedded mode (single service)
+
+Register directly on the engine before mounting `ShieldAdmin`:
 
 ```python
 from shield.core.engine import ShieldEngine
 from shield.core.webhooks import SlackWebhookFormatter
+from shield.fastapi import ShieldAdmin
 
 engine = ShieldEngine()
 engine.add_webhook(
     url=os.environ["SLACK_WEBHOOK_URL"],
     formatter=SlackWebhookFormatter(),
 )
-
-# Or a generic JSON endpoint (e.g. PagerDuty Events API v2)
 engine.add_webhook(url=os.environ["PAGERDUTY_WEBHOOK_URL"])
+
+admin = ShieldAdmin(engine=engine, auth=("admin", os.environ["SHIELD_PASS"]))
+app.mount("/shield", admin)
 ```
+
+#### Shield Server mode (multi-service)
+
+State mutations happen on the **Shield Server**, not on SDK clients. Build the engine explicitly so you can call `add_webhook()` on it before passing it to `ShieldAdmin`:
+
+```python
+# shield_server.py
+import os
+from shield.core.engine import ShieldEngine
+from shield.core.backends.redis import RedisBackend
+from shield.core.webhooks import SlackWebhookFormatter
+from shield.admin.app import ShieldAdmin
+
+engine = ShieldEngine(backend=RedisBackend(os.environ["REDIS_URL"]))
+engine.add_webhook(
+    url=os.environ["SLACK_WEBHOOK_URL"],
+    formatter=SlackWebhookFormatter(),
+)
+engine.add_webhook(url=os.environ["PAGERDUTY_WEBHOOK_URL"])
+
+shield_app = ShieldAdmin(
+    engine=engine,
+    auth=("admin", os.environ["SHIELD_PASS"]),
+    secret_key=os.environ["SHIELD_SECRET_KEY"],
+)
+```
+
+!!! note
+    SDK service apps (`ShieldSDK`) never fire webhooks. They only enforce state locally — all mutations and therefore all webhook triggers originate on the Shield Server.
 
 Webhook payload sent on every state change:
 
@@ -126,7 +161,7 @@ Webhook payload sent on every state change:
 }
 ```
 
-Webhook failures are non-blocking; they are logged and never affect the request path.
+Webhook failures are non-blocking; they are logged and never affect the request path. On multi-node Shield Server deployments (`RedisBackend`), Redis `SET NX` deduplication ensures only one node fires per event.
 
 ---
 

@@ -1410,6 +1410,27 @@ class ShieldEngine:
             platform=platform,
         )
 
+    @staticmethod
+    def _validate_limit_string(limit: str) -> None:
+        """Raise ``ValueError`` with a helpful message if *limit* is not a valid rate limit string.
+
+        Uses the ``limits`` library's own parser so the check is authoritative.
+        Only called when the library is installed; silently skips otherwise.
+        """
+        try:
+            from limits import parse as _parse
+        except ImportError:
+            return  # limits not installed yet; engine._ensure_rate_limiter will handle it
+        try:
+            _parse(limit)
+        except ValueError:
+            valid = "second, minute, hour, day, month, year (or their plurals)"
+            raise ValueError(
+                f"Invalid rate limit string {limit!r}. "
+                f"Use the format '<count>/<granularity>', e.g. '100/minute'. "
+                f"Valid granularities: {valid}."
+            ) from None
+
     async def set_rate_limit_policy(
         self,
         path: str,
@@ -1429,7 +1450,25 @@ class ShieldEngine:
         so it takes effect immediately without a restart.
 
         Returns the ``RateLimitPolicy`` instance.
+
+        Raises
+        ------
+        ValueError
+            When *limit* is not a valid rate limit string (e.g. ``"100/minutesedrr"``).
+        RouteNotFoundException
+            When *path* is not registered in the backend.  Rate limit policies
+            are only meaningful for routes that actually exist — applying one to
+            an unknown path would create a phantom entry that never fires.
         """
+        self._validate_limit_string(limit)
+        # Guard: verify the route is registered before creating a policy.
+        # AmbiguousRouteError means the path exists under several HTTP methods,
+        # which is perfectly valid for a per-path rate limit.
+        try:
+            await self._resolve_existing(path)
+        except AmbiguousRouteError:
+            pass  # route exists — just registered under multiple methods
+
         from shield.core.rate_limit.models import (
             RateLimitAlgorithm,
             RateLimitKeyStrategy,
@@ -1564,6 +1603,7 @@ class ShieldEngine:
 
         Returns the ``GlobalRateLimitPolicy`` instance.
         """
+        self._validate_limit_string(limit)
         from shield.core.rate_limit.models import (
             GlobalRateLimitPolicy,
             OnMissingKey,
@@ -1744,10 +1784,18 @@ class ShieldEngine:
         platform: str = "system",
     ) -> None:
         """Write an audit entry for a route state change."""
+        # Carry the service label forward so audit rows can be filtered by service.
+        service: str | None = None
+        try:
+            state = await self.backend.get_state(path)
+            service = state.service
+        except Exception:  # noqa: BLE001
+            pass
         entry = AuditEntry(
             id=str(uuid.uuid4()),
             timestamp=datetime.now(UTC),
             path=path,
+            service=service,
             action=action,
             actor=actor,
             platform=platform,

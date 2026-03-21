@@ -103,6 +103,104 @@ Best for: multi-instance / load-balanced production deployments.
 
 ---
 
+## Shield Server + ShieldSDK (multi-service)
+
+When you run multiple independent services, a dedicated **Shield Server** acts as the centralised control plane. Each service connects to it via **ShieldSDK**, which keeps an in-process cache synced over a persistent SSE connection — so enforcement never touches the network per request.
+
+```
+┌────────────────────────────────┐
+│  Shield Server (port 9000)     │
+│  ShieldServer(backend=...)     │
+│  Dashboard, REST API, SSE      │
+└──────────────┬─────────────────┘
+               │  HTTP + SSE
+     ┌─────────┴──────────┐
+     ▼                    ▼
+┌──────────────┐  ┌──────────────┐
+│ payments-app │  │ orders-app   │
+│ ShieldSDK    │  │ ShieldSDK    │
+│ (local cache)│  │ (local cache)│
+└──────────────┘  └──────────────┘
+```
+
+**Shield Server setup:**
+
+```python
+from shield.server import ShieldServer
+from shield.core.backends.memory import MemoryBackend
+
+shield_app = ShieldServer(
+    backend=MemoryBackend(),
+    auth=("admin", "secret"),
+    token_expiry=3600,          # dashboard / CLI users: 1 hour
+    sdk_token_expiry=31536000,  # SDK service tokens: 1 year (default)
+)
+# Run: uvicorn myapp:shield_app --port 9000
+```
+
+**Service setup — three auth configurations:**
+
+```python
+from shield.sdk import ShieldSDK
+import os
+
+# No auth on the Shield Server — nothing needed
+sdk = ShieldSDK(server_url="http://shield-server:9000", app_id="payments-service")
+
+# Auto-login (recommended for production): SDK logs in on startup with platform="sdk"
+sdk = ShieldSDK(
+    server_url=os.environ["SHIELD_SERVER_URL"],
+    app_id="payments-service",
+    username=os.environ["SHIELD_USERNAME"],
+    password=os.environ["SHIELD_PASSWORD"],
+)
+
+# Pre-issued token: obtain once via `shield login`, store as a secret
+sdk = ShieldSDK(
+    server_url=os.environ["SHIELD_SERVER_URL"],
+    app_id="payments-service",
+    token=os.environ["SHIELD_TOKEN"],
+)
+
+sdk.attach(app)   # wires middleware + startup/shutdown
+```
+
+### Which backend should the Shield Server use?
+
+| Shield Server instances | Backend choice |
+|---|---|
+| 1 (development) | `MemoryBackend` — state lives in-process, lost on restart |
+| 1 (production) | `FileBackend` — state survives restarts |
+| 2+ (HA / load-balanced) | `RedisBackend` — all Shield Server nodes share state via pub/sub |
+
+### Shared rate limit counters across SDK replicas
+
+Each SDK client enforces rate limits locally using its own counters. When a service runs multiple replicas, each replica has independent counters — a `100/minute` limit is enforced independently per replica by default.
+
+To enforce the limit **across all replicas combined**, pass a shared `RedisBackend` as `rate_limit_backend`:
+
+```python
+from shield.core.backends.redis import RedisBackend
+
+sdk = ShieldSDK(
+    server_url="http://shield-server:9000",
+    app_id="payments-service",
+    rate_limit_backend=RedisBackend(url="redis://redis:6379/1"),
+)
+```
+
+### Deployment matrix
+
+| Services | Replicas per service | Shield Server backend | SDK `rate_limit_backend` |
+|---|---|---|---|
+| 1 | 1 | any — use embedded `ShieldAdmin` instead | — |
+| 2+ | 1 each | `MemoryBackend` or `FileBackend` | not needed |
+| 2+ | 2+ each | `RedisBackend` | `RedisBackend` |
+
+See [**Shield Server guide →**](../guides/shield-server.md) for a complete walkthrough.
+
+---
+
 ## Using `make_engine` (recommended)
 
 `make_engine()` reads `SHIELD_BACKEND` (and related env vars) so you never hardcode the backend:

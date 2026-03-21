@@ -143,6 +143,34 @@ def _render_route_row(tpl: Jinja2Templates, state: RouteState, prefix: str) -> s
 # ---------------------------------------------------------------------------
 
 
+def _get_services(states: list[RouteState]) -> list[str]:
+    return sorted({s.service for s in states if s.service})
+
+
+def _get_unrated_routes(
+    states: list[RouteState],
+    policies_dict: dict[str, Any],
+    service: str = "",
+) -> list[RouteState]:
+    """Return route states that have no rate limit policy set.
+
+    Strips service prefix when comparing against policy paths so that SDK
+    routes (stored as ``service:/path``) are matched correctly.
+    """
+    # Policy keys are "METHOD:/path"; extract just the path portion.
+    rated_paths = {k.split(":", 1)[1] for k in policies_dict.keys()}
+    result = []
+    for state in states:
+        if service and state.service != service:
+            continue
+        svc = state.service or ""
+        raw = state.path
+        display_path = raw[len(svc) + 1 :] if svc and raw.startswith(f"{svc}:") else raw
+        if display_path not in rated_paths:
+            result.append(state)
+    return sorted(result, key=lambda s: s.path)
+
+
 async def index(request: Request) -> Response:
     """Render the main routes page (full page)."""
     engine = _engine(request)
@@ -150,7 +178,11 @@ async def index(request: Request) -> Response:
     prefix = _prefix(request)
 
     page = int(request.query_params.get("page", 1))
+    service = request.query_params.get("service", "")
     states = await engine.list_states()
+    services = _get_services(states)
+    if service:
+        states = [s for s in states if s.service == service]
     global_config = await engine.get_global_maintenance()
     # Build a path → policy dict for the rate limit badge column.
     # Policies are keyed "METHOD:/path" so we index by path only (first match wins).
@@ -173,6 +205,8 @@ async def index(request: Request) -> Response:
             "version": request.app.state.version,
             "path_slug": path_slug,
             "shield_actor": _actor(request),
+            "services": services,
+            "selected_service": service,
         },
     )
 
@@ -183,7 +217,10 @@ async def routes_partial(request: Request) -> Response:
     tpl = _templates(request)
     prefix = _prefix(request)
 
+    service = request.query_params.get("service", "")
     states = await engine.list_states()
+    if service:
+        states = [s for s in states if s.service == service]
     return tpl.TemplateResponse(
         request,
         "partials/routes_table.html",
@@ -191,6 +228,7 @@ async def routes_partial(request: Request) -> Response:
             "states": states,
             "prefix": prefix,
             "path_slug": path_slug,
+            "selected_service": service,
         },
     )
 
@@ -316,7 +354,12 @@ async def audit_page(request: Request) -> Response:
     prefix = _prefix(request)
 
     page = int(request.query_params.get("page", 1))
+    service = request.query_params.get("service", "")
+    all_states = await engine.list_states()
+    services = _get_services(all_states)
     entries = await engine.get_audit_log(limit=1000)
+    if service:
+        entries = [e for e in entries if e.service == service]
     paged = _paginate(entries, page)
     return tpl.TemplateResponse(
         request,
@@ -328,6 +371,8 @@ async def audit_page(request: Request) -> Response:
             "active_tab": "audit",
             "version": request.app.state.version,
             "shield_actor": _actor(request),
+            "services": services,
+            "selected_service": service,
         },
     )
 
@@ -337,11 +382,14 @@ async def audit_rows(request: Request) -> Response:
     engine = _engine(request)
     tpl = _templates(request)
 
+    service = request.query_params.get("service", "")
     entries = await engine.get_audit_log(limit=50)
+    if service:
+        entries = [e for e in entries if e.service == service]
     return tpl.TemplateResponse(
         request,
         "partials/audit_rows.html",
-        {"entries": entries},
+        {"entries": entries, "selected_service": service},
     )
 
 
@@ -500,9 +548,20 @@ async def rate_limits_page(request: Request) -> Response:
     prefix = _prefix(request)
 
     page = int(request.query_params.get("page", 1))
+    service = request.query_params.get("service", "")
+    states = await engine.list_states()
+    services = _get_services(states)
+    svc_paths = {
+        s.path[len(s.service) + 1 :] if s.service and s.path.startswith(s.service + ":") else s.path
+        for s in states
+        if not service or s.service == service
+    }
     policies = list(engine._rate_limit_policies.values())
+    if service:
+        policies = [p for p in policies if p.path in svc_paths]
     paged = _paginate(policies, page)
     global_rl = await engine.get_global_rate_limit()
+    unrated_routes = _get_unrated_routes(states, engine._rate_limit_policies, service)
     return tpl.TemplateResponse(
         request,
         "rate_limits.html",
@@ -514,6 +573,9 @@ async def rate_limits_page(request: Request) -> Response:
             "active_tab": "rate_limits",
             "version": request.app.state.version,
             "shield_actor": _actor(request),
+            "services": services,
+            "selected_service": service,
+            "unrated_routes": unrated_routes,
         },
     )
 
@@ -525,7 +587,17 @@ async def rl_hits_page(request: Request) -> Response:
     prefix = _prefix(request)
 
     page = int(request.query_params.get("page", 1))
+    service = request.query_params.get("service", "")
+    states = await engine.list_states()
+    services = _get_services(states)
+    svc_paths = {
+        s.path[len(s.service) + 1 :] if s.service and s.path.startswith(s.service + ":") else s.path
+        for s in states
+        if not service or s.service == service
+    }
     hits = await engine.get_rate_limit_hits(limit=10_000)
+    if service:
+        hits = [h for h in hits if h.path in svc_paths]
     paged = _paginate(hits, page)
     return tpl.TemplateResponse(
         request,
@@ -537,6 +609,8 @@ async def rl_hits_page(request: Request) -> Response:
             "active_tab": "rl_hits",
             "version": request.app.state.version,
             "shield_actor": _actor(request),
+            "services": services,
+            "selected_service": service,
         },
     )
 
@@ -548,21 +622,38 @@ async def rate_limits_rows_partial(request: Request) -> Response:
     prefix = _prefix(request)
 
     page = int(request.query_params.get("page", 1))
-    policies = list(engine._rate_limit_policies.values())
+    service = request.query_params.get("service", "")
+    if service:
+        states = await engine.list_states()
+        svc_paths = {
+            s.path[len(s.service) + 1 :]
+            if s.service and s.path.startswith(f"{s.service}:")
+            else s.path  # noqa: E501
+            for s in states
+            if s.service == service
+        }
+        policies = [p for p in engine._rate_limit_policies.values() if p.path in svc_paths]
+    else:
+        policies = list(engine._rate_limit_policies.values())
     paged = _paginate(policies, page)
     return tpl.TemplateResponse(
         request,
         "partials/rate_limit_rows.html",
-        {"policies": paged["items"], "prefix": prefix},
+        {"policies": paged["items"], "prefix": prefix, "selected_service": service},
     )
 
 
 def _render_rl_row(tpl: Jinja2Templates, policy: Any, prefix: str) -> str:
-    """Render the rate_limit_rows.html partial for a single policy."""
-    return tpl.env.get_template("partials/rate_limit_rows.html").render(
+    """Render the rate_limit_rows.html partial for a single policy.
+
+    Appends a tiny inline script that closes the edit modal so the modal
+    close fires only on a successful save (not on validation errors).
+    """
+    html = tpl.env.get_template("partials/rate_limit_rows.html").render(
         policies=[policy],
         prefix=prefix,
     )
+    return html + "<script>document.getElementById('shield-modal').close()</script>"
 
 
 # ------------------------------------------------------------------
@@ -605,6 +696,86 @@ async def modal_rl_edit(request: Request) -> HTMLResponse:
         current_key_strategy=policy.key_strategy if policy else "ip",
     )
     return HTMLResponse(html)
+
+
+async def modal_rl_add(request: Request) -> HTMLResponse:
+    """Return the add-policy modal for a route that has no rate limit yet."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    route_path = _decode_path(request.path_params["path_key"])
+    selected_service = request.query_params.get("service", "")
+
+    # Extract the HTTP method prefix (e.g. "GET:/api/pay" → method="GET", path="/api/pay").
+    _http_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+    if ":" in route_path:
+        candidate, _, bare_path = route_path.partition(":")
+        if candidate.upper() in _http_methods:
+            method = candidate.upper()
+        else:
+            method = ""
+            bare_path = route_path
+    else:
+        method = ""
+        bare_path = route_path
+
+    html = tpl.env.get_template("partials/modal_rl_add.html").render(
+        route_path=bare_path,
+        route_method=method,
+        prefix=prefix,
+        selected_service=selected_service,
+    )
+    return HTMLResponse(html)
+
+
+async def rl_add(request: Request) -> Response:
+    """POST /rl/add — create a new rate limit policy from form data.
+
+    Reads ``path``, ``method``, ``limit``, ``algorithm``, ``key_strategy``,
+    and ``burst`` from the form body, registers the policy, then triggers
+    an HTMX page redirect so both the policies table and unrated list refresh.
+    """
+    engine = _engine(request)
+    prefix = _prefix(request)
+    form = await request.form()
+    path = str(form.get("path", "")).strip()
+    method = str(form.get("method", "GET")).strip().upper() or "GET"
+    limit = str(form.get("limit", "")).strip()
+    algorithm = str(form.get("algorithm", "sliding_window")).strip() or None
+    key_strategy = str(form.get("key_strategy", "ip")).strip() or None
+    burst = int(str(form.get("burst", 0) or 0))
+    service = str(form.get("service", "")).strip()
+
+    if path and limit:
+        try:
+            await engine.set_rate_limit_policy(
+                path=path,
+                method=method,
+                limit=limit,
+                algorithm=algorithm,
+                key_strategy=key_strategy,
+                burst=burst,
+                actor=_actor(request),
+                platform=_platform(request),
+            )
+        except ValueError as exc:
+            tpl = _templates(request)
+            html = tpl.env.get_template("partials/modal_rl_add.html").render(
+                route_path=path,
+                route_method=method,
+                prefix=prefix,
+                selected_service=service,
+                error=str(exc),
+                limit_value=limit,
+                algorithm_value=algorithm,
+                key_strategy_value=key_strategy,
+            )
+            return HTMLResponse(html)
+
+    qs = f"?service={service}" if service else ""
+    return Response(
+        status_code=204,
+        headers={"HX-Redirect": f"{prefix}/rate-limits{qs}"},
+    )
 
 
 async def modal_rl_delete(request: Request) -> HTMLResponse:
@@ -660,15 +831,32 @@ async def rl_edit(request: Request) -> HTMLResponse:
         if policy is None:
             return HTMLResponse("")
         return HTMLResponse(_render_rl_row(tpl, policy, prefix))
-    await engine.set_rate_limit_policy(
-        route_path,
-        method,
-        limit,
-        algorithm=algorithm,
-        key_strategy=key_strategy,
-        actor=_actor(request),
-        platform=_platform(request),
-    )
+    try:
+        await engine.set_rate_limit_policy(
+            route_path,
+            method,
+            limit,
+            algorithm=algorithm,
+            key_strategy=key_strategy,
+            actor=_actor(request),
+            platform=_platform(request),
+        )
+    except ValueError as exc:
+        slug = path_slug(composite)
+        html = tpl.env.get_template("partials/modal_rl_edit.html").render(
+            method=method,
+            route_path=route_path,
+            path_slug=slug,
+            submit_path=f"{prefix}/rl/edit/{request.path_params['path_key']}",
+            current_limit=limit,
+            current_algorithm=algorithm,
+            current_key_strategy=key_strategy,
+            error=str(exc),
+        )
+        return HTMLResponse(
+            html,
+            headers={"HX-Retarget": "#shield-modal", "HX-Reswap": "innerHTML"},
+        )
     policy = engine._rate_limit_policies.get(composite)
     if policy is None:
         return HTMLResponse("")
@@ -792,11 +980,22 @@ async def rate_limits_hits_partial(request: Request) -> Response:
     engine = _engine(request)
     tpl = _templates(request)
 
+    service = request.query_params.get("service", "")
     hits = await engine.get_rate_limit_hits(limit=50)
+    if service:
+        states = await engine.list_states()
+        svc_paths = {
+            s.path[len(s.service) + 1 :]
+            if s.service and s.path.startswith(f"{s.service}:")
+            else s.path  # noqa: E501
+            for s in states
+            if s.service == service
+        }
+        hits = [h for h in hits if h.path in svc_paths]
     return tpl.TemplateResponse(
         request,
         "partials/rate_limit_hits.html",
-        {"hits": hits},
+        {"hits": hits, "selected_service": service},
     )
 
 
@@ -820,10 +1019,13 @@ async def events(request: Request) -> StreamingResponse:
     engine = _engine(request)
     tpl = _templates(request)
     prefix = _prefix(request)
+    service = request.query_params.get("service", "")
 
     async def _generate() -> object:
         try:
             async for state in engine.backend.subscribe():
+                if service and state.service != service:
+                    continue
                 slug = path_slug(state.path)
                 html = _render_route_row(tpl, state, prefix)
                 # Format as multi-line SSE data — each HTML line prefixed with "data: ".

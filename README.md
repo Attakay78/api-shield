@@ -33,6 +33,8 @@ These features are framework-agnostic and available to any adapter.
 | ⏰ **Scheduled windows** | `asyncio`-native scheduler — maintenance windows activate and deactivate automatically |
 | 🔔 **Webhooks** | Fire HTTP POST on every state change — built-in Slack formatter and custom formatters supported |
 | 🚦 **Rate limiting** | Per-IP, per-user, per-API-key, or global counters — tiered limits, burst allowance, runtime mutation |
+| 🏗️ **Shield Server** | Centralised control plane for multi-service architectures — SDK clients sync state via SSE with zero per-request latency |
+| 🌐 **Multi-service CLI** | `SHIELD_SERVICE` env var scopes every command; `shield services` lists connected services |
 
 ### Framework adapters
 
@@ -222,13 +224,35 @@ api-shield is built on the **ASGI** standard. The core (`shield.core`) is comple
 
 ## Backends
 
-| Backend | Persistence | Multi-instance |
-|---|---|---|
-| `MemoryBackend` | No | No |
-| `FileBackend` | Yes | No |
-| `RedisBackend` | Yes | Yes |
+### Embedded mode (single service)
+
+| Backend | Persistence | Multi-instance | Best for |
+|---|---|---|---|
+| `MemoryBackend` | No | No | Development, tests |
+| `FileBackend` | Yes | No (single process) | Simple single-instance prod |
+| `RedisBackend` | Yes | Yes | Load-balanced / multi-worker prod |
 
 For rate limiting in multi-worker deployments, use `RedisBackend` — counters are atomic and shared across all processes.
+
+### Shield Server mode (multi-service)
+
+Run a dedicated `ShieldServer` process and connect each service via `ShieldSDK`. State is managed centrally; enforcement happens locally with zero per-request network overhead.
+
+```python
+# Shield Server (centralised — runs once)
+from shield.server import ShieldServer
+shield_app = ShieldServer(backend=MemoryBackend(), auth=("admin", "secret"))
+
+# Each service (connects to the Shield Server)
+from shield.sdk import ShieldSDK
+sdk = ShieldSDK(server_url="http://shield-server:9000", app_id="payments-service")
+sdk.attach(app)
+```
+
+| Scenario | Shield Server backend | SDK `rate_limit_backend` |
+|---|---|---|
+| Multi-service, single replica each | `MemoryBackend` or `FileBackend` | not needed |
+| Multi-service, multiple replicas | `RedisBackend` | `RedisBackend` (shared counters) |
 
 ---
 
@@ -242,9 +266,11 @@ Full documentation at **[attakay78.github.io/api-shield](https://attakay78.githu
 | [Decorators reference](https://attakay78.github.io/api-shield/reference/decorators/) | All decorator options |
 | [Rate limiting](https://attakay78.github.io/api-shield/tutorial/rate-limiting/) | Per-IP, per-user, tiered limits |
 | [ShieldEngine reference](https://attakay78.github.io/api-shield/reference/engine/) | Programmatic control |
-| [Backends](https://attakay78.github.io/api-shield/tutorial/backends/) | Memory, File, Redis, custom |
+| [Backends](https://attakay78.github.io/api-shield/tutorial/backends/) | Memory, File, Redis, Shield Server, custom |
 | [Admin dashboard](https://attakay78.github.io/api-shield/tutorial/admin-dashboard/) | Mounting ShieldAdmin |
 | [CLI reference](https://attakay78.github.io/api-shield/reference/cli/) | All CLI commands |
+| [Shield Server guide](https://attakay78.github.io/api-shield/guides/shield-server/) | Multi-service centralized control |
+| [Distributed deployments](https://attakay78.github.io/api-shield/guides/distributed/) | Multi-instance backend guide |
 | [Production guide](https://attakay78.github.io/api-shield/guides/production/) | Monitoring & deployment automation |
 
 ## License

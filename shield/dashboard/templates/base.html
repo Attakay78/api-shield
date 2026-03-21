@@ -108,6 +108,29 @@
             table.mobile-cards tbody td.card-sticky { position: static !important; background: inherit !important; }
             /* Hover tint on tr */
             table.mobile-cards tbody tr:hover { background: #f8fafc; }
+            /* Status + Action on same row (2-col grid) */
+            table.mobile-cards.mobile-row-status-action tbody tr {
+                display: grid !important;
+                grid-template-columns: 1fr auto;
+            }
+            table.mobile-cards.mobile-row-status-action tbody td:first-child {
+                grid-column: 1 / -1;
+            }
+            table.mobile-cards.mobile-row-status-action tbody td:nth-child(2) {
+                align-self: center;
+                padding-top: 0.25rem;
+                padding-bottom: 0.25rem;
+            }
+            table.mobile-cards.mobile-row-status-action tbody td:nth-child(2)::before { display: none; }
+            table.mobile-cards.mobile-row-status-action tbody td:nth-child(3) {
+                align-self: center;
+                padding-top: 0.25rem;
+                padding-bottom: 0.25rem;
+                border-top: none !important;
+                margin-top: 0 !important;
+                justify-content: flex-end;
+            }
+            table.mobile-cards.mobile-row-status-action tbody td:nth-child(3)::before { display: none; }
         }
 
         /* ── Success toast ───────────────────────────────────────────── */
@@ -204,6 +227,22 @@
                         </a>
                     </nav>
 
+                    {% if services %}
+                    <div class="hidden sm:flex items-center gap-1.5">
+                        <label for="svc-filter" class="text-xs text-slate-400 shrink-0">Service</label>
+                        <select id="svc-filter"
+                                onchange="applyService(this.value)"
+                                class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 font-mono
+                                       focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400
+                                       cursor-pointer hover:border-slate-300 transition-colors">
+                            <option value="">All services</option>
+                            {% for svc in services %}
+                            <option value="{{ svc }}" {% if selected_service == svc %}selected{% endif %}>{{ svc }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
                     <!-- User / logout (shown only when auth is active) -->
                     {% if shield_actor and shield_actor != 'anonymous' %}
                     <div class="flex items-center gap-2">
@@ -261,6 +300,21 @@
                     <span>Blocked</span>
                 </a>
             </nav>
+
+            {% if services %}
+            <div class="flex sm:hidden items-center gap-2 mt-1 mb-1">
+                <label for="svc-filter-mobile" class="text-xs text-slate-400 shrink-0">Service</label>
+                <select id="svc-filter-mobile"
+                        onchange="applyService(this.value)"
+                        class="flex-1 text-xs bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 font-mono
+                               focus:outline-none focus:ring-2 focus:ring-indigo-300 cursor-pointer">
+                    <option value="">All services</option>
+                    {% for svc in services %}
+                    <option value="{{ svc }}" {% if selected_service == svc %}selected{% endif %}>{{ svc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
 
         </div>
     </header>
@@ -368,6 +422,13 @@
                 if (msg) showToast(msg);
             });
         })();
+
+        function applyService(svc) {
+            const url = new URL(window.location);
+            if (svc) url.searchParams.set('service', svc);
+            else url.searchParams.delete('service');
+            window.location = url.toString();
+        }
     </script>
 
 </body>

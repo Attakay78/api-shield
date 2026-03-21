@@ -51,7 +51,52 @@ shield logout
 
 ---
 
+## Multi-service commands
+
+### `shield services`
+
+List all distinct service names registered with the Shield Server. Use this to discover which services are currently connected before switching context with `SHIELD_SERVICE`.
+
+```bash
+shield services
+```
+
+---
+
+### `shield current-service`
+
+Show the active service context (the value of the `SHIELD_SERVICE` environment variable). Useful for confirming which service subsequent commands will target.
+
+```bash
+shield current-service
+```
+
+**When `SHIELD_SERVICE` is set:**
+
+```
+Active service: payments-service  (from SHIELD_SERVICE)
+```
+
+**When `SHIELD_SERVICE` is not set:**
+
+```
+No active service set.
+Set one with: export SHIELD_SERVICE=<service-name>
+```
+
+---
+
 ## Route commands
+
+Route commands accept an optional `--service` flag to scope to a specific service. All five commands also read the `SHIELD_SERVICE` environment variable as a fallback — an explicit `--service` flag always wins.
+
+```bash
+export SHIELD_SERVICE=payments-service   # set once
+shield status                            # scoped to payments-service
+shield enable GET:/payments              # scoped to payments-service
+unset SHIELD_SERVICE
+shield status --service orders-service   # explicit flag, no env var needed
+```
 
 ### `shield status`
 
@@ -62,12 +107,14 @@ shield status                          # all routes, page 1
 shield status GET:/payments            # one route
 shield status --page 2                 # next page
 shield status --per-page 50           # 50 rows per page
+shield status --service payments-service  # scope to one service
 ```
 
 | Option | Description |
 |---|---|
 | `--page INT` | Page number to display when listing all routes (default: 1) |
 | `--per-page INT` | Rows per page (default: 20) |
+| `--service TEXT` | Filter to a specific service. Falls back to `SHIELD_SERVICE` env var. |
 
 **Example output:**
 
@@ -90,7 +137,12 @@ Restore a route to `ACTIVE`. Works regardless of the current status.
 
 ```bash
 shield enable GET:/payments
+shield enable GET:/payments --service payments-service
 ```
+
+| Option | Description |
+|---|---|
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -102,12 +154,14 @@ Permanently disable a route. Returns 503 to all callers.
 shield disable GET:/payments
 shield disable GET:/payments --reason "Use /v2/payments instead"
 shield disable GET:/payments --reason "hotfix" --until 2h
+shield disable GET:/payments --service payments-service --reason "hotfix"
 ```
 
 | Option | Description |
 |---|---|
 | `--reason TEXT` | Reason shown in error responses and recorded in the audit log |
 | `--until DURATION` | Automatically re-enable after this duration. Accepts `2h`, `30m`, `1d`, or an ISO 8601 datetime. |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -117,6 +171,7 @@ Put a route in maintenance mode. Optionally schedule automatic activation and de
 
 ```bash
 shield maintenance GET:/payments --reason "DB swap"
+shield maintenance GET:/payments --service payments-service --reason "DB swap"
 ```
 
 ```bash
@@ -132,6 +187,7 @@ shield maintenance GET:/payments \
 | `--reason TEXT` | Shown in the 503 error response |
 | `--start DATETIME` | Start of the maintenance window (ISO 8601). Maintenance activates automatically at this time. |
 | `--end DATETIME` | End of the maintenance window. Sets the `Retry-After` header and restores `ACTIVE` automatically. |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -144,6 +200,8 @@ shield schedule GET:/payments \
   --start 2025-06-01T02:00Z \
   --end   2025-06-01T04:00Z \
   --reason "Planned migration"
+shield schedule GET:/payments --service payments-service \
+  --start 2025-06-01T02:00Z --end 2025-06-01T04:00Z
 ```
 
 | Option | Description |
@@ -151,6 +209,7 @@ shield schedule GET:/payments \
 | `--start DATETIME` | When to activate maintenance (ISO 8601, required) |
 | `--end DATETIME` | When to restore the route to `ACTIVE` (ISO 8601, required) |
 | `--reason TEXT` | Reason shown in the 503 response during the window |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
