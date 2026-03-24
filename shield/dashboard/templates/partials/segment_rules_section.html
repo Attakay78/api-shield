@@ -1,0 +1,172 @@
+{# ── Segment Rules Section ─────────────────────────────────────────────────
+   Rendered inside modal_segment_detail.html and returned by HTMX add/remove
+   rule endpoints.  Expects: segment, key, prefix.
+─────────────────────────────────────────────────────────────────────────── #}
+<div id="segment-rules-section" class="space-y-3">
+
+    {# ── Label ──────────────────────────────────────────────────────────── #}
+    <div class="flex items-center justify-between">
+        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Targeting Rules
+            {% if segment.rules %}
+            <span class="ml-1 text-slate-400 font-normal normal-case tracking-normal tabular-nums">({{ segment.rules | length }})</span>
+            {% endif %}
+        </label>
+    </div>
+    <p class="text-xs text-slate-400 -mt-1">
+        Users matching <em>any</em> rule are included in this segment.
+        Rules are evaluated after the explicit included / excluded lists.
+    </p>
+
+    {# ── Existing rules ──────────────────────────────────────────────────── #}
+    {% if segment.rules %}
+    <div class="space-y-2">
+        {% for rule in segment.rules %}
+        <div class="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 group">
+            <div class="flex-1 min-w-0 space-y-1">
+                {% if rule.description %}
+                <p class="text-xs font-medium text-slate-700">{{ rule.description }}</p>
+                {% endif %}
+                {% for clause in rule.clauses %}
+                {% set is_seg_op = clause.operator.value in ['in_segment', 'not_in_segment'] %}
+                <div class="flex flex-wrap items-center gap-1 text-xs font-mono">
+                    {% if not loop.first %}
+                    <span class="text-[10px] font-sans font-semibold text-slate-400 uppercase tracking-widest">AND</span>
+                    {% endif %}
+                    {% if clause.negate %}
+                    <span class="text-red-500 font-sans">NOT</span>
+                    {% endif %}
+                    {% if not is_seg_op %}
+                    <span class="text-slate-800 bg-white border border-slate-200 rounded px-1.5 py-0.5">{{ clause.attribute }}</span>
+                    {% endif %}
+                    <span class="text-violet-600 font-sans text-[11px]">{{ clause.operator.value.replace('_', ' ') }}</span>
+                    <span class="text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5">{{ clause.values | join(', ') }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <button
+                hx-delete="{{ prefix }}/segments/{{ key }}/rules/{{ rule.id }}"
+                hx-target="#segment-rules-section"
+                hx-swap="outerHTML"
+                title="Remove rule"
+                class="shrink-0 mt-0.5 p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-400 italic">No targeting rules yet.</p>
+    {% endif %}
+
+    {# ── Add Rule form ───────────────────────────────────────────────────── #}
+    <details class="group/add" id="seg-add-rule-details-{{ key }}">
+        <summary class="list-none cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold
+                        text-violet-700 hover:text-violet-900 select-none">
+            <svg class="w-3.5 h-3.5 transition-transform group-open/add:rotate-45" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            Add Rule
+        </summary>
+
+        <form hx-post="{{ prefix }}/segments/{{ key }}/rules/add"
+              hx-target="#segment-rules-section"
+              hx-swap="outerHTML"
+              hx-on::after-request="this.reset(); document.getElementById('seg-add-rule-details-{{ key }}').removeAttribute('open')"
+              class="mt-3 p-3 rounded-lg bg-violet-50 border border-violet-200 space-y-3">
+
+            {# Description (optional) #}
+            <div>
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                    Description <span class="font-normal normal-case text-slate-400">(optional)</span>
+                </label>
+                <input type="text" name="description" placeholder="e.g. Enterprise plan users"
+                       class="w-full text-xs rounded-md px-2.5 py-1.5 border border-slate-300 bg-white
+                              text-slate-800 placeholder:text-slate-400
+                              focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500">
+            </div>
+
+            {# Clause: attribute + operator + values #}
+            <div class="space-y-2">
+                <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Clause</label>
+                <div class="flex flex-wrap gap-2 items-start">
+                    {# Attribute #}
+                    <input type="text" name="attribute" placeholder="attribute" required
+                           id="seg-rule-attr-{{ key }}"
+                           class="w-28 text-xs font-mono rounded-md px-2.5 py-1.5 border border-slate-300 bg-white
+                                  text-slate-800 placeholder:text-slate-400
+                                  focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500">
+
+                    {# Operator #}
+                    <select name="operator"
+                            onchange="segRuleOpChange(this, '{{ key }}')"
+                            class="text-xs rounded-md px-2.5 py-1.5 border border-slate-300 bg-white text-slate-700
+                                   focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500">
+                        {% set ops = [
+                            ('is','is'), ('is_not','is not'),
+                            ('contains','contains'), ('not_contains','not contains'),
+                            ('starts_with','starts with'), ('ends_with','ends with'),
+                            ('in','in'), ('not_in','not in'),
+                            ('gt','gt'), ('gte','gte'), ('lt','lt'), ('lte','lte'),
+                            ('in_segment','in segment'), ('not_in_segment','not in segment'),
+                            ('matches','matches regex'), ('not_matches','not matches regex'),
+                            ('semver_eq','semver ='), ('semver_lt','semver <'), ('semver_gt','semver >'),
+                        ] %}
+                        {% for val, label in ops %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    {# Values #}
+                    <input type="text" name="values" placeholder="val1, val2" required
+                           id="seg-rule-vals-{{ key }}"
+                           class="flex-1 min-w-[8rem] text-xs rounded-md px-2.5 py-1.5 border border-slate-300 bg-white
+                                  text-slate-800 placeholder:text-slate-400
+                                  focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500">
+                </div>
+                <p class="text-[11px] text-slate-400">Separate multiple values with commas.</p>
+            </div>
+
+            {# Negate #}
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="negate" value="1"
+                       class="w-3.5 h-3.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                <span class="text-xs text-slate-600">Negate (NOT)</span>
+            </label>
+
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button"
+                        onclick="document.getElementById('seg-add-rule-details-{{ key }}').removeAttribute('open')"
+                        class="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200
+                               rounded-md hover:bg-slate-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-3 py-1.5 text-xs font-semibold text-white bg-violet-700 hover:bg-violet-600
+                               rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 transition-colors">
+                    Add Rule
+                </button>
+            </div>
+        </form>
+    </details>
+</div>
+
+<script>
+function segRuleOpChange(sel, segKey) {
+    const isSegOp = ['in_segment', 'not_in_segment'].includes(sel.value);
+    const attr = document.getElementById('seg-rule-attr-' + segKey);
+    const vals = document.getElementById('seg-rule-vals-' + segKey);
+    if (attr) attr.classList.toggle('hidden', isSegOp);
+    if (vals) {
+        if (isSegOp) {
+            vals.placeholder = 'segment-key';
+            vals.required = true;
+        } else {
+            vals.placeholder = 'val1, val2';
+        }
+    }
+}
+</script>

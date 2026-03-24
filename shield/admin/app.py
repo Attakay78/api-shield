@@ -211,6 +211,70 @@ async def _logout(request: Request) -> Response:
     return response
 
 
+def _flag_dashboard_modal_routes() -> list[Route]:
+    """Flag + segment modal routes that must be registered BEFORE the generic wildcard.
+
+    These must appear before ``Route("/modal/{action}/{path_key}", ...)`` in the
+    route list so Starlette's first-match routing picks the specific handler.
+    """
+    return [
+        Route("/modal/flag/create", _dash.modal_flag_create, methods=["GET"]),
+        Route("/modal/flag/{key}/eval", _dash.modal_flag_eval, methods=["GET"]),
+        Route("/modal/segment/create", _dash.modal_segment_create, methods=["GET"]),
+        Route("/modal/segment/{key}/view", _dash.modal_segment_view, methods=["GET"]),
+        Route("/modal/segment/{key}", _dash.modal_segment_detail, methods=["GET"]),
+    ]
+
+
+def _flag_dashboard_routes() -> list[Route]:
+    """Return the flag + segment dashboard UI routes for mounting in ShieldAdmin."""
+    return [
+        Route("/flags", _dash.flags_page, methods=["GET"]),
+        Route("/flags/rows", _dash.flags_rows_partial, methods=["GET"]),
+        Route("/flags/create", _dash.flag_create_form, methods=["POST"]),
+        Route("/flags/{key}", _dash.flag_detail_page, methods=["GET"]),
+        Route("/flags/{key}/settings/save", _dash.flag_settings_save, methods=["POST"]),
+        Route("/flags/{key}/variations/save", _dash.flag_variations_save, methods=["POST"]),
+        Route("/flags/{key}/targeting/save", _dash.flag_targeting_save, methods=["POST"]),
+        Route("/flags/{key}/prerequisites/save", _dash.flag_prerequisites_save, methods=["POST"]),
+        Route("/flags/{key}/targets/save", _dash.flag_targets_save, methods=["POST"]),
+        Route("/flags/{key}/enable", _dash.flag_enable, methods=["POST"]),
+        Route("/flags/{key}/disable", _dash.flag_disable, methods=["POST"]),
+        Route("/flags/{key}", _dash.flag_delete, methods=["DELETE"]),
+        Route("/flags/{key}/eval", _dash.flag_eval_form, methods=["POST"]),
+        Route("/segments", _dash.segments_page, methods=["GET"]),
+        Route("/segments/rows", _dash.segments_rows_partial, methods=["GET"]),
+        Route("/segments/create", _dash.segment_create_form, methods=["POST"]),
+        Route("/segments/{key}/rules/add", _dash.segment_rule_add, methods=["POST"]),
+        Route("/segments/{key}/rules/{rule_id}", _dash.segment_rule_delete, methods=["DELETE"]),
+        Route("/segments/{key}/save", _dash.segment_save_form, methods=["POST"]),
+        Route("/segments/{key}", _dash.modal_segment_detail, methods=["GET"]),
+        Route("/segments/{key}", _dash.segment_delete, methods=["DELETE"]),
+    ]
+
+
+def _flag_routes() -> list[Route]:
+    """Return the flag + segment API routes for mounting in ShieldAdmin."""
+    return [
+        # ── Flags CRUD ───────────────────────────────────────────────
+        Route("/api/flags", _api.list_flags, methods=["GET"]),
+        Route("/api/flags", _api.create_flag, methods=["POST"]),
+        Route("/api/flags/{key}", _api.get_flag, methods=["GET"]),
+        Route("/api/flags/{key}", _api.update_flag, methods=["PUT"]),
+        Route("/api/flags/{key}", _api.patch_flag, methods=["PATCH"]),
+        Route("/api/flags/{key}", _api.delete_flag, methods=["DELETE"]),
+        Route("/api/flags/{key}/enable", _api.enable_flag, methods=["POST"]),
+        Route("/api/flags/{key}/disable", _api.disable_flag, methods=["POST"]),
+        Route("/api/flags/{key}/evaluate", _api.evaluate_flag, methods=["POST"]),
+        # ── Segments CRUD ────────────────────────────────────────────
+        Route("/api/segments", _api.list_segments, methods=["GET"]),
+        Route("/api/segments", _api.create_segment, methods=["POST"]),
+        Route("/api/segments/{key}", _api.get_segment, methods=["GET"]),
+        Route("/api/segments/{key}", _api.update_segment, methods=["PUT"]),
+        Route("/api/segments/{key}", _api.delete_segment, methods=["DELETE"]),
+    ]
+
+
 def ShieldAdmin(
     engine: ShieldEngine,
     auth: AuthConfig = None,
@@ -218,6 +282,7 @@ def ShieldAdmin(
     sdk_token_expiry: int = 31536000,
     secret_key: str | None = None,
     prefix: str = "/shield",
+    enable_flags: bool | None = None,
 ) -> ASGIApp:
     """Create the unified Shield admin ASGI app.
 
@@ -249,6 +314,13 @@ def ShieldAdmin(
     prefix:
         URL prefix at which the admin app is mounted.  Must match the path
         passed to ``app.mount()``.  Used to build correct redirects.
+    enable_flags:
+        When ``True``, mount the feature flag and segment dashboard UI and
+        REST API endpoints (``/flags/*``, ``/api/flags/*``, ``/api/segments/*``).
+        Requires ``engine.use_openfeature()`` to have been called and
+        ``api-shield[flags]`` to be installed.
+        When ``None`` (default), auto-detected: flags are enabled when
+        ``engine.use_openfeature()`` has been called.
 
     Returns
     -------
@@ -256,6 +328,10 @@ def ShieldAdmin(
         A Starlette ASGI application ready to be passed to ``app.mount()``.
     """
     import base64
+
+    # Auto-detect flags: enabled when engine.use_openfeature() has been called.
+    if enable_flags is None:
+        enable_flags = getattr(engine, "_flag_client", None) is not None
 
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     templates.env.filters["encode_path"] = lambda p: (
@@ -286,6 +362,7 @@ def ShieldAdmin(
 
     templates.env.filters["clean_path"] = _clean_path
     templates.env.filters["clean_entry_path"] = _clean_entry_path
+    templates.env.globals["flags_enabled"] = enable_flags
 
     try:
         version = importlib.metadata.version("api-shield")
@@ -316,6 +393,8 @@ def ShieldAdmin(
             Route("/modal/global-rl/delete", _dash.modal_global_rl_delete),
             Route("/modal/global-rl/reset", _dash.modal_global_rl_reset),
             Route("/modal/env/{path_key}", _dash.modal_env_gate),
+            # Flag/segment modals must come before the generic wildcard below.
+            *(_flag_dashboard_modal_routes() if enable_flags else []),
             Route("/modal/{action}/{path_key}", _dash.action_modal),
             Route(
                 "/global-maintenance/enable",
@@ -422,6 +501,9 @@ def ShieldAdmin(
             Route("/api/sdk/audit", _api.sdk_audit, methods=["POST"]),
             # ── Service discovery ────────────────────────────────────────
             Route("/api/services", _api.list_services, methods=["GET"]),
+            # ── Feature flags (mounted only when enable_flags=True) ──────
+            *(_flag_dashboard_routes() if enable_flags else []),
+            *(_flag_routes() if enable_flags else []),
         ],
     )
 
@@ -432,6 +514,7 @@ def ShieldAdmin(
     starlette_app.state.version = version
     starlette_app.state.token_manager = token_manager
     starlette_app.state.auth_backend = auth_backend
+    starlette_app.state.flags_enabled = enable_flags
 
     # Wrap with auth middleware.
     return _AuthMiddleware(starlette_app, token_manager=token_manager, auth_backend=auth_backend)

@@ -1340,5 +1340,967 @@ def grl_disable() -> None:
     _run(_run_grl_disable)
 
 
+# ---------------------------------------------------------------------------
+# Feature flags command group  (shield flags ...)
+# ---------------------------------------------------------------------------
+
+_FLAG_TYPE_COLOURS = {
+    "boolean": "green",
+    "string": "cyan",
+    "integer": "blue",
+    "float": "blue",
+    "json": "magenta",
+}
+
+flags_app = typer.Typer(
+    name="flags",
+    help="Manage feature flags.",
+    no_args_is_help=True,
+)
+cli.add_typer(flags_app, name="flags")
+
+
+def _flag_status_colour(enabled: bool) -> str:
+    return "green" if enabled else "dim"
+
+
+def _print_flags_table(flags: list[dict[str, Any]]) -> None:
+    tbl = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False)
+    tbl.add_column("Key", style="bold cyan", no_wrap=True)
+    tbl.add_column("Type", style="white")
+    tbl.add_column("Status", style="white")
+    tbl.add_column("Variations", style="dim")
+    tbl.add_column("Fallthrough", style="dim")
+    for f in flags:
+        enabled = f.get("enabled", True)
+        status_text = "[green]enabled[/green]" if enabled else "[dim]disabled[/dim]"
+        ftype = f.get("type", "")
+        colour = _FLAG_TYPE_COLOURS.get(ftype, "white")
+        variations = ", ".join(v["name"] for v in f.get("variations", []))
+        fallthrough = f.get("fallthrough", "")
+        if isinstance(fallthrough, list):
+            fallthrough = "rollout"
+        tbl.add_row(
+            f.get("key", ""),
+            f"[{colour}]{ftype}[/{colour}]",
+            status_text,
+            variations,
+            str(fallthrough),
+        )
+    console.print(tbl)
+
+
+@flags_app.command("list")
+def flags_list(
+    type: str = typer.Option("", "--type", "-t", help="Filter by flag type (boolean, string, …)"),
+    enabled: str = typer.Option("", "--status", "-s", help="Filter by status: enabled or disabled"),
+) -> None:
+    """List all feature flags."""
+
+    async def _run_flags_list() -> None:
+        flags = await make_client().list_flags()
+        if type:
+            flags = [f for f in flags if f.get("type") == type]
+        if enabled == "enabled":
+            flags = [f for f in flags if f.get("enabled", True)]
+        elif enabled == "disabled":
+            flags = [f for f in flags if not f.get("enabled", True)]
+        if not flags:
+            console.print("[dim]No flags found.[/dim]")
+            return
+        _print_flags_table(flags)
+        console.print(f"[dim]{len(flags)} flag(s)[/dim]")
+
+    _run(_run_flags_list)
+
+
+@flags_app.command("get")
+def flags_get(key: str = typer.Argument(..., help="Flag key")) -> None:
+    """Show details for a single feature flag."""
+
+    async def _run_flags_get() -> None:
+        flag = await make_client().get_flag(key)
+        console.print(f"[bold cyan]{flag['key']}[/bold cyan]  [dim]{flag.get('name', '')}[/dim]")
+        ftype = flag.get("type", "")
+        colour = _FLAG_TYPE_COLOURS.get(ftype, "white")
+        enabled = flag.get("enabled", True)
+        status_text = "[green]enabled[/green]" if enabled else "[dim]disabled[/dim]"
+        console.print(f"  Type:    [{colour}]{ftype}[/{colour}]")
+        console.print(f"  Status:  {status_text}")
+        console.print(f"  Off variation: [dim]{flag.get('off_variation', '')}[/dim]")
+        fallthrough = flag.get("fallthrough", "")
+        if isinstance(fallthrough, list):
+            parts = [f"{rv['variation']}:{rv['weight'] // 1000}%" for rv in fallthrough]
+            console.print(f"  Fallthrough: [dim]{', '.join(parts)}[/dim]")
+        else:
+            console.print(f"  Fallthrough: [dim]{fallthrough}[/dim]")
+        # Variations
+        console.print("  Variations:")
+        for v in flag.get("variations", []):
+            console.print(f"    • [bold]{v['name']}[/bold] = {v['value']!r}")
+        # Rules
+        rules = flag.get("rules") or []
+        if rules:
+            console.print(f"  Rules: [dim]{len(rules)} targeting rule(s)[/dim]")
+        # Prerequisites
+        prereqs = flag.get("prerequisites") or []
+        if prereqs:
+            console.print("  Prerequisites:")
+            for p in prereqs:
+                console.print(
+                    f"    • [cyan]{p['flag_key']}[/cyan] must be [bold]{p['variation']}[/bold]"
+                )
+
+    _run(_run_flags_get)
+
+
+@flags_app.command("create")
+def flags_create(
+    key: str = typer.Argument(..., help="Unique flag key (e.g. new_checkout)"),
+    name: str = typer.Option(..., "--name", "-n", help="Human-readable name"),
+    type: str = typer.Option(
+        "boolean", "--type", "-t", help="Flag type: boolean, string, integer, float, json"
+    ),
+    description: str = typer.Option("", "--description", "-d", help="Optional description"),
+) -> None:
+    """Create a new boolean feature flag with on/off variations.
+
+    For other types or advanced configuration, use the dashboard or the API
+    directly.  The flag is created enabled with fallthrough=off.
+
+    \b
+      shield flags create new_checkout --name "New Checkout Flow"
+      shield flags create dark_mode --name "Dark Mode" --type boolean
+    """
+
+    async def _run_flags_create() -> None:
+        flag_type = type.lower()
+        # Build default on/off variations based on type.
+        if flag_type == "boolean":
+            variations = [{"name": "on", "value": True}, {"name": "off", "value": False}]
+            off_variation = "off"
+            fallthrough = "off"
+        elif flag_type == "string":
+            variations = [
+                {"name": "control", "value": "control"},
+                {"name": "treatment", "value": "treatment"},
+            ]
+            off_variation = "control"
+            fallthrough = "control"
+        elif flag_type in ("integer", "float"):
+            variations = [{"name": "off", "value": 0}, {"name": "on", "value": 1}]
+            off_variation = "off"
+            fallthrough = "off"
+        elif flag_type == "json":
+            variations = [{"name": "off", "value": {}}, {"name": "on", "value": {}}]
+            off_variation = "off"
+            fallthrough = "off"
+        else:
+            err_console.print(
+                f"[red]Error:[/red] Unknown type {type!r}. "
+                "Use boolean, string, integer, float, or json."
+            )
+            raise typer.Exit(code=1)
+
+        flag_data = {
+            "key": key,
+            "name": name,
+            "type": flag_type,
+            "description": description,
+            "variations": variations,
+            "off_variation": off_variation,
+            "fallthrough": fallthrough,
+            "enabled": True,
+        }
+        result = await make_client().create_flag(flag_data)
+        console.print(f"[green]✓[/green] Flag [bold cyan]{result['key']}[/bold cyan] created.")
+
+    _run(_run_flags_create)
+
+
+@flags_app.command("enable")
+def flags_enable(key: str = typer.Argument(..., help="Flag key")) -> None:
+    """Enable a feature flag."""
+
+    async def _run_flags_enable() -> None:
+        result = await make_client().enable_flag(key)
+        console.print(f"[green]✓[/green] Flag [bold cyan]{result['key']}[/bold cyan] enabled.")
+
+    _run(_run_flags_enable)
+
+
+@flags_app.command("disable")
+def flags_disable(key: str = typer.Argument(..., help="Flag key")) -> None:
+    """Disable a feature flag (serves the off variation to all users)."""
+
+    async def _run_flags_disable() -> None:
+        result = await make_client().disable_flag(key)
+        console.print(f"[dim]✓ Flag {result['key']} disabled.[/dim]")
+
+    _run(_run_flags_disable)
+
+
+@flags_app.command("delete")
+def flags_delete(
+    key: str = typer.Argument(..., help="Flag key"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Permanently delete a feature flag."""
+    if not yes:
+        typer.confirm(f"Delete flag '{key}'? This cannot be undone.", abort=True)
+
+    async def _run_flags_delete() -> None:
+        result = await make_client().delete_flag(key)
+        console.print(f"[green]✓[/green] Flag [bold]{result['deleted']}[/bold] deleted.")
+
+    _run(_run_flags_delete)
+
+
+@flags_app.command("eval")
+def flags_eval(
+    key: str = typer.Argument(..., help="Flag key"),
+    ctx_key: str = typer.Option("anonymous", "--key", "-k", help="Context key (user ID)"),
+    kind: str = typer.Option("user", "--kind", help="Context kind"),
+    attr: list[str] = typer.Option([], "--attr", "-a", help="Attribute as key=value (repeatable)"),
+) -> None:
+    """Evaluate a feature flag for a given context (debug tool).
+
+    \b
+      shield flags eval new_checkout --key user_123 --attr role=admin --attr plan=pro
+    """
+
+    async def _run_flags_eval() -> None:
+        attributes: dict[str, str] = {}
+        for a in attr:
+            if "=" not in a:
+                err_console.print(f"[red]Error:[/red] Attribute must be key=value, got: {a!r}")
+                raise typer.Exit(code=1)
+            k, _, v = a.partition("=")
+            attributes[k.strip()] = v.strip()
+
+        context = {"key": ctx_key, "kind": kind, "attributes": attributes}
+        result = await make_client().evaluate_flag(key, context)
+
+        value = result.get("value")
+        variation = result.get("variation", "")
+        reason = result.get("reason", "")
+        rule_id = result.get("rule_id")
+
+        tbl = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, show_header=False)
+        tbl.add_column("Field", style="dim", no_wrap=True)
+        tbl.add_column("Value", style="bold")
+        tbl.add_row("value", str(value))
+        tbl.add_row("variation", variation or "—")
+        tbl.add_row("reason", reason)
+        if rule_id:
+            tbl.add_row("rule_id", rule_id)
+        prereq = result.get("prerequisite_key")
+        if prereq:
+            tbl.add_row("prerequisite_key", prereq)
+        err_msg = result.get("error_message")
+        if err_msg:
+            tbl.add_row("error", f"[red]{err_msg}[/red]")
+        console.print(tbl)
+
+    _run(_run_flags_eval)
+
+
+@flags_app.command("edit")
+def flags_edit(
+    key: str = typer.Argument(..., help="Flag key"),
+    name: str | None = typer.Option(None, "--name", "-n", help="New display name"),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description"),
+    off_variation: str | None = typer.Option(
+        None, "--off-variation", help="Variation served when flag is disabled"
+    ),
+    fallthrough: str | None = typer.Option(
+        None, "--fallthrough", help="Default variation when no rule matches"
+    ),
+) -> None:
+    """Patch a feature flag (partial update — only provided fields are changed).
+
+    \b
+      shield flags edit dark_mode --name "Dark Mode v2"
+      shield flags edit dark_mode --off-variation off --fallthrough control
+    """
+
+    async def _run_flags_edit() -> None:
+        patch: dict[str, Any] = {}
+        if name is not None:
+            patch["name"] = name
+        if description is not None:
+            patch["description"] = description
+        if off_variation is not None:
+            patch["off_variation"] = off_variation
+        if fallthrough is not None:
+            patch["fallthrough"] = fallthrough
+        if not patch:
+            err_console.print("[yellow]Nothing to update — provide at least one option.[/yellow]")
+            raise typer.Exit(1)
+        result = await make_client().patch_flag(key, patch)
+        console.print(f"[green]✓[/green] Flag [bold cyan]{result['key']}[/bold cyan] updated.")
+        tbl = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, show_header=False)
+        tbl.add_column("Field", style="dim", no_wrap=True)
+        tbl.add_column("Value", style="bold")
+        for field in ("name", "description", "off_variation", "fallthrough"):
+            if field in patch:
+                val = result.get(field)
+                tbl.add_row(field, str(val) if val is not None else "—")
+        console.print(tbl)
+
+    _run(_run_flags_edit)
+
+
+@flags_app.command("variations")
+def flags_variations(key: str = typer.Argument(..., help="Flag key")) -> None:
+    """List variations for a feature flag."""
+
+    async def _run_flags_variations() -> None:
+        flag = await make_client().get_flag(key)
+        variations = flag.get("variations") or []
+        if not variations:
+            console.print(f"[dim]No variations for flag '{key}'.[/dim]")
+            return
+        tbl = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        tbl.add_column("Name", style="bold cyan", no_wrap=True)
+        tbl.add_column("Value", style="white")
+        tbl.add_column("Description", style="dim")
+        tbl.add_column("Role", style="dim")
+        off_var = flag.get("off_variation", "")
+        fallthrough = flag.get("fallthrough")
+        for v in variations:
+            vname = v.get("name", "")
+            role = ""
+            if vname == off_var:
+                role = "[slate]off[/slate]"
+            elif isinstance(fallthrough, str) and vname == fallthrough:
+                role = "[magenta]fallthrough[/magenta]"
+            tbl.add_row(vname, str(v.get("value", "")), v.get("description") or "—", role)
+        console.print(f"[bold cyan]{flag['key']}[/bold cyan]  [dim]{flag.get('type', '')}[/dim]")
+        console.print(tbl)
+
+    _run(_run_flags_variations)
+
+
+@flags_app.command("targeting")
+def flags_targeting(key: str = typer.Argument(..., help="Flag key")) -> None:
+    """Show targeting rules for a feature flag (read-only view)."""
+
+    async def _run_flags_targeting() -> None:
+        flag = await make_client().get_flag(key)
+        rules = flag.get("rules") or []
+
+        off_var = flag.get("off_variation", "—")
+        ft = flag.get("fallthrough", "—")
+        console.print(
+            f"[bold cyan]{flag['key']}[/bold cyan]"
+            f"  off=[cyan]{off_var}[/cyan]"
+            f"  fallthrough=[cyan]{ft}[/cyan]"
+        )
+
+        if not rules:
+            console.print("[dim]No targeting rules.[/dim]")
+            return
+
+        for i, rule in enumerate(rules):
+            desc = rule.get("description") or ""
+            variation = rule.get("variation") or "—"
+            clauses = rule.get("clauses") or []
+            console.print(
+                f"\n  [bold]Rule {i + 1}[/bold]"
+                + (f" — {desc}" if desc else "")
+                + f"  →  [green]{variation}[/green]"
+            )
+            console.print(f"  [dim]id: {rule.get('id', '')}[/dim]")
+            for clause in clauses:
+                attr = clause.get("attribute", "")
+                op = clause.get("operator", "")
+                vals = clause.get("values") or []
+                negate = clause.get("negate", False)
+                neg_str = "[dim]NOT[/dim] " if negate else ""
+                vals_str = ", ".join(str(v) for v in vals)
+                console.print(f"    {neg_str}[cyan]{attr}[/cyan] [dim]{op}[/dim] {vals_str}")
+
+    _run(_run_flags_targeting)
+
+
+@flags_app.command("add-rule")
+def flags_add_rule(
+    key: str = typer.Argument(..., help="Flag key"),
+    variation: str = typer.Option(
+        ..., "--variation", "-v", help="Variation to serve when rule matches"
+    ),
+    segment: str | None = typer.Option(
+        None, "--segment", "-s", help="Segment key (adds an in_segment clause)"
+    ),
+    attribute: str | None = typer.Option(
+        None, "--attribute", "-a", help="Attribute name for a custom clause"
+    ),
+    operator: str = typer.Option(
+        "is", "--operator", "-o", help="Operator (e.g. is, in_segment, contains)"
+    ),
+    values: str | None = typer.Option(None, "--values", help="Comma-separated clause values"),
+    description: str = typer.Option("", "--description", "-d", help="Optional rule description"),
+    negate: bool = typer.Option(False, "--negate", help="Negate the clause result"),
+) -> None:
+    """Add a targeting rule to a feature flag.
+
+    \b
+    Segment-based rule (most common):
+      shield flags add-rule my-flag --variation on --segment beta-users
+
+    Custom attribute rule:
+      shield flags add-rule my-flag --variation on \
+        --attribute plan --operator is --values pro,enterprise
+    """
+    if segment is None and attribute is None:
+        console.print("[red]Error:[/red] provide --segment or --attribute.")
+        raise typer.Exit(1)
+    if segment is not None and attribute is not None:
+        console.print("[red]Error:[/red] --segment and --attribute are mutually exclusive.")
+        raise typer.Exit(1)
+
+    async def _run_add_rule() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        rules = list(flag.get("rules") or [])
+
+        if segment is not None:
+            clause = {
+                "attribute": "key",
+                "operator": "in_segment",
+                "values": [segment],
+                "negate": negate,
+            }
+        else:
+            raw_vals: list[Any] = [v.strip() for v in (values or "").split(",") if v.strip()]
+            clause = {
+                "attribute": attribute,
+                "operator": operator,
+                "values": raw_vals,
+                "negate": negate,
+            }
+
+        import uuid as _uuid
+
+        new_rule: dict[str, Any] = {
+            "id": str(_uuid.uuid4()),
+            "description": description,
+            "clauses": [clause],
+            "variation": variation,
+        }
+        rules.append(new_rule)
+        await client.patch_flag(key, {"rules": rules})
+        clause_summary = (
+            f"in_segment [cyan]{segment}[/cyan]"
+            if segment is not None
+            else f"[cyan]{attribute}[/cyan] [dim]{operator}[/dim] {values}"
+        )
+        console.print(
+            f"[green]✓[/green] Rule added to [bold cyan]{key}[/bold cyan]: "
+            f"{clause_summary} → [green]{variation}[/green]"
+        )
+        console.print(f"  [dim]id: {new_rule['id']}[/dim]")
+
+    _run(_run_add_rule)
+
+
+@flags_app.command("remove-rule")
+def flags_remove_rule(
+    key: str = typer.Argument(..., help="Flag key"),
+    rule_id: str = typer.Option(..., "--rule-id", "-r", help="Rule ID to remove"),
+) -> None:
+    """Remove a targeting rule from a feature flag by its ID.
+
+    \b
+      shield flags remove-rule my-flag --rule-id <uuid>
+
+    Use 'shield flags targeting my-flag' to list rule IDs.
+    """
+
+    async def _run_remove_rule() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        rules = list(flag.get("rules") or [])
+        original_len = len(rules)
+        rules = [r for r in rules if r.get("id") != rule_id]
+        if len(rules) == original_len:
+            console.print(f"[red]Error:[/red] no rule with id '{rule_id}' found on flag '{key}'.")
+            raise typer.Exit(1)
+        await client.patch_flag(key, {"rules": rules})
+        console.print(
+            f"[green]✓[/green] Rule [dim]{rule_id}[/dim] removed from [bold cyan]{key}[/bold cyan]."
+        )
+
+    _run(_run_remove_rule)
+
+
+# ---------------------------------------------------------------------------
+# Prerequisites commands  (shield flags add-prereq / remove-prereq)
+# ---------------------------------------------------------------------------
+
+
+@flags_app.command("add-prereq")
+def flags_add_prereq(
+    key: str = typer.Argument(..., help="Flag key"),
+    prereq_flag: str = typer.Option(..., "--flag", "-f", help="Prerequisite flag key"),
+    variation: str = typer.Option(
+        ..., "--variation", "-v", help="Variation the prerequisite flag must return"
+    ),
+) -> None:
+    """Add a prerequisite flag to a feature flag.
+
+    \b
+      shield flags add-prereq my-flag --flag auth-flag --variation on
+
+    The prerequisite flag must evaluate to the given variation before this
+    flag's rules run. If it doesn't, this flag serves its off_variation.
+    """
+
+    async def _run_add_prereq() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        if flag["key"] == prereq_flag:
+            console.print("[red]Error:[/red] a flag cannot be its own prerequisite.")
+            raise typer.Exit(1)
+        prereqs = list(flag.get("prerequisites") or [])
+        # avoid duplicates
+        for p in prereqs:
+            if p.get("flag_key") == prereq_flag:
+                console.print(
+                    f"[yellow]Warning:[/yellow] prerequisite [cyan]{prereq_flag}[/cyan]"
+                    " already exists. Updating variation."
+                )
+                p["variation"] = variation
+                await client.patch_flag(key, {"prerequisites": prereqs})
+                console.print(
+                    f"[green]✓[/green] Prerequisite [cyan]{prereq_flag}[/cyan]"
+                    f" updated → must be [green]{variation}[/green]."
+                )
+                return
+        prereqs.append({"flag_key": prereq_flag, "variation": variation})
+        await client.patch_flag(key, {"prerequisites": prereqs})
+        console.print(
+            f"[green]✓[/green] Prerequisite [cyan]{prereq_flag}[/cyan]"
+            f" added to [bold cyan]{key}[/bold cyan]:"
+            f" must be [green]{variation}[/green]."
+        )
+
+    _run(_run_add_prereq)
+
+
+@flags_app.command("remove-prereq")
+def flags_remove_prereq(
+    key: str = typer.Argument(..., help="Flag key"),
+    prereq_flag: str = typer.Option(..., "--flag", "-f", help="Prerequisite flag key to remove"),
+) -> None:
+    """Remove a prerequisite from a feature flag.
+
+    \b
+      shield flags remove-prereq my-flag --flag auth-flag
+    """
+
+    async def _run_remove_prereq() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        prereqs = list(flag.get("prerequisites") or [])
+        original_len = len(prereqs)
+        prereqs = [p for p in prereqs if p.get("flag_key") != prereq_flag]
+        if len(prereqs) == original_len:
+            console.print(
+                f"[red]Error:[/red] prerequisite [cyan]{prereq_flag}[/cyan]"
+                f" not found on flag [cyan]{key}[/cyan]."
+            )
+            raise typer.Exit(1)
+        await client.patch_flag(key, {"prerequisites": prereqs})
+        console.print(
+            f"[green]✓[/green] Prerequisite [cyan]{prereq_flag}[/cyan]"
+            f" removed from [bold cyan]{key}[/bold cyan]."
+        )
+
+    _run(_run_remove_prereq)
+
+
+# ---------------------------------------------------------------------------
+# Individual targets commands  (shield flags target / untarget)
+# ---------------------------------------------------------------------------
+
+
+@flags_app.command("target")
+def flags_target(
+    key: str = typer.Argument(..., help="Flag key"),
+    variation: str = typer.Option(
+        ..., "--variation", "-v", help="Variation to serve to the context keys"
+    ),
+    context_keys: str = typer.Option(
+        ..., "--keys", "-k", help="Comma-separated context keys to pin"
+    ),
+) -> None:
+    """Pin context keys to always receive a specific variation.
+
+    \b
+      shield flags target my-flag --variation on --keys user_123,user_456
+
+    Individual targets are evaluated before rules — highest priority targeting.
+    """
+
+    async def _run_target() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        variation_names = [v["name"] for v in (flag.get("variations") or [])]
+        if variation not in variation_names:
+            console.print(
+                f"[red]Error:[/red] variation [cyan]{variation}[/cyan] not found."
+                f" Available: {', '.join(variation_names)}"
+            )
+            raise typer.Exit(1)
+        new_keys = [k.strip() for k in context_keys.split(",") if k.strip()]
+        targets: dict[str, Any] = dict(flag.get("targets") or {})
+        existing = list(targets.get(variation, []))
+        added = [k for k in new_keys if k not in existing]
+        existing.extend(added)
+        targets[variation] = existing
+        await client.patch_flag(key, {"targets": targets})
+        console.print(
+            f"[green]✓[/green] Added {len(added)} key(s)"
+            f" to [bold cyan]{key}[/bold cyan] → [green]{variation}[/green]."
+        )
+
+    _run(_run_target)
+
+
+@flags_app.command("untarget")
+def flags_untarget(
+    key: str = typer.Argument(..., help="Flag key"),
+    variation: str = typer.Option(
+        ..., "--variation", "-v", help="Variation to remove context keys from"
+    ),
+    context_keys: str = typer.Option(
+        ..., "--keys", "-k", help="Comma-separated context keys to unpin"
+    ),
+) -> None:
+    """Remove context keys from individual targeting.
+
+    \b
+      shield flags untarget my-flag --variation on --keys user_123
+    """
+
+    async def _run_untarget() -> None:
+        client = make_client()
+        flag = await client.get_flag(key)
+        remove_keys = {k.strip() for k in context_keys.split(",") if k.strip()}
+        targets: dict[str, Any] = dict(flag.get("targets") or {})
+        existing = list(targets.get(variation, []))
+        if not existing:
+            console.print(
+                f"[yellow]Warning:[/yellow] no targets for variation [cyan]{variation}[/cyan]."
+            )
+            raise typer.Exit(1)
+        updated = [k for k in existing if k not in remove_keys]
+        if updated:
+            targets[variation] = updated
+        else:
+            targets.pop(variation, None)
+        await client.patch_flag(key, {"targets": targets})
+        removed = len(existing) - len(updated)
+        console.print(
+            f"[green]✓[/green] Removed {removed} key(s)"
+            f" from [bold cyan]{key}[/bold cyan] → [cyan]{variation}[/cyan]."
+        )
+
+    _run(_run_untarget)
+
+
+# ---------------------------------------------------------------------------
+# Segments command group  (shield segments ...)
+# ---------------------------------------------------------------------------
+
+segments_app = typer.Typer(
+    name="segments",
+    help="Manage targeting segments.",
+    no_args_is_help=True,
+)
+cli.add_typer(segments_app, name="segments")
+cli.add_typer(segments_app, name="seg")
+
+
+def _print_segments_table(segments: list[dict[str, Any]]) -> None:
+    tbl = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False)
+    tbl.add_column("Key", style="bold cyan", no_wrap=True)
+    tbl.add_column("Name", style="white")
+    tbl.add_column("Included", style="green")
+    tbl.add_column("Excluded", style="red")
+    tbl.add_column("Rules", style="dim")
+    for s in segments:
+        included = s.get("included") or []
+        excluded = s.get("excluded") or []
+        rules = s.get("rules") or []
+        tbl.add_row(
+            s.get("key", ""),
+            s.get("name", ""),
+            str(len(included)),
+            str(len(excluded)),
+            str(len(rules)),
+        )
+    console.print(tbl)
+
+
+@segments_app.command("list")
+def segments_list() -> None:
+    """List all targeting segments."""
+
+    async def _run_segments_list() -> None:
+        segments = await make_client().list_segments()
+        if not segments:
+            console.print("[dim]No segments found.[/dim]")
+            return
+        _print_segments_table(segments)
+        console.print(f"[dim]{len(segments)} segment(s)[/dim]")
+
+    _run(_run_segments_list)
+
+
+@segments_app.command("get")
+def segments_get(key: str = typer.Argument(..., help="Segment key")) -> None:
+    """Show details for a single segment."""
+
+    async def _run_segments_get() -> None:
+        seg = await make_client().get_segment(key)
+        console.print(f"[bold cyan]{seg['key']}[/bold cyan]  [dim]{seg.get('name', '')}[/dim]")
+        included = seg.get("included") or []
+        excluded = seg.get("excluded") or []
+        rules = seg.get("rules") or []
+        if included:
+            console.print(
+                f"  Included ({len(included)}): [green]{', '.join(included[:10])}[/green]"
+                + (" …" if len(included) > 10 else "")
+            )
+        if excluded:
+            console.print(
+                f"  Excluded ({len(excluded)}): [red]{', '.join(excluded[:10])}[/red]"
+                + (" …" if len(excluded) > 10 else "")
+            )
+        if rules:
+            console.print(f"  Rules: [dim]{len(rules)} targeting rule(s)[/dim]")
+        if not included and not excluded and not rules:
+            console.print("  [dim](empty segment)[/dim]")
+
+    _run(_run_segments_get)
+
+
+@segments_app.command("create")
+def segments_create(
+    key: str = typer.Argument(..., help="Unique segment key"),
+    name: str = typer.Option(..., "--name", "-n", help="Human-readable segment name"),
+    description: str = typer.Option("", "--description", "-d", help="Optional description"),
+) -> None:
+    """Create a new targeting segment.
+
+    \b
+      shield segments create beta_users --name "Beta Users"
+    """
+
+    async def _run_segments_create() -> None:
+        segment_data = {
+            "key": key,
+            "name": name,
+            "description": description,
+            "included": [],
+            "excluded": [],
+            "rules": [],
+        }
+        result = await make_client().create_segment(segment_data)
+        console.print(f"[green]✓[/green] Segment [bold cyan]{result['key']}[/bold cyan] created.")
+
+    _run(_run_segments_create)
+
+
+@segments_app.command("delete")
+def segments_delete(
+    key: str = typer.Argument(..., help="Segment key"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Permanently delete a targeting segment."""
+    if not yes:
+        typer.confirm(f"Delete segment '{key}'? This cannot be undone.", abort=True)
+
+    async def _run_segments_delete() -> None:
+        result = await make_client().delete_segment(key)
+        console.print(f"[green]✓[/green] Segment [bold]{result['deleted']}[/bold] deleted.")
+
+    _run(_run_segments_delete)
+
+
+@segments_app.command("include")
+def segments_include(
+    key: str = typer.Argument(..., help="Segment key"),
+    context_key: str = typer.Option(
+        ...,
+        "--context-key",
+        "-k",
+        help="Comma-separated context keys to add to the included list",
+    ),
+) -> None:
+    """Add context keys to the segment's included list.
+
+    \b
+      shield segments include beta_users --context-key user_123,user_456
+    """
+
+    async def _run_segments_include() -> None:
+        new_keys = [k.strip() for k in context_key.split(",") if k.strip()]
+        seg = await make_client().get_segment(key)
+        included = list(seg.get("included") or [])
+        added = [k for k in new_keys if k not in included]
+        included.extend(added)
+        seg["included"] = included
+        await make_client().update_segment(key, seg)
+        console.print(
+            f"[green]✓[/green] Added {len(added)} key(s) to [bold cyan]{key}[/bold cyan] "
+            f"included list."
+        )
+
+    _run(_run_segments_include)
+
+
+@segments_app.command("exclude")
+def segments_exclude(
+    key: str = typer.Argument(..., help="Segment key"),
+    context_key: str = typer.Option(
+        ...,
+        "--context-key",
+        "-k",
+        help="Comma-separated context keys to add to the excluded list",
+    ),
+) -> None:
+    """Add context keys to the segment's excluded list.
+
+    \b
+      shield segments exclude beta_users --context-key user_789
+    """
+
+    async def _run_segments_exclude() -> None:
+        new_keys = [k.strip() for k in context_key.split(",") if k.strip()]
+        seg = await make_client().get_segment(key)
+        excluded = list(seg.get("excluded") or [])
+        added = [k for k in new_keys if k not in excluded]
+        excluded.extend(added)
+        seg["excluded"] = excluded
+        await make_client().update_segment(key, seg)
+        console.print(
+            f"[green]✓[/green] Added {len(added)} key(s) to [bold cyan]{key}[/bold cyan] "
+            f"excluded list."
+        )
+
+    _run(_run_segments_exclude)
+
+
+@segments_app.command("add-rule")
+def segments_add_rule(
+    key: str = typer.Argument(..., help="Segment key"),
+    attribute: str = typer.Option(
+        ...,
+        "--attribute",
+        "-a",
+        help="Context attribute (e.g. plan, country)",
+    ),
+    operator: str = typer.Option(
+        "is",
+        "--operator",
+        "-o",
+        help="Operator (e.g. is, in, contains, in_segment)",
+    ),
+    values: str = typer.Option(
+        ...,
+        "--values",
+        "-V",
+        help="Comma-separated values to compare against",
+    ),
+    description: str = typer.Option("", "--description", "-d", help="Optional rule description"),
+    negate: bool = typer.Option(False, "--negate", help="Negate the clause result"),
+) -> None:
+    """Add an attribute-based targeting rule to a segment.
+
+    \b
+    Users matching ANY rule are included in the segment.
+    Multiple clauses within one rule are AND-ed together.
+
+    \b
+    Examples:
+      shield segments add-rule beta_users --attribute plan --operator in --values pro,enterprise
+      shield segments add-rule beta_users --attribute country --operator is --values GB
+      shield segments add-rule beta_users --attribute email --operator ends_with \\
+          --values @acme.com --description "Acme staff"
+    """
+
+    async def _run_add_rule() -> None:
+        import uuid as _uuid
+
+        client = make_client()
+        seg = await client.get_segment(key)
+        rules = list(seg.get("rules") or [])
+
+        # For segment operators the attribute defaults to "key"
+        attr = "key" if operator in ("in_segment", "not_in_segment") else attribute
+        raw_vals: list[Any] = [v.strip() for v in values.split(",") if v.strip()]
+        clause: dict[str, Any] = {
+            "attribute": attr,
+            "operator": operator,
+            "values": raw_vals,
+            "negate": negate,
+        }
+        new_rule: dict[str, Any] = {
+            "id": str(_uuid.uuid4()),
+            "clauses": [clause],
+        }
+        if description:
+            new_rule["description"] = description
+        rules.append(new_rule)
+        seg["rules"] = rules
+        await client.update_segment(key, seg)
+
+        clause_summary = f"[cyan]{attr}[/cyan] [dim]{operator}[/dim] {values}"
+        console.print(
+            f"[green]✓[/green] Rule added to segment [bold cyan]{key}[/bold cyan]: {clause_summary}"
+        )
+        console.print(f"  [dim]id: {new_rule['id']}[/dim]")
+
+    _run(_run_add_rule)
+
+
+@segments_app.command("remove-rule")
+def segments_remove_rule(
+    key: str = typer.Argument(..., help="Segment key"),
+    rule_id: str = typer.Option(..., "--rule-id", "-r", help="Rule ID to remove"),
+) -> None:
+    """Remove a targeting rule from a segment by its ID.
+
+    \b
+      shield segments remove-rule beta_users --rule-id <uuid>
+
+    Use 'shield segments get beta_users' to list rule IDs.
+    """
+
+    async def _run_remove_rule() -> None:
+        client = make_client()
+        seg = await client.get_segment(key)
+        rules = list(seg.get("rules") or [])
+        original_len = len(rules)
+        rules = [r for r in rules if r.get("id") != rule_id]
+        if len(rules) == original_len:
+            console.print(
+                f"[red]Error:[/red] no rule with id '{rule_id}' found on segment '{key}'."
+            )
+            raise typer.Exit(1)
+        seg["rules"] = rules
+        await client.update_segment(key, seg)
+        console.print(
+            f"[green]✓[/green] Rule [dim]{rule_id}[/dim] removed from segment "
+            f"[bold cyan]{key}[/bold cyan]."
+        )
+
+    _run(_run_remove_rule)
+
+
 if __name__ == "__main__":
     cli()

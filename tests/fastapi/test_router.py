@@ -10,6 +10,7 @@ from shield.core.engine import ShieldEngine
 from shield.core.models import RouteStatus
 from shield.fastapi.decorators import disabled, env_only, maintenance
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 @pytest.fixture
@@ -102,7 +103,7 @@ async def test_startup_registers_routes_via_app_lifespan(engine):
     app.include_router(router)
 
     # Trigger the app's startup events directly (equivalent to server startup).
-    await app.router.startup()
+    await _trigger_startup(app)
 
     state = await engine.backend.get_state("GET:/pay")
     assert state.status == RouteStatus.MAINTENANCE

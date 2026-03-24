@@ -16,6 +16,7 @@ from shield.core.engine import ShieldEngine
 from shield.fastapi.decorators import disabled, force_active
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _app_with_routes() -> tuple[FastAPI, ShieldEngine]:
@@ -115,7 +116,7 @@ async def test_global_maintenance_blocks_normal_routes():
 async def test_global_maintenance_respects_force_active_by_default():
     """@force_active routes must remain reachable when include_force_active=False."""
     app, engine = _app_with_routes()
-    await app.router.startup()
+    await _trigger_startup(app)
     await engine.enable_global_maintenance(reason="System upgrade")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -127,7 +128,7 @@ async def test_global_maintenance_respects_force_active_by_default():
 async def test_global_maintenance_overrides_force_active_when_flag_set():
     """When include_force_active=True, even @force_active routes return 503."""
     app, engine = _app_with_routes()
-    await app.router.startup()
+    await _trigger_startup(app)
     await engine.enable_global_maintenance(reason="Hard lockdown", include_force_active=True)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:

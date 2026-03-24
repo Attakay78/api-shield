@@ -1,7 +1,7 @@
 <div align="center">
   <img src="api-shield-logo.svg" alt="API Shield" width="600"/>
 
-  <p><strong>Route(API) lifecycle management for ASGI Python web frameworks — maintenance mode, environment gating, deprecation, rate limiting, admin panels, and more. No restarts required.</strong></p>
+  <p><strong>Route(API) lifecycle management for ASGI Python web frameworks — maintenance mode, environment gating, deprecation, rate limiting, feature flags, admin panels, and more. No restarts required.</strong></p>
 
   <a href="https://pypi.org/project/api-shield"><img src="https://img.shields.io/pypi/v/api-shield?color=F59E0B&label=pypi&cacheSeconds=300" alt="PyPI"></a>
   <a href="https://pypi.org/project/api-shield"><img src="https://img.shields.io/pypi/pyversions/api-shield?color=F59E0B" alt="Python versions"></a>
@@ -33,6 +33,7 @@ These features are framework-agnostic and available to any adapter.
 | ⏰ **Scheduled windows** | `asyncio`-native scheduler — maintenance windows activate and deactivate automatically |
 | 🔔 **Webhooks** | Fire HTTP POST on every state change — built-in Slack formatter and custom formatters supported |
 | 🚦 **Rate limiting** | Per-IP, per-user, per-API-key, or global counters — tiered limits, burst allowance, runtime mutation |
+| 🚩 **Feature flags** | Boolean, string, integer, float, and JSON flags — targeting rules, user segments, percentage rollouts, prerequisites, and a live evaluation stream. Built on the [OpenFeature](https://openfeature.dev/) standard |
 | 🏗️ **Shield Server** | Centralised control plane for multi-service architectures — SDK clients sync state via SSE with zero per-request latency |
 | 🌐 **Multi-service CLI** | `SHIELD_SERVICE` env var scopes every command; `shield services` lists connected services |
 
@@ -193,6 +194,70 @@ Requires `api-shield[rate-limit]`. Powered by [limits](https://limits.readthedoc
 
 ---
 
+## Feature flags
+
+api-shield ships a full feature flag system built on the [OpenFeature](https://openfeature.dev/) standard. All five flag types, multi-condition targeting rules, user segments, percentage rollouts, and a live evaluation stream — managed from the dashboard or CLI with no code changes.
+
+```python
+from shield.core.feature_flags.models import (
+    FeatureFlag, FlagType, FlagVariation, RolloutVariation,
+    TargetingRule, RuleClause, Operator, EvaluationContext,
+)
+
+engine.use_openfeature()
+
+# Define a boolean flag with a 20% rollout and individual targeting
+await engine.save_flag(
+    FeatureFlag(
+        key="new-checkout",
+        name="New Checkout Flow",
+        type=FlagType.BOOLEAN,
+        variations=[
+            FlagVariation(name="on",  value=True),
+            FlagVariation(name="off", value=False),
+        ],
+        off_variation="off",
+        fallthrough=[
+            RolloutVariation(variation="on",  weight=20_000),  # 20%
+            RolloutVariation(variation="off", weight=80_000),  # 80%
+        ],
+        targets={"on": ["beta_tester_1"]},   # individual targeting
+        rules=[
+            TargetingRule(
+                description="Enterprise users always get the new flow",
+                clauses=[RuleClause(attribute="plan", operator=Operator.IS, values=["enterprise"])],
+                variation="on",
+            )
+        ],
+    )
+)
+
+# Evaluate in an async route handler
+ctx = EvaluationContext(key=user_id, attributes={"plan": user.plan})
+enabled = await engine.flag_client.get_boolean_value("new-checkout", False, ctx)
+
+# Evaluate in a sync def handler (thread-safe)
+enabled = engine.sync.flag_client.get_boolean_value("new-checkout", False, {"targeting_key": user_id})
+```
+
+Manage flags and segments from the CLI:
+
+```bash
+shield flags list
+shield flags eval new-checkout --user user_123
+shield flags disable new-checkout          # kill-switch
+shield flags enable new-checkout
+shield flags stream                        # live evaluation events
+
+shield segments create beta_users --name "Beta Users"
+shield segments include beta_users --context-key user_123,user_456
+shield segments add-rule beta_users --attribute plan --operator in --values pro,enterprise
+```
+
+Requires `api-shield[flags]`.
+
+---
+
 ## Framework support
 
 api-shield is built on the **ASGI** standard. The core (`shield.core`) is completely framework-agnostic and has zero framework imports. Any ASGI framework can be supported — either via a Starlette `BaseHTTPMiddleware` (for Starlette-based frameworks) or a raw ASGI callable for frameworks like Quart and Django that implement the ASGI spec independently.
@@ -265,6 +330,7 @@ Full documentation at **[attakay78.github.io/api-shield](https://attakay78.githu
 | [Tutorial](https://attakay78.github.io/api-shield/tutorial/installation/) | Get started in 5 minutes |
 | [Decorators reference](https://attakay78.github.io/api-shield/reference/decorators/) | All decorator options |
 | [Rate limiting](https://attakay78.github.io/api-shield/tutorial/rate-limiting/) | Per-IP, per-user, tiered limits |
+| [Feature flags](https://attakay78.github.io/api-shield/tutorial/feature-flags/) | Targeting rules, segments, rollouts, live events |
 | [ShieldEngine reference](https://attakay78.github.io/api-shield/reference/engine/) | Programmatic control |
 | [Backends](https://attakay78.github.io/api-shield/tutorial/backends/) | Memory, File, Redis, Shield Server, custom |
 | [Admin dashboard](https://attakay78.github.io/api-shield/tutorial/admin-dashboard/) | Mounting ShieldAdmin |

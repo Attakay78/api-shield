@@ -365,6 +365,102 @@ class ShieldClient:
             resp = await c.post("/api/global-rate-limit/disable")
             return cast(dict[str, Any], self._check(resp))
 
+    # ── Feature flags ─────────────────────────────────────────────────
+
+    async def list_flags(self) -> list[dict[str, Any]]:
+        """GET /api/flags — list all feature flags."""
+        async with self._make_client() as c:
+            resp = await c.get("/api/flags")
+            return cast(list[dict[str, Any]], self._check(resp))
+
+    async def get_flag(self, key: str) -> dict[str, Any]:
+        """GET /api/flags/{key} — get a single feature flag."""
+        async with self._make_client() as c:
+            resp = await c.get(f"/api/flags/{key}")
+            return cast(dict[str, Any], self._check(resp))
+
+    async def create_flag(self, flag_data: dict[str, Any]) -> dict[str, Any]:
+        """POST /api/flags — create a new feature flag."""
+        async with self._make_client() as c:
+            resp = await c.post("/api/flags", json=flag_data)
+            return cast(dict[str, Any], self._check(resp))
+
+    async def update_flag(self, key: str, flag_data: dict[str, Any]) -> dict[str, Any]:
+        """PUT /api/flags/{key} — replace a feature flag."""
+        async with self._make_client() as c:
+            resp = await c.put(f"/api/flags/{key}", json=flag_data)
+            return cast(dict[str, Any], self._check(resp))
+
+    async def patch_flag(self, key: str, patch: dict[str, Any]) -> dict[str, Any]:
+        """PATCH /api/flags/{key} — partial update."""
+        async with self._make_client() as c:
+            resp = await c.patch(f"/api/flags/{key}", json=patch)
+            return cast(dict[str, Any], self._check(resp))
+
+    async def enable_flag(self, key: str) -> dict[str, Any]:
+        """POST /api/flags/{key}/enable — enable a feature flag."""
+        async with self._make_client() as c:
+            resp = await c.post(f"/api/flags/{key}/enable")
+            return cast(dict[str, Any], self._check(resp))
+
+    async def disable_flag(self, key: str) -> dict[str, Any]:
+        """POST /api/flags/{key}/disable — disable a feature flag."""
+        async with self._make_client() as c:
+            resp = await c.post(f"/api/flags/{key}/disable")
+            return cast(dict[str, Any], self._check(resp))
+
+    async def delete_flag(self, key: str) -> dict[str, Any]:
+        """DELETE /api/flags/{key} — delete a feature flag."""
+        async with self._make_client() as c:
+            resp = await c.delete(f"/api/flags/{key}")
+            return cast(dict[str, Any], self._check(resp))
+
+    async def evaluate_flag(
+        self,
+        key: str,
+        context: dict[str, Any],
+        default: Any = None,
+    ) -> dict[str, Any]:
+        """POST /api/flags/{key}/evaluate — evaluate a flag for a context."""
+        async with self._make_client() as c:
+            resp = await c.post(
+                f"/api/flags/{key}/evaluate",
+                json={"context": context, "default": default},
+            )
+            return cast(dict[str, Any], self._check(resp))
+
+    # ── Segments ──────────────────────────────────────────────────────
+
+    async def list_segments(self) -> list[dict[str, Any]]:
+        """GET /api/segments — list all segments."""
+        async with self._make_client() as c:
+            resp = await c.get("/api/segments")
+            return cast(list[dict[str, Any]], self._check(resp))
+
+    async def get_segment(self, key: str) -> dict[str, Any]:
+        """GET /api/segments/{key} — get a single segment."""
+        async with self._make_client() as c:
+            resp = await c.get(f"/api/segments/{key}")
+            return cast(dict[str, Any], self._check(resp))
+
+    async def create_segment(self, segment_data: dict[str, Any]) -> dict[str, Any]:
+        """POST /api/segments — create a new segment."""
+        async with self._make_client() as c:
+            resp = await c.post("/api/segments", json=segment_data)
+            return cast(dict[str, Any], self._check(resp))
+
+    async def update_segment(self, key: str, segment_data: dict[str, Any]) -> dict[str, Any]:
+        """PUT /api/segments/{key} — replace a segment."""
+        async with self._make_client() as c:
+            resp = await c.put(f"/api/segments/{key}", json=segment_data)
+            return cast(dict[str, Any], self._check(resp))
+
+    async def delete_segment(self, key: str) -> dict[str, Any]:
+        """DELETE /api/segments/{key} — delete a segment."""
+        async with self._make_client() as c:
+            resp = await c.delete(f"/api/segments/{key}")
+            return cast(dict[str, Any], self._check(resp))
+
 
 def make_client(
     transport: httpx.AsyncBaseTransport | None = None,

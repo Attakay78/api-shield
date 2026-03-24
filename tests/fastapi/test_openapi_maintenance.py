@@ -12,6 +12,7 @@ from shield.fastapi.decorators import maintenance
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.openapi import apply_shield_to_openapi, setup_shield_docs
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _build(env: str = "dev") -> tuple[FastAPI, ShieldEngine, ShieldRouter]:
@@ -36,7 +37,7 @@ async def test_maintenance_route_gets_x_shield_status_extension():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -54,7 +55,7 @@ async def test_maintenance_route_description_contains_warning_banner():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -74,7 +75,7 @@ async def test_maintenance_route_summary_prefixed_with_wrench():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -93,7 +94,7 @@ async def test_maintenance_route_summary_prefix_not_doubled():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     _ = app.openapi()
@@ -112,7 +113,7 @@ async def test_maintenance_route_remains_visible_in_schema():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -129,7 +130,7 @@ async def test_existing_description_preserved_after_banner():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -153,7 +154,7 @@ async def test_setup_shield_docs_serves_html():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
     setup_shield_docs(app, engine)
 
@@ -173,7 +174,7 @@ async def test_setup_shield_docs_injects_maintenance_script():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
     setup_shield_docs(app, engine)
 
@@ -212,7 +213,7 @@ async def test_setup_shield_docs_does_not_break_normal_routes():
         return {"status": "ok"}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
     setup_shield_docs(app, engine)
 

@@ -1,0 +1,773 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% set _colour = flag_type_colours.get(flag.type.value, 'slate') %}
+
+{# ── Breadcrumb ────────────────────────────────────────────────────── #}
+<div class="mb-5">
+    <a href="{{ prefix }}/flags"
+       class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+        </svg>
+        Flags
+    </a>
+</div>
+
+{# ── Header ────────────────────────────────────────────────────────── #}
+<div class="flex flex-wrap items-center gap-2 mb-6 min-w-0">
+    <h1 class="text-xl font-semibold text-slate-900 font-mono break-all">{{ flag.key }}</h1>
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0
+                 bg-{{ _colour }}-50 text-{{ _colour }}-700 ring-1 ring-inset ring-{{ _colour }}-200">
+        {{ flag.type.value }}
+    </span>
+    <span id="flag-status-badge" class="shrink-0">
+        {% if flag.enabled %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+                     bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Enabled
+        </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+                     bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Disabled
+        </span>
+        {% endif %}
+    </span>
+</div>
+
+{# ── Tabs ──────────────────────────────────────────────────────────── #}
+<div class="border-b border-slate-200 mb-6 -mx-4 sm:-mx-6 lg:-mx-8">
+    <div class="flex overflow-x-auto px-4 sm:px-6 lg:px-8" id="flag-tabs"
+         style="scrollbar-width:none; -ms-overflow-style:none;">
+        <style>#flag-tabs::-webkit-scrollbar{display:none}</style>
+
+        {# Overview #}
+        <button type="button"
+                onclick="showTab('overview')"
+                id="tab-btn-overview"
+                class="tab-btn group flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap
+                       border-b-2 border-violet-600 text-violet-700 transition-colors duration-150 -mb-px">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+            </svg>
+            Overview
+        </button>
+
+        {# Targeting #}
+        <button type="button"
+                onclick="showTab('targeting')"
+                id="tab-btn-targeting"
+                class="tab-btn group flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap
+                       border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300
+                       transition-colors duration-150 -mb-px">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"/>
+            </svg>
+            Targeting
+        </button>
+
+        {# Variations #}
+        <button type="button"
+                onclick="showTab('variations')"
+                id="tab-btn-variations"
+                class="tab-btn group flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap
+                       border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300
+                       transition-colors duration-150 -mb-px">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/>
+            </svg>
+            Variations
+        </button>
+
+        {# Settings #}
+        <button type="button"
+                onclick="showTab('settings')"
+                id="tab-btn-settings"
+                class="tab-btn group flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap
+                       border-b-2 border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300
+                       transition-colors duration-150 -mb-px">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            Settings
+        </button>
+    </div>
+</div>
+
+<div id="flag-tab-content">
+
+    {# ── Overview panel ────────────────────────────────────────────── #}
+    <div id="panel-overview" class="tab-panel">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {# Details card #}
+            <div class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Details</h2>
+                <dl class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Type</dt>
+                        <dd>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                         bg-{{ _colour }}-50 text-{{ _colour }}-700 ring-1 ring-inset ring-{{ _colour }}-200">
+                                {{ flag.type.value }}
+                            </span>
+                        </dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Status</dt>
+                        <dd class="text-xs font-medium {{ 'text-emerald-500' if flag.enabled else 'text-slate-400' }}">
+                            {{ 'Enabled' if flag.enabled else 'Disabled' }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Off Variation</dt>
+                        <dd class="text-xs font-mono text-slate-600">{{ flag.off_variation or '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Fallthrough</dt>
+                        <dd class="text-xs font-mono text-slate-600">
+                            {% if flag.fallthrough is string %}{{ flag.fallthrough }}
+                            {% elif flag.fallthrough is iterable %}<span class="text-violet-600">rollout</span>
+                            {% else %}—{% endif %}
+                        </dd>
+                    </div>
+                    {% if flag.description %}
+                    <div class="flex justify-between items-start gap-4">
+                        <dt class="text-xs text-slate-500 font-medium shrink-0">Description</dt>
+                        <dd class="text-xs text-slate-500 text-right">{{ flag.description }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            {# Counts card #}
+            <div class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Counts</h2>
+                <dl class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Rules</dt>
+                        <dd class="text-sm font-bold text-slate-900 tabular-nums">{{ flag.rules | length }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Variations</dt>
+                        <dd class="text-sm font-bold text-slate-900 tabular-nums">{{ flag.variations | length }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Prerequisites</dt>
+                        <dd class="text-sm font-bold text-slate-900 tabular-nums">{{ flag.prerequisites | length }}</dd>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <dt class="text-xs text-slate-500 font-medium">Individual Targets</dt>
+                        <dd class="text-sm font-bold text-slate-900 tabular-nums">{{ flag.targets | length }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        {# Variations summary table #}
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200">
+                <h2 class="text-sm font-semibold text-slate-900">Variations</h2>
+            </div>
+            {% if flag.variations %}
+            <div class="scroll-x">
+                <table class="w-full text-left min-w-[380px]">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50">
+                            <th class="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Name</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Value</th>
+                            <th class="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for v in flag.variations %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-5 py-3 text-sm font-medium text-slate-900 font-mono">{{ v.name }}</td>
+                            <td class="px-4 py-3 text-sm font-mono text-slate-500">{{ v.value }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-400">{{ v.description or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="px-5 py-10 text-sm text-slate-400 text-center">No variations defined.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Targeting panel ───────────────────────────────────────────── #}
+    <div id="panel-targeting" class="tab-panel hidden">
+        <div class="space-y-5">
+
+            {# Prerequisites — editable #}
+            <form hx-post="{{ prefix }}/flags/{{ flag.key }}/prerequisites/save"
+                  hx-target="next .save-feedback" hx-swap="innerHTML"
+                  class="bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold text-slate-900">Prerequisites</h2>
+                    <button type="button" onclick="addPrereq()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors">
+                        + Add Prerequisite
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mb-4">Another flag must evaluate to a specific variation before this flag's rules run.</p>
+                <div id="prereqs-container" class="space-y-2">
+                    {% for prereq in flag.prerequisites %}
+                    {% set loop_idx = loop.index0 %}
+                    <div class="prereq-row flex flex-wrap items-center gap-2">
+                        <select name="prereqs[{{ loop_idx }}][flag_key]"
+                                onchange="onPrereqFlagChange(this)"
+                                class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500 flex-1">
+                            {% for f in all_flags %}
+                            <option value="{{ f.key }}" {{ 'selected' if f.key == prereq.flag_key else '' }}>{{ f.key }}</option>
+                            {% endfor %}
+                        </select>
+                        <span class="text-xs text-slate-500 shrink-0">must be</span>
+                        <select name="prereqs[{{ loop_idx }}][variation]"
+                                class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            {% for f in all_flags if f.key == prereq.flag_key %}
+                            {% for v in f.variations %}
+                            <option value="{{ v.name }}" {{ 'selected' if v.name == prereq.variation else '' }}>{{ v.name }}</option>
+                            {% endfor %}
+                            {% endfor %}
+                            {% if not all_flags or prereq.flag_key not in all_flags|map(attribute='key')|list %}
+                            <option value="{{ prereq.variation }}" selected>{{ prereq.variation }}</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" onclick="this.closest('.prereq-row').remove()"
+                                class="shrink-0 text-red-400 hover:text-red-300 p-1">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if not flag.prerequisites and not all_flags %}
+                <p class="text-xs text-slate-400 italic">No other flags available to use as prerequisites.</p>
+                {% endif %}
+                <div class="flex items-center gap-3 mt-4">
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                        Save Prerequisites
+                    </button>
+                </div>
+                <div class="save-feedback mt-2"></div>
+            </form>
+
+            {# Individual Targets — editable #}
+            <form hx-post="{{ prefix }}/flags/{{ flag.key }}/targets/save"
+                  hx-target="next .save-feedback" hx-swap="innerHTML"
+                  class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-900 mb-1">Individual Targets</h2>
+                <p class="text-xs text-slate-500 mb-4">Specific context keys always receive a pinned variation, evaluated before rules.</p>
+                <div class="space-y-4">
+                    {% for v in flag.variations %}
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">
+                            Serve <code class="font-mono text-slate-700 bg-slate-100 px-1 py-0.5 rounded">{{ v.name }}</code> to:
+                        </label>
+                        <textarea name="targets[{{ v.name }}]" rows="3"
+                                  placeholder="One context key per line (e.g. user_123)"
+                                  class="w-full text-xs font-mono border border-slate-200 bg-white text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-slate-400">{{ (flag.targets.get(v.name, []) | join('\n')) }}</textarea>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="flex items-center gap-3 mt-4">
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                        Save Targets
+                    </button>
+                </div>
+                <div class="save-feedback mt-2"></div>
+            </form>
+
+            {# Default Behavior — editable #}
+            <form hx-post="{{ prefix }}/flags/{{ flag.key }}/targeting/save"
+                  hx-target="next .save-feedback"
+                  hx-swap="innerHTML"
+                  class="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 class="text-sm font-semibold text-slate-900 mb-4">Default Behavior</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Off Variation</label>
+                        <select name="off_variation" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            {% for v in flag.variations %}
+                            <option value="{{ v.name }}" {{ 'selected' if v.name == flag.off_variation else '' }}>{{ v.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-1">Served when the flag is disabled.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Fallthrough</label>
+                        {% if flag.fallthrough is string %}
+                        <select name="fallthrough" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            {% for v in flag.variations %}
+                            <option value="{{ v.name }}" {{ 'selected' if v.name == flag.fallthrough else '' }}>{{ v.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <p class="text-xs text-slate-400 italic px-3 py-2 border border-slate-200 rounded-lg bg-slate-50">Percentage rollout — edit via API.</p>
+                        {% endif %}
+                        <p class="text-xs text-slate-400 mt-1">Default when no targeting rule matches.</p>
+                    </div>
+                </div>
+                <button type="submit"
+                        class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                    Save Default Behavior
+                </button>
+                <div class="save-feedback mt-2"></div>
+            </form>
+
+            {# Targeting Rules — editable #}
+            <form hx-post="{{ prefix }}/flags/{{ flag.key }}/targeting/save"
+                  hx-target="next .save-feedback"
+                  hx-swap="innerHTML"
+                  class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                    <h2 class="text-sm font-semibold text-slate-900">Targeting Rules</h2>
+                    <button type="button" onclick="addRule()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors">
+                        + Add Rule
+                    </button>
+                </div>
+                <div class="p-5 space-y-4" id="rules-container">
+                    {% for rule in flag.rules %}
+                    <div class="rule-card border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50/50" data-idx="{{ loop.index0 }}">
+                        <input type="hidden" name="rules[{{ loop.index0 }}][id]" value="{{ rule.id }}">
+                        <div class="flex items-center justify-between gap-2">
+                            <input type="text" name="rules[{{ loop.index0 }}][description]"
+                                   value="{{ rule.description or '' }}"
+                                   placeholder="Rule description (optional)"
+                                   class="flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-slate-400">
+                            <button type="button" onclick="removeRule(this)"
+                                    class="shrink-0 text-red-400 hover:text-red-300 p-1">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="clauses-container space-y-2" id="clauses-{{ loop.index0 }}">
+                            {% for clause in rule.clauses %}
+                            {% set is_seg_op = clause.operator.value in ['in_segment','not_in_segment'] %}
+                            <div class="clause-row flex flex-wrap items-center gap-2">
+                                <input type="text" name="rules[{{ loop.index0 }}][clauses][{{ loop.index0 }}{{ loop.index0 }}{{ loop.index }}][attribute]"
+                                       value="{{ clause.attribute }}" placeholder="attribute"
+                                       class="w-28 text-xs font-mono border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500 {{ 'hidden' if is_seg_op else '' }}">
+                                <select name="rules[{{ loop.index0 }}][clauses][{{ loop.index0 }}{{ loop.index0 }}{{ loop.index }}][operator]"
+                                        onchange="onClauseOperatorChange(this)"
+                                        class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                    {% set ops = ['is','is_not','contains','not_contains','starts_with','ends_with','matches','not_matches','gt','gte','lt','lte','before','after','in','not_in','in_segment','not_in_segment','semver_eq','semver_lt','semver_gt'] %}
+                                    {% for op in ops %}
+                                    <option value="{{ op }}" {{ 'selected' if op == clause.operator.value else '' }}>{{ op.replace('_', ' ') }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if is_seg_op %}
+                                <select name="rules[{{ loop.index0 }}][clauses][{{ loop.index0 }}{{ loop.index0 }}{{ loop.index }}][values]"
+                                        class="clause-values-select flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                    {% for seg in segments %}
+                                    <option value="{{ seg.key }}" {{ 'selected' if seg.key in clause.values else '' }}>{{ seg.name }} ({{ seg.key }})</option>
+                                    {% endfor %}
+                                    {% if not segments %}
+                                    <option disabled value="">— no segments defined —</option>
+                                    {% endif %}
+                                </select>
+                                {% else %}
+                                <input type="text" name="rules[{{ loop.index0 }}][clauses][{{ loop.index0 }}{{ loop.index0 }}{{ loop.index }}][values]"
+                                       value="{{ clause.values | join(', ') }}" placeholder="val1, val2"
+                                       class="clause-values-input flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                {% endif %}
+                                <button type="button" onclick="this.closest('.clause-row').remove()"
+                                        class="shrink-0 text-red-400 hover:text-red-300 p-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" onclick="addClause({{ loop.index0 }})"
+                                class="text-xs text-violet-600 hover:text-violet-800 font-medium">+ Add clause</button>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="text-xs text-slate-500 font-medium">Serve:</span>
+                            <select name="rules[{{ loop.index0 }}][variation]"
+                                    class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                {% for v in flag.variations %}
+                                <option value="{{ v.name }}" {{ 'selected' if v.name == rule.variation else '' }}>{{ v.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if not flag.rules %}
+                <p class="px-5 pb-4 text-sm text-slate-400 text-center" id="no-rules-msg">No targeting rules. Click "+ Add Rule" to create one.</p>
+                {% endif %}
+                <div class="px-5 pb-5 pt-2">
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                        Save Rules
+                    </button>
+                    <div class="save-feedback mt-2"></div>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    {# ── Variations panel ──────────────────────────────────────────── #}
+    <div id="panel-variations" class="tab-panel hidden">
+        <input type="hidden" id="flag-type-hidden" value="{{ flag.type.value }}">
+        <form hx-post="{{ prefix }}/flags/{{ flag.key }}/variations/save"
+              hx-target="next .save-feedback"
+              hx-swap="innerHTML"
+              class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-slate-900">All Variations</h2>
+                <button type="button" onclick="addVariation()"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors">
+                    + Add Variation
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left min-w-[500px]">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50">
+                            <th class="px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Name</th>
+                            <th class="px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Value</th>
+                            <th class="px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Description</th>
+                            <th class="px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-widest w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="variations-body" class="divide-y divide-slate-100">
+                        {% for v in flag.variations %}
+                        <tr class="var-row border-b border-slate-100" data-idx="{{ loop.index0 }}">
+                            <td class="px-3 py-2">
+                                <input type="text" name="variations[{{ loop.index0 }}][name]"
+                                       value="{{ v.name }}" placeholder="variation-name" required
+                                       class="w-full text-xs font-mono border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </td>
+                            <td class="px-3 py-2">
+                                {% if flag.type.value == 'boolean' %}
+                                <select name="variations[{{ loop.index0 }}][value]"
+                                        class="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                    <option value="true" {{ 'selected' if v.value == true else '' }}>true</option>
+                                    <option value="false" {{ 'selected' if v.value == false else '' }}>false</option>
+                                </select>
+                                {% elif flag.type.value == 'json' %}
+                                <textarea name="variations[{{ loop.index0 }}][value]" rows="2"
+                                          class="w-full text-xs font-mono border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">{{ v.value | tojson }}</textarea>
+                                {% elif flag.type.value == 'integer' %}
+                                <input type="number" step="1" name="variations[{{ loop.index0 }}][value]"
+                                       value="{{ v.value }}"
+                                       class="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                {% elif flag.type.value == 'float' %}
+                                <input type="number" step="any" name="variations[{{ loop.index0 }}][value]"
+                                       value="{{ v.value }}"
+                                       class="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                {% else %}
+                                <input type="text" name="variations[{{ loop.index0 }}][value]"
+                                       value="{{ v.value }}"
+                                       class="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="text" name="variations[{{ loop.index0 }}][description]"
+                                       value="{{ v.description or '' }}" placeholder="optional"
+                                       class="w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <button type="button" onclick="removeVariation(this)"
+                                        class="text-red-400 hover:text-red-300">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 flex items-center gap-3">
+                <button type="submit"
+                        class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                    Save Variations
+                </button>
+                <div class="save-feedback"></div>
+            </div>
+        </form>
+
+        {% if flag.fallthrough is iterable and flag.fallthrough is not string %}
+        <div class="mt-4 bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-sm font-semibold text-slate-900 mb-4">Percentage Rollout</h2>
+            <div class="space-y-2">
+                {% for rv in flag.fallthrough %}
+                <div class="flex items-center justify-between gap-3">
+                    <code class="text-sm font-mono text-slate-600">{{ rv.variation }}</code>
+                    <div class="flex items-center gap-2 flex-1 max-w-xs">
+                        <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div class="bg-violet-600 h-2 rounded-full" style="width: {{ (rv.weight / 1000) | round(1) }}%"></div>
+                        </div>
+                        <span class="text-xs font-semibold tabular-nums text-slate-500 w-12 text-right">{{ (rv.weight / 1000) | round(1) }}%</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── Settings panel ────────────────────────────────────────────── #}
+    <div id="panel-settings" class="tab-panel hidden">
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-5">Flag Settings</h2>
+            {# Read-only identity info #}
+            <dl class="space-y-3 mb-6">
+                <div class="flex justify-between items-center">
+                    <dt class="text-xs text-slate-500 font-medium">Key</dt>
+                    <dd class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded">{{ flag.key }}</dd>
+                </div>
+                <div class="flex justify-between items-center">
+                    <dt class="text-xs text-slate-500 font-medium">Type</dt>
+                    <dd>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                     bg-{{ _colour }}-50 text-{{ _colour }}-700 ring-1 ring-inset ring-{{ _colour }}-200">
+                            {{ flag.type.value }}
+                        </span>
+                    </dd>
+                </div>
+            </dl>
+            {# Editable name + description #}
+            <form hx-post="{{ prefix }}/flags/{{ flag.key }}/settings/save"
+                  hx-target="next .save-feedback"
+                  hx-swap="innerHTML"
+                  class="space-y-4">
+                <div>
+                    <label for="settings-name" class="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                    <input id="settings-name" type="text" name="name" value="{{ flag.name }}" required
+                           class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+                <div>
+                    <label for="settings-desc" class="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                    <textarea id="settings-desc" name="description" rows="3"
+                              class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-slate-400"
+                              placeholder="Optional description…">{{ flag.description or '' }}</textarea>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-semibold bg-violet-700 text-white rounded-lg hover:bg-violet-600 transition-colors">
+                        Save Settings
+                    </button>
+                </div>
+                <div class="save-feedback"></div>
+            </form>
+        </div>
+    </div>
+
+
+</div>
+
+<script>
+    function showTab(name) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('border-violet-600', 'text-violet-700');
+            b.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-800', 'hover:border-slate-300');
+        });
+        document.getElementById('panel-' + name).classList.remove('hidden');
+        const btn = document.getElementById('tab-btn-' + name);
+        btn.classList.add('border-violet-600', 'text-violet-700');
+        btn.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-800', 'hover:border-slate-300');
+        // Scroll active tab into view on mobile
+        btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+
+
+    // ── Variation row editing ──────────────────────────────────────────────
+    function addVariation() {
+        const tbl = document.getElementById('variations-body');
+        const rows = tbl.querySelectorAll('tr.var-row');
+        const idx = rows.length;
+        const flagType = document.getElementById('flag-type-hidden').value;
+        const tr = document.createElement('tr');
+        tr.className = 'var-row border-b border-slate-100';
+        tr.dataset.idx = idx;
+        tr.innerHTML = buildVarRow(idx, '', '', '', flagType);
+        tbl.appendChild(tr);
+    }
+
+    function removeVariation(btn) {
+        const tr = btn.closest('tr');
+        tr.dataset.deleted = '1';
+        tr.style.display = 'none';
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'variations[' + tr.dataset.idx + '][_deleted]';
+        inp.value = '1';
+        tr.appendChild(inp);
+    }
+
+    function buildVarRow(idx, name, value, desc, flagType) {
+        const inputClass = 'w-full text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500';
+        let valueInput;
+        if (flagType === 'boolean') {
+            valueInput = '<select name="variations[' + idx + '][value]" class="' + inputClass + '"><option value="true">true</option><option value="false">false</option></select>';
+        } else if (flagType === 'json') {
+            valueInput = '<textarea name="variations[' + idx + '][value]" rows="2" class="' + inputClass + ' font-mono">' + escHtml(value) + '</textarea>';
+        } else if (flagType === 'integer') {
+            valueInput = '<input type="number" step="1" name="variations[' + idx + '][value]" value="' + escHtml(value) + '" class="' + inputClass + '">';
+        } else if (flagType === 'float') {
+            valueInput = '<input type="number" step="any" name="variations[' + idx + '][value]" value="' + escHtml(value) + '" class="' + inputClass + '">';
+        } else {
+            valueInput = '<input type="text" name="variations[' + idx + '][value]" value="' + escHtml(value) + '" class="' + inputClass + '">';
+        }
+        return '<td class="px-3 py-2"><input type="text" name="variations[' + idx + '][name]" value="' + escHtml(name) + '" placeholder="variation-name" required class="' + inputClass + ' font-mono"></td>'
+            + '<td class="px-3 py-2">' + valueInput + '</td>'
+            + '<td class="px-3 py-2"><input type="text" name="variations[' + idx + '][description]" value="' + escHtml(desc) + '" placeholder="optional" class="' + inputClass + '"></td>'
+            + '<td class="px-3 py-2 text-center"><button type="button" onclick="removeVariation(this)" class="text-red-400 hover:text-red-300"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></td>';
+    }
+
+    // ── Prerequisites editing ──────────────────────────────────────────────
+    const _ALL_FLAGS_DATA = [
+        {% for f in all_flags %}
+        {"key": {{ f.key | tojson }}, "variations": [{% for v in f.variations %}{{ v.name | tojson }}{% if not loop.last %},{% endif %}{% endfor %}]}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    let _prereqIdx = {{ flag.prerequisites | length }};
+
+    function onPrereqFlagChange(sel) {
+        const row = sel.closest('.prereq-row');
+        const varSel = row.querySelector('select[name*="[variation]"]');
+        const flagKey = sel.value;
+        const flagData = _ALL_FLAGS_DATA.find(f => f.key === flagKey);
+        const variations = flagData ? flagData.variations : [];
+        varSel.innerHTML = variations.map(v => '<option value="' + v + '">' + v + '</option>').join('');
+    }
+
+    function addPrereq() {
+        if (_ALL_FLAGS_DATA.length === 0) return;
+        const container = document.getElementById('prereqs-container');
+        const idx = _prereqIdx++;
+        const firstFlag = _ALL_FLAGS_DATA[0];
+        const selectClass = 'text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500';
+        const flagOpts = _ALL_FLAGS_DATA.map(f => '<option value="' + escHtml(f.key) + '">' + escHtml(f.key) + '</option>').join('');
+        const varOpts = firstFlag.variations.map(v => '<option value="' + escHtml(v) + '">' + escHtml(v) + '</option>').join('');
+        const row = document.createElement('div');
+        row.className = 'prereq-row flex flex-wrap items-center gap-2';
+        row.innerHTML = '<select name="prereqs[' + idx + '][flag_key]" onchange="onPrereqFlagChange(this)" class="' + selectClass + ' flex-1">' + flagOpts + '</select>'
+            + '<span class="text-xs text-slate-500 shrink-0">must be</span>'
+            + '<select name="prereqs[' + idx + '][variation]" class="' + selectClass + '">' + varOpts + '</select>'
+            + '<button type="button" onclick="this.closest(\'.prereq-row\').remove()" class="shrink-0 text-red-400 hover:text-red-300 p-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+        container.appendChild(row);
+    }
+
+    // ── Rule card editing ──────────────────────────────────────────────────
+    let _ruleIdx = {{ flag.rules | length }};
+    const _flagVariationNames = {{ flag.variations | map(attribute='name') | list | tojson }};
+
+    function addRule() {
+        const container = document.getElementById('rules-container');
+        const noMsg = document.getElementById('no-rules-msg');
+        if (noMsg) noMsg.remove();
+        const idx = _ruleIdx++;
+        const div = document.createElement('div');
+        div.className = 'rule-card border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50/50';
+        div.dataset.idx = idx;
+        div.innerHTML = buildRuleCard(idx, '', '', _flagVariationNames);
+        container.appendChild(div);
+    }
+
+    function removeRule(btn) {
+        const card = btn.closest('.rule-card');
+        card.dataset.deleted = '1';
+        card.style.display = 'none';
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'rules[' + card.dataset.idx + '][_deleted]';
+        inp.value = '1';
+        card.appendChild(inp);
+    }
+
+    function buildRuleCard(idx, ruleId, desc, variationNames) {
+        const inputClass = 'text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500';
+        const varOptions = variationNames.map(function(n) {
+            return '<option value="' + escHtml(n) + '">' + escHtml(n) + '</option>';
+        }).join('');
+        return '<input type="hidden" name="rules[' + idx + '][id]" value="' + escHtml(ruleId) + '">'
+            + '<div class="flex items-center justify-between gap-2">'
+            + '<input type="text" name="rules[' + idx + '][description]" value="' + escHtml(desc) + '" placeholder="Rule description (optional)" class="flex-1 ' + inputClass + ' placeholder:text-slate-400">'
+            + '<button type="button" onclick="removeRule(this)" class="shrink-0 text-red-400 hover:text-red-300 p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>'
+            + '</div>'
+            + '<div class="clauses-container space-y-2" id="clauses-' + idx + '"></div>'
+            + '<button type="button" onclick="addClause(' + idx + ')" class="text-xs text-violet-600 hover:text-violet-800 font-medium">+ Add clause</button>'
+            + '<div class="flex items-center gap-2 mt-2">'
+            + '<span class="text-xs text-slate-500 font-medium">Serve:</span>'
+            + '<select name="rules[' + idx + '][variation]" class="' + inputClass + '">' + varOptions + '</select>'
+            + '</div>';
+    }
+
+    const _clauseIdxMap = {};
+    const _ALL_OPERATORS = ['is','is_not','contains','not_contains','starts_with','ends_with','matches','not_matches','gt','gte','lt','lte','before','after','in','not_in','in_segment','not_in_segment','semver_eq','semver_lt','semver_gt'];
+    const _SEGMENT_OPERATORS = new Set(['in_segment','not_in_segment']);
+    const _AVAILABLE_SEGMENTS = [{% for seg in segments %}{"key":"{{ seg.key }}","name":{{ seg.name | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
+
+    function _segmentValuesInput(ri, ci, selectedKey) {
+        const inputClass = 'clause-values-input flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500';
+        if (_AVAILABLE_SEGMENTS.length === 0) {
+            return '<input type="text" name="rules[' + ri + '][clauses][' + ci + '][values]" value="' + escHtml(selectedKey) + '" placeholder="segment key" class="' + inputClass + '">';
+        }
+        const opts = _AVAILABLE_SEGMENTS.map(function(s) {
+            const sel = s.key === selectedKey ? ' selected' : '';
+            return '<option value="' + escHtml(s.key) + '"' + sel + '>' + escHtml(s.name) + ' (' + escHtml(s.key) + ')</option>';
+        }).join('');
+        return '<select name="rules[' + ri + '][clauses][' + ci + '][values]" class="clause-values-select flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">' + opts + '</select>';
+    }
+
+    function onClauseOperatorChange(sel) {
+        const row = sel.closest('.clause-row');
+        const isSeg = _SEGMENT_OPERATORS.has(sel.value);
+        const attrInput = row.querySelector('input[name*="[attribute]"]');
+        if (attrInput) attrInput.classList.toggle('hidden', isSeg);
+
+        // swap values widget
+        const name = sel.name.replace('[operator]', '[values]');
+        const parts = sel.name.match(/rules\[(\d+)\]\[clauses\]\[(\d+)\]/);
+        const ri = parts ? parts[1] : 0, ci = parts ? parts[2] : 0;
+        const oldWidget = row.querySelector('[name="' + name + '"]');
+        const currentVal = oldWidget ? oldWidget.value : '';
+        const newHtml = isSeg ? _segmentValuesInput(ri, ci, currentVal)
+            : '<input type="text" name="' + name + '" value="' + escHtml(currentVal) + '" placeholder="val1, val2" class="clause-values-input flex-1 text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500">';
+        if (oldWidget) oldWidget.outerHTML = newHtml;
+    }
+
+    function addClause(ruleIdx) {
+        if (!_clauseIdxMap[ruleIdx]) _clauseIdxMap[ruleIdx] = 0;
+        const ci = _clauseIdxMap[ruleIdx]++;
+        const container = document.getElementById('clauses-' + ruleIdx);
+        const row = document.createElement('div');
+        row.className = 'clause-row flex flex-wrap items-center gap-2';
+        row.innerHTML = buildClauseRow(ruleIdx, ci, '', 'is', '', false);
+        container.appendChild(row);
+    }
+
+    function buildClauseRow(ri, ci, attr, op, vals, negate) {
+        const inputClass = 'text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500';
+        const isSeg = _SEGMENT_OPERATORS.has(op);
+        const opOpts = _ALL_OPERATORS.map(function(o) {
+            return '<option value="' + o + '" ' + (o === op ? 'selected' : '') + '>' + o.replace(/_/g, ' ') + '</option>';
+        }).join('');
+        const attrHidden = isSeg ? ' hidden' : '';
+        const valWidget = isSeg ? _segmentValuesInput(ri, ci, Array.isArray(vals) ? vals[0] : vals)
+            : '<input type="text" name="rules[' + ri + '][clauses][' + ci + '][values]" value="' + escHtml(Array.isArray(vals) ? vals.join(', ') : vals) + '" placeholder="val1, val2" class="clause-values-input flex-1 ' + inputClass + '">';
+        return '<input type="text" name="rules[' + ri + '][clauses][' + ci + '][attribute]" value="' + escHtml(attr) + '" placeholder="attribute" class="w-28 font-mono ' + inputClass + attrHidden + '">'
+            + '<select name="rules[' + ri + '][clauses][' + ci + '][operator]" onchange="onClauseOperatorChange(this)" class="' + inputClass + '">' + opOpts + '</select>'
+            + valWidget
+            + '<button type="button" onclick="this.closest(\'.clause-row\').remove()" class="shrink-0 text-red-400 hover:text-red-300 p-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+    }
+</script>
+
+{% endblock %}
