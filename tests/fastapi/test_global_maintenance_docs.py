@@ -11,6 +11,7 @@ from shield.fastapi.decorators import force_active, maintenance
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.openapi import apply_shield_to_openapi, setup_shield_docs
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _build() -> tuple[FastAPI, ShieldEngine, ShieldRouter]:
@@ -34,7 +35,7 @@ async def test_schema_has_global_maintenance_extension_when_off():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -50,7 +51,7 @@ async def test_schema_has_global_maintenance_extension_when_on():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     await engine.enable_global_maintenance(reason="Deploy window")
@@ -70,7 +71,7 @@ async def test_schema_info_has_extension_not_description_when_on():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
     await engine.enable_global_maintenance(reason="Emergency patch")
 
@@ -98,7 +99,7 @@ async def test_schema_operations_annotated_with_global_maintenance():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     await engine.enable_global_maintenance(reason="Upgrade", exempt_paths=["/health"])
@@ -124,7 +125,7 @@ async def test_schema_per_route_maintenance_not_overwritten_by_global():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     await engine.enable_global_maintenance(reason="Global reason")
@@ -142,7 +143,7 @@ async def test_schema_global_maintenance_removed_after_disable():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     await engine.enable_global_maintenance(reason="Temp")

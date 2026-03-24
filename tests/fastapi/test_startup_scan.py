@@ -30,6 +30,7 @@ from shield.fastapi.decorators import deprecated, disabled, env_only, maintenanc
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.openapi import apply_shield_to_openapi
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 # ---------------------------------------------------------------------------
 # Helper: simulate ASGI lifespan startup
@@ -146,7 +147,7 @@ async def test_lifespan_scan_is_idempotent_with_shield_router():
     app.include_router(plain_router)
 
     # ShieldRouter startup hook fires first (via app.router.startup).
-    await app.router.startup()
+    await _trigger_startup(app)
 
     # Simulate a runtime state change — engine.enable overrides the decorator.
     await engine.enable("GET:/payments")

@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
+- **Feature flags** (`api-shield[flags]`): a full feature flag system built on the [OpenFeature](https://openfeature.dev/) standard, supporting boolean, string, integer, float, and JSON flag types with multi-condition targeting rules, reusable user segments (explicit included/excluded lists plus attribute-based rules), percentage rollouts, prerequisite flags, individual user targeting, and a live SSE evaluation stream. Flags and segments are manageable from the admin dashboard (`/shield/flags`, `/shield/segments`) and the CLI (`shield flags *`, `shield segments *`) — including a new `shield segments add-rule` command and an "Add Rule" panel in the Edit Segment modal that lets operators add attribute-based targeting rules without touching code or the REST API directly.
+
 - **`SHIELD_SERVICE` env var fallback on all `--service` CLI options**: `shield status`, `shield enable`, `shield disable`, `shield maintenance`, and `shield schedule` all read `SHIELD_SERVICE` automatically — set it once with `export SHIELD_SERVICE=payments-service` and every command scopes itself to that service without repeating `--service`. An explicit `--service` flag always wins.
 - **`shield current-service` command**: shows the active service context from the `SHIELD_SERVICE` environment variable, or a hint to set it when the variable is absent.
 - **`shield services` command**: lists all distinct service names registered with the Shield Server, so you can discover which services are connected before switching context.

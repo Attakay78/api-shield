@@ -1040,6 +1040,8 @@ async def events(request: Request) -> StreamingResponse:
         # Keepalive ping loop — runs when subscribe() is unsupported OR after
         # the subscription ends.  Browsers keep the connection alive.
         while True:
+            if await request.is_disconnected():
+                break
             yield ": keepalive\n\n"
             try:
                 await anyio.sleep(15)
@@ -1053,4 +1055,852 @@ async def events(request: Request) -> StreamingResponse:
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Feature flag dashboard pages
+# ---------------------------------------------------------------------------
+
+_FLAG_TYPE_COLOURS = {
+    "boolean": "emerald",
+    "string": "blue",
+    "integer": "violet",
+    "float": "violet",
+    "json": "amber",
+}
+
+
+async def flags_page(request: Request) -> Response:
+    """GET /flags — feature flag list page."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    flags = await engine.list_flags()
+    return tpl.TemplateResponse(
+        request,
+        "flags.html",
+        {
+            "prefix": prefix,
+            "flags": flags,
+            "active_tab": "flags",
+            "shield_actor": _actor(request),
+            "version": request.app.state.version,
+            "flag_type_colours": _FLAG_TYPE_COLOURS,
+            "flags_enabled": True,
+        },
+    )
+
+
+async def flags_rows_partial(request: Request) -> Response:
+    """GET /flags/rows — HTMX partial: flag table rows only.
+
+    Supports ``?q=`` search query and ``?type=`` / ``?status=`` filters.
+    """
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    flags = await engine.list_flags()
+
+    q = request.query_params.get("q", "").lower().strip()
+    ftype = request.query_params.get("type", "").strip()
+    status_filter = request.query_params.get("status", "").strip()
+
+    if q:
+        flags = [f for f in flags if q in f.key.lower() or q in (f.name or "").lower()]
+    if ftype:
+        flags = [f for f in flags if f.type.value == ftype]
+    if status_filter == "enabled":
+        flags = [f for f in flags if f.enabled]
+    elif status_filter == "disabled":
+        flags = [f for f in flags if not f.enabled]
+
+    return tpl.TemplateResponse(
+        request,
+        "partials/flag_rows.html",
+        {
+            "prefix": prefix,
+            "flags": flags,
+            "flag_type_colours": _FLAG_TYPE_COLOURS,
+        },
+    )
+
+
+async def flag_detail_page(request: Request) -> Response:
+    """GET /flags/{key} — single flag detail page."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p>Flag not found.</p>", status_code=404)
+    segments = await engine.list_segments()
+    all_flags = await engine.list_flags()
+    return tpl.TemplateResponse(
+        request,
+        "flag_detail.html",
+        {
+            "prefix": prefix,
+            "flag": flag,
+            "segments": segments,
+            "all_flags": [f for f in all_flags if f.key != key],
+            "active_tab": "flags",
+            "shield_actor": _actor(request),
+            "version": request.app.state.version,
+            "flag_type_colours": _FLAG_TYPE_COLOURS,
+            "flags_enabled": True,
+        },
+    )
+
+
+async def flag_enable(request: Request) -> Response:
+    """POST /flags/{key}/enable — enable a flag; return updated row partial."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<tr><td>Flag not found</td></tr>", status_code=404)
+    flag = flag.model_copy(update={"enabled": True})
+    await engine.save_flag(flag)
+    return tpl.TemplateResponse(
+        request,
+        "partials/flag_row.html",
+        {"prefix": prefix, "flag": flag, "flag_type_colours": _FLAG_TYPE_COLOURS},
+    )
+
+
+async def flag_disable(request: Request) -> Response:
+    """POST /flags/{key}/disable — disable a flag; return updated row partial."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<tr><td>Flag not found</td></tr>", status_code=404)
+    flag = flag.model_copy(update={"enabled": False})
+    await engine.save_flag(flag)
+    return tpl.TemplateResponse(
+        request,
+        "partials/flag_row.html",
+        {"prefix": prefix, "flag": flag, "flag_type_colours": _FLAG_TYPE_COLOURS},
+    )
+
+
+async def flag_delete(request: Request) -> Response:
+    """DELETE /flags/{key} — delete a flag; return empty response (HTMX removes row)."""
+    engine = _engine(request)
+    key = request.path_params["key"]
+    await engine.delete_flag(key)
+    return HTMLResponse("")
+
+
+async def modal_flag_create(request: Request) -> Response:
+    """GET /modal/flag/create — return create flag modal HTML."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    return tpl.TemplateResponse(
+        request,
+        "partials/modal_flag_create.html",
+        {"prefix": prefix},
+    )
+
+
+async def flag_create_form(request: Request) -> Response:
+    """POST /flags/create — create a flag from form data; return new row partial."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    form = await request.form()
+    key = str(form.get("key", "")).strip()
+    name = str(form.get("name", "")).strip()
+    ftype = str(form.get("type", "boolean")).strip()
+
+    if not key or not name:
+        return HTMLResponse(
+            "<p class='text-red-600 text-sm p-3'>Key and name are required.</p>",
+            status_code=400,
+        )
+
+    from shield.core.feature_flags.models import FeatureFlag, FlagType, FlagVariation
+
+    type_map = {
+        "boolean": (
+            FlagType.BOOLEAN,
+            [FlagVariation(name="on", value=True), FlagVariation(name="off", value=False)],
+            "off",
+            "off",
+        ),
+        "string": (
+            FlagType.STRING,
+            [
+                FlagVariation(name="control", value="control"),
+                FlagVariation(name="treatment", value="treatment"),
+            ],
+            "control",
+            "control",
+        ),
+        "integer": (
+            FlagType.INTEGER,
+            [FlagVariation(name="off", value=0), FlagVariation(name="on", value=1)],
+            "off",
+            "off",
+        ),
+        "float": (
+            FlagType.FLOAT,
+            [FlagVariation(name="off", value=0.0), FlagVariation(name="on", value=1.0)],
+            "off",
+            "off",
+        ),
+        "json": (
+            FlagType.JSON,
+            [FlagVariation(name="off", value={}), FlagVariation(name="on", value={})],
+            "off",
+            "off",
+        ),
+    }
+    if ftype not in type_map:
+        ftype = "boolean"
+    ft, variations, off_var, fallthrough = type_map[ftype]
+
+    flag = FeatureFlag(
+        key=key,
+        name=name,
+        type=ft,
+        variations=variations,
+        off_variation=off_var,
+        fallthrough=fallthrough,
+        enabled=True,
+    )
+    await engine.save_flag(flag)
+    return tpl.TemplateResponse(
+        request,
+        "partials/flag_row.html",
+        {"prefix": prefix, "flag": flag, "flag_type_colours": _FLAG_TYPE_COLOURS},
+        headers={"HX-Trigger": "flagCreated"},
+    )
+
+
+async def modal_flag_eval(request: Request) -> Response:
+    """GET /modal/flag/{key}/eval — return eval debugger modal HTML."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    engine = _engine(request)
+    flag = await engine.get_flag(key)
+    return tpl.TemplateResponse(
+        request,
+        "partials/modal_flag_eval.html",
+        {"prefix": prefix, "flag": flag, "key": key},
+    )
+
+
+async def flag_eval_form(request: Request) -> Response:
+    """POST /flags/{key}/eval — evaluate flag from form data; return rich result partial."""
+    import json as _json
+
+    from shield.core.feature_flags.evaluator import FlagEvaluator
+    from shield.core.feature_flags.models import EvaluationContext
+
+    tpl = _templates(request)
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+
+    form = await request.form()
+    ctx_key = str(form.get("context_key", "anonymous")).strip() or "anonymous"
+    kind = str(form.get("kind", "user")).strip() or "user"
+    attrs_raw = str(form.get("attributes", "")).strip()
+    attributes: dict[str, str] = {}
+    for line in attrs_raw.splitlines():
+        line = line.strip()
+        if "=" in line:
+            k, _, v = line.partition("=")
+            attributes[k.strip()] = v.strip()
+
+    ctx = EvaluationContext(key=ctx_key, kind=kind, attributes=attributes)
+    all_flags_list = await engine.list_flags()
+    all_flags = {f.key: f for f in all_flags_list}
+    segments_list = await engine.list_segments()
+    segments = {s.key: s for s in segments_list}
+    evaluator = FlagEvaluator(segments=segments)
+    result = evaluator.evaluate(flag, ctx, all_flags)
+
+    # Look up rule description for RULE_MATCH
+    rule_description = ""
+    if result.rule_id:
+        for rule in flag.rules:
+            if rule.id == result.rule_id:
+                rule_description = rule.description or ""
+                break
+
+    # Serialize value as JSON for display (handles bool, dict, list, etc.)
+    try:
+        value_json = _json.dumps(result.value)
+    except (TypeError, ValueError):
+        value_json = str(result.value)
+
+    trigger = _json.dumps(
+        {
+            "shieldEvalDone": {
+                "flagKey": key,
+                "value": result.value,
+                "reason": result.reason.value,
+                "error": bool(result.error_message),
+                "errorMessage": result.error_message or "",
+            }
+        }
+    )
+    return tpl.TemplateResponse(
+        request,
+        "partials/flag_eval_result.html",
+        {
+            "result": result,
+            "rule_description": rule_description,
+            "value_json": value_json,
+            "ctx_key": ctx_key,
+            "ctx_kind": kind,
+            "ctx_attributes": attributes,
+        },
+        headers={"HX-Trigger": trigger},
+    )
+
+
+async def flag_settings_save(request: Request) -> Response:
+    """POST /flags/{key}/settings/save — update flag name and description."""
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+    form = await request.form()
+    name = str(form.get("name", flag.name)).strip() or flag.name
+    description = str(form.get("description", flag.description or "")).strip()
+    updated = flag.model_copy(update={"name": name, "description": description})
+    await engine.save_flag(updated)
+    _svg = (
+        "<svg class='w-4 h-4' fill='none' viewBox='0 0 24 24'"
+        " stroke='currentColor' stroke-width='2.5'>"
+        "<path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/></svg>"
+    )
+    return HTMLResponse(
+        "<div class='flex items-center gap-2 text-sm text-emerald-600 font-medium'>"
+        + _svg
+        + "Settings saved</div>",
+        headers={"HX-Trigger": '{"flagSettingsSaved": true}'},
+    )
+
+
+async def flag_variations_save(request: Request) -> Response:
+    """POST /flags/{key}/variations/save — replace flag variations."""
+    import json as _json
+    import re as _re
+
+    from shield.core.feature_flags.models import FlagType, FlagVariation
+
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+
+    form = await request.form()
+    # Parse variations[N][field] pattern
+    indices: dict[int, dict[str, str]] = {}
+    for k, v in form.multi_items():
+        m = _re.match(r"variations\[(\d+)\]\[(\w+)\]", k)
+        if m:
+            idx, field = int(m.group(1)), m.group(2)
+            indices.setdefault(idx, {})[field] = str(v)
+
+    if not indices:
+        return HTMLResponse(
+            "<p class='text-red-600 text-sm'>No variations provided.</p>",
+            status_code=400,
+        )
+
+    flag_type = flag.type
+    variations = []
+    for i in sorted(indices.keys()):
+        entry = indices[i]
+        if entry.get("_deleted") == "1":
+            continue
+        name = entry.get("name", "").strip()
+        if not name:
+            return HTMLResponse(
+                f"<p class='text-red-600 text-sm'>Variation {i} has no name.</p>",
+                status_code=400,
+            )
+        raw_val = entry.get("value", "")
+        try:
+            parsed_val: bool | int | float | str | dict[str, Any] | list[Any]
+            if flag_type == FlagType.BOOLEAN:
+                parsed_val = raw_val.lower() in ("true", "1", "yes", "on")
+            elif flag_type == FlagType.INTEGER:
+                parsed_val = int(raw_val)
+            elif flag_type == FlagType.FLOAT:
+                parsed_val = float(raw_val)
+            elif flag_type == FlagType.JSON:
+                parsed_val = _json.loads(raw_val) if raw_val.strip() else {}
+            else:
+                parsed_val = raw_val
+            val = parsed_val
+        except Exception:
+            return HTMLResponse(
+                f"<p class='text-red-600 text-sm'>Invalid value for variation '{name}'.</p>",
+                status_code=400,
+            )
+        variations.append(
+            FlagVariation(name=name, value=val, description=entry.get("description", "") or "")
+        )
+
+    if len(variations) < 2:
+        return HTMLResponse(
+            "<p class='text-red-600 text-sm'>At least two variations required.</p>",
+            status_code=400,
+        )
+
+    variation_names = {v.name for v in variations}
+    patch: dict[str, Any] = {"variations": variations}
+    # Fix off_variation if it no longer exists
+    if flag.off_variation not in variation_names:
+        patch["off_variation"] = variations[0].name
+    # Fix fallthrough if string and no longer valid
+    if isinstance(flag.fallthrough, str) and flag.fallthrough not in variation_names:
+        patch["fallthrough"] = variations[0].name
+
+    updated = flag.model_copy(update=patch)
+    await engine.save_flag(updated)
+    _svg = (
+        "<svg class='w-4 h-4' fill='none' viewBox='0 0 24 24'"
+        " stroke='currentColor' stroke-width='2.5'>"
+        "<path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/></svg>"
+    )
+    return HTMLResponse(
+        "<div class='flex items-center gap-2 text-sm text-emerald-600 font-medium'>"
+        + _svg
+        + "Variations saved</div>",
+        headers={"HX-Trigger": '{"flagVariationsSaved": true}'},
+    )
+
+
+async def flag_targeting_save(request: Request) -> Response:
+    """POST /flags/{key}/targeting/save — update off_variation, fallthrough, and rules."""
+    import re as _re
+    import uuid as _uuid
+
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+
+    form = await request.form()
+    variation_names = {v.name for v in flag.variations}
+
+    patch: dict[str, Any] = {}
+
+    # off_variation
+    off_var = str(form.get("off_variation", "")).strip()
+    if off_var:
+        if off_var not in variation_names:
+            return HTMLResponse(
+                f"<p class='text-red-600 text-sm'>Unknown variation: {off_var}</p>",
+                status_code=400,
+            )
+        patch["off_variation"] = off_var
+
+    # fallthrough (only simple string form supported in dashboard)
+    fallthrough = str(form.get("fallthrough", "")).strip()
+    if fallthrough:
+        if fallthrough not in variation_names:
+            return HTMLResponse(
+                f"<p class='text-red-600 text-sm'>Unknown variation: {fallthrough}</p>",
+                status_code=400,
+            )
+        patch["fallthrough"] = fallthrough
+
+    # rules — parse rules[N][field] and rules[N][clauses][M][field]
+    rule_data: dict[int, dict[str, Any]] = {}
+    for k, v in form.multi_items():
+        m = _re.match(r"rules\[(\d+)\]\[clauses\]\[(\d+)\]\[(\w+)\]", k)
+        if m:
+            ri, ci, field = int(m.group(1)), int(m.group(2)), m.group(3)
+            rule_data.setdefault(ri, {}).setdefault("_clauses", {}).setdefault(ci, {})[field] = str(
+                v
+            )
+            continue
+        m = _re.match(r"rules\[(\d+)\]\[(\w+)\]", k)
+        if m:
+            ri, field = int(m.group(1)), m.group(2)
+            rule_data.setdefault(ri, {})[field] = str(v)
+
+    if rule_data:
+        from shield.core.feature_flags.models import Operator, RuleClause, TargetingRule
+
+        rules = []
+        for ri in sorted(rule_data.keys()):
+            rd = rule_data[ri]
+            if rd.get("_deleted") == "1":
+                continue
+            variation = rd.get("variation", "").strip()
+            if variation and variation not in variation_names:
+                return HTMLResponse(
+                    f"<p class='text-red-600 text-sm'>"
+                    f"Rule {ri}: unknown variation '{variation}'</p>",
+                    status_code=400,
+                )
+            rule_id = rd.get("id", "").strip() or str(_uuid.uuid4())
+            clauses = []
+            for ci in sorted(rd.get("_clauses", {}).keys()):
+                cd = rd["_clauses"][ci]
+                if cd.get("_deleted") == "1":
+                    continue
+                op_str = cd.get("operator", "is").strip()
+                try:
+                    op = Operator(op_str)
+                except ValueError:
+                    op = Operator.IS
+                # For segment operators the attribute field is hidden — default to "key"
+                is_seg_op = op in (Operator.IN_SEGMENT, Operator.NOT_IN_SEGMENT)
+                attr = cd.get("attribute", "").strip() or ("key" if is_seg_op else "")
+                if not attr:
+                    continue
+                raw_values = cd.get("values", "")
+                values = [v.strip() for v in raw_values.split(",") if v.strip()]
+                negate = cd.get("negate", "false").lower() == "true"
+                clauses.append(
+                    RuleClause(attribute=attr, operator=op, values=values, negate=negate)
+                )
+            rules.append(
+                TargetingRule(
+                    id=rule_id,
+                    description=rd.get("description", "") or "",
+                    clauses=clauses,
+                    variation=variation or None,
+                )
+            )
+        patch["rules"] = rules
+
+    if not patch:
+        return HTMLResponse(
+            "<p class='text-amber-600 text-sm'>Nothing to save.</p>", status_code=200
+        )
+
+    updated = flag.model_copy(update=patch)
+    await engine.save_flag(updated)
+    _svg = (
+        "<svg class='w-4 h-4' fill='none' viewBox='0 0 24 24'"
+        " stroke='currentColor' stroke-width='2.5'>"
+        "<path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/></svg>"
+    )
+    return HTMLResponse(
+        "<div class='flex items-center gap-2 text-sm text-emerald-600 font-medium'>"
+        + _svg
+        + "Targeting saved</div>",
+        headers={"HX-Trigger": '{"flagTargetingSaved": true}'},
+    )
+
+
+async def flag_prerequisites_save(request: Request) -> Response:
+    """POST /flags/{key}/prerequisites/save — update flag prerequisites."""
+    import re as _re
+
+    from shield.core.feature_flags.models import Prerequisite
+
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+
+    form = await request.form()
+    prereq_data: dict[int, dict[str, str]] = {}
+    for k, v in form.multi_items():
+        m = _re.match(r"prereqs\[(\d+)\]\[(\w+)\]", k)
+        if m:
+            idx, field = int(m.group(1)), m.group(2)
+            prereq_data.setdefault(idx, {})[field] = str(v)
+
+    prereqs = []
+    for i in sorted(prereq_data.keys()):
+        entry = prereq_data[i]
+        flag_key = entry.get("flag_key", "").strip()
+        variation = entry.get("variation", "").strip()
+        if not flag_key or not variation:
+            continue
+        if flag_key == key:
+            return HTMLResponse(
+                "<p class='text-red-600 text-sm'>A flag cannot be its own prerequisite.</p>",
+                status_code=400,
+            )
+        prereqs.append(Prerequisite(flag_key=flag_key, variation=variation))
+
+    updated = flag.model_copy(update={"prerequisites": prereqs})
+    await engine.save_flag(updated)
+    _svg = (
+        "<svg class='w-4 h-4' fill='none' viewBox='0 0 24 24'"
+        " stroke='currentColor' stroke-width='2.5'>"
+        "<path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/></svg>"
+    )
+    return HTMLResponse(
+        "<div class='flex items-center gap-2 text-sm text-emerald-600 font-medium'>"
+        + _svg
+        + "Prerequisites saved</div>",
+        headers={"HX-Trigger": '{"flagPrerequisitesSaved": true}'},
+    )
+
+
+async def flag_targets_save(request: Request) -> Response:
+    """POST /flags/{key}/targets/save — update individual targets."""
+    engine = _engine(request)
+    key = request.path_params["key"]
+    flag = await engine.get_flag(key)
+    if flag is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Flag not found.</p>", status_code=404)
+
+    form = await request.form()
+    variation_names = {v.name for v in flag.variations}
+    targets: dict[str, list[str]] = {}
+
+    for k, v in form.multi_items():
+        if k.startswith("targets[") and k.endswith("]"):
+            variation_name = k[len("targets[") : -1]
+            if variation_name not in variation_names:
+                continue
+            keys = [line.strip() for line in str(v).splitlines() if line.strip()]
+            if keys:
+                targets[variation_name] = keys
+
+    updated = flag.model_copy(update={"targets": targets})
+    await engine.save_flag(updated)
+    _svg = (
+        "<svg class='w-4 h-4' fill='none' viewBox='0 0 24 24'"
+        " stroke='currentColor' stroke-width='2.5'>"
+        "<path stroke-linecap='round' stroke-linejoin='round' d='M5 13l4 4L19 7'/></svg>"
+    )
+    return HTMLResponse(
+        "<div class='flex items-center gap-2 text-sm text-emerald-600 font-medium'>"
+        + _svg
+        + "Targets saved</div>",
+        headers={"HX-Trigger": '{"flagTargetsSaved": true}'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Segment dashboard pages
+# ---------------------------------------------------------------------------
+
+
+async def segments_page(request: Request) -> Response:
+    """GET /segments — segment list page."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    segments = await engine.list_segments()
+    return tpl.TemplateResponse(
+        request,
+        "segments.html",
+        {
+            "prefix": prefix,
+            "segments": segments,
+            "active_tab": "segments",
+            "shield_actor": _actor(request),
+            "version": request.app.state.version,
+            "flags_enabled": True,
+        },
+    )
+
+
+async def segments_rows_partial(request: Request) -> Response:
+    """GET /segments/rows — HTMX partial: segment table rows only."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    segments = await engine.list_segments()
+    q = request.query_params.get("q", "").lower().strip()
+    if q:
+        segments = [s for s in segments if q in s.key.lower() or q in (s.name or "").lower()]
+    return tpl.TemplateResponse(
+        request,
+        "partials/segment_rows.html",
+        {"prefix": prefix, "segments": segments},
+    )
+
+
+async def modal_segment_view(request: Request) -> Response:
+    """GET /modal/segment/{key}/view — return segment info (read-only) modal."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    engine = _engine(request)
+    key = request.path_params["key"]
+    segment = await engine.get_segment(key)
+    return tpl.TemplateResponse(
+        request,
+        "partials/modal_segment_view.html",
+        {"prefix": prefix, "segment": segment, "key": key},
+    )
+
+
+async def modal_segment_detail(request: Request) -> Response:
+    """GET /modal/segment/{key} — return segment detail/edit modal."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    engine = _engine(request)
+    key = request.path_params["key"]
+    segment = await engine.get_segment(key)
+    return tpl.TemplateResponse(
+        request,
+        "partials/modal_segment_detail.html",
+        {"prefix": prefix, "segment": segment, "key": key},
+    )
+
+
+async def modal_segment_create(request: Request) -> Response:
+    """GET /modal/segment/create — return create segment modal."""
+    tpl = _templates(request)
+    prefix = _prefix(request)
+    return tpl.TemplateResponse(
+        request,
+        "partials/modal_segment_create.html",
+        {"prefix": prefix},
+    )
+
+
+async def segment_create_form(request: Request) -> Response:
+    """POST /segments/create — create segment from form; return new row partial."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    form = await request.form()
+    key = str(form.get("key", "")).strip()
+    name = str(form.get("name", "")).strip()
+    if not key or not name:
+        return HTMLResponse(
+            "<p class='text-red-600 text-sm p-3'>Key and name are required.</p>",
+            status_code=400,
+        )
+    from shield.core.feature_flags.models import Segment
+
+    segment = Segment(key=key, name=name)
+    await engine.save_segment(segment)
+    return tpl.TemplateResponse(
+        request,
+        "partials/segment_row.html",
+        {"prefix": prefix, "segment": segment},
+        headers={"HX-Trigger": "segmentCreated"},
+    )
+
+
+async def segment_delete(request: Request) -> Response:
+    """DELETE /segments/{key} — delete segment; return empty (HTMX removes row)."""
+    engine = _engine(request)
+    key = request.path_params["key"]
+    await engine.delete_segment(key)
+    return HTMLResponse("")
+
+
+async def segment_save_form(request: Request) -> Response:
+    """POST /segments/{key}/save — save segment edits from detail modal."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    segment = await engine.get_segment(key)
+    if segment is None:
+        return HTMLResponse("<p class='text-red-600 text-sm'>Segment not found.</p>", 404)
+
+    form = await request.form()
+    # Parse included/excluded as newline-separated keys
+    included_raw = str(form.get("included", "")).strip()
+    excluded_raw = str(form.get("excluded", "")).strip()
+    included = [k.strip() for k in included_raw.splitlines() if k.strip()]
+    excluded = [k.strip() for k in excluded_raw.splitlines() if k.strip()]
+    segment = segment.model_copy(update={"included": included, "excluded": excluded})
+    await engine.save_segment(segment)
+    return tpl.TemplateResponse(
+        request,
+        "partials/segment_row.html",
+        {"prefix": prefix, "segment": segment},
+        headers={"HX-Trigger": "segmentSaved"},
+    )
+
+
+async def segment_rule_add(request: Request) -> Response:
+    """POST /segments/{key}/rules/add — add a targeting rule via the dashboard modal."""
+    import uuid as _uuid
+
+    from shield.core.feature_flags.models import Operator, RuleClause, SegmentRule
+
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    segment = await engine.get_segment(key)
+    if segment is None:
+        return HTMLResponse("<p class='text-red-600 text-sm p-3'>Segment not found.</p>", 404)
+
+    form = await request.form()
+    description = str(form.get("description", "")).strip()
+    attribute = str(form.get("attribute", "")).strip()
+    operator_str = str(form.get("operator", "is")).strip()
+    values_raw = str(form.get("values", "")).strip()
+    negate = bool(form.get("negate"))
+
+    # For segment operators the attribute is implicitly "key"
+    is_seg_op = operator_str in ("in_segment", "not_in_segment")
+    if is_seg_op:
+        attribute = "key"
+
+    if not attribute or not values_raw:
+        return HTMLResponse(
+            "<p class='text-red-600 text-sm p-3'>Attribute and values are required.</p>",
+            status_code=400,
+        )
+
+    try:
+        op = Operator(operator_str)
+    except ValueError:
+        return HTMLResponse(
+            f"<p class='text-red-600 text-sm p-3'>Unknown operator: {operator_str}</p>",
+            status_code=400,
+        )
+
+    values: list[str] = [v.strip() for v in values_raw.split(",") if v.strip()]
+    clause = RuleClause(attribute=attribute, operator=op, values=values, negate=negate)
+    rule = SegmentRule(id=str(_uuid.uuid4()), description=description, clauses=[clause])
+
+    rules = list(segment.rules) + [rule]
+    segment = segment.model_copy(update={"rules": rules})
+    await engine.save_segment(segment)
+    return tpl.TemplateResponse(
+        request,
+        "partials/segment_rules_section.html",
+        {"prefix": prefix, "segment": segment, "key": key},
+    )
+
+
+async def segment_rule_delete(request: Request) -> Response:
+    """DELETE /segments/{key}/rules/{rule_id} — remove a targeting rule."""
+    tpl = _templates(request)
+    engine = _engine(request)
+    prefix = _prefix(request)
+    key = request.path_params["key"]
+    rule_id = request.path_params["rule_id"]
+    segment = await engine.get_segment(key)
+    if segment is None:
+        return HTMLResponse("<p class='text-red-600 text-sm p-3'>Segment not found.</p>", 404)
+
+    rules = [r for r in segment.rules if r.id != rule_id]
+    segment = segment.model_copy(update={"rules": rules})
+    await engine.save_segment(segment)
+    return tpl.TemplateResponse(
+        request,
+        "partials/segment_rules_section.html",
+        {"prefix": prefix, "segment": segment, "key": key},
     )

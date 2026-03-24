@@ -279,3 +279,72 @@ class ShieldBackend(ABC):
             f"{type(self).__name__} does not support rate limit policy pub/sub."
         )
         yield  # make this a valid async generator
+
+    # ------------------------------------------------------------------
+    # Feature flag storage — concrete in-memory default implementations
+    #
+    # All backends get basic in-memory flag/segment storage for free.
+    # FileBackend and RedisBackend can override for persistence.
+    # Storage is lazily initialised on first use so existing backends
+    # that do not call super().__init__() are not affected.
+    # ------------------------------------------------------------------
+
+    def _flag_store(self) -> dict[str, Any]:
+        """Lazy per-instance dict for flag objects."""
+        if not hasattr(self, "_flag_store_dict"):
+            object.__setattr__(self, "_flag_store_dict", {})
+        return self._flag_store_dict  # type: ignore[attr-defined, no-any-return]
+
+    def _segment_store(self) -> dict[str, Any]:
+        """Lazy per-instance dict for segment objects."""
+        if not hasattr(self, "_segment_store_dict"):
+            object.__setattr__(self, "_segment_store_dict", {})
+        return self._segment_store_dict  # type: ignore[attr-defined, no-any-return]
+
+    async def load_all_flags(self) -> list[Any]:
+        """Return all stored feature flags.
+
+        Returns a list of ``FeatureFlag`` objects.  The default
+        implementation uses an in-memory store.  Override for persistent
+        backends.
+        """
+        return list(self._flag_store().values())
+
+    async def save_flag(self, flag: Any) -> None:
+        """Persist *flag* (a ``FeatureFlag`` instance) by its key.
+
+        Default implementation keeps flags in memory.  Override for
+        persistent backends.
+        """
+        self._flag_store()[flag.key] = flag
+
+    async def delete_flag(self, flag_key: str) -> None:
+        """Remove the flag with *flag_key* from storage.
+
+        No-op if the flag does not exist.
+        """
+        self._flag_store().pop(flag_key, None)
+
+    async def load_all_segments(self) -> list[Any]:
+        """Return all stored segments.
+
+        Returns a list of ``Segment`` objects.  The default
+        implementation uses an in-memory store.  Override for persistent
+        backends.
+        """
+        return list(self._segment_store().values())
+
+    async def save_segment(self, segment: Any) -> None:
+        """Persist *segment* (a ``Segment`` instance) by its key.
+
+        Default implementation keeps segments in memory.  Override for
+        persistent backends.
+        """
+        self._segment_store()[segment.key] = segment
+
+    async def delete_segment(self, segment_key: str) -> None:
+        """Remove the segment with *segment_key* from storage.
+
+        No-op if the segment does not exist.
+        """
+        self._segment_store().pop(segment_key, None)

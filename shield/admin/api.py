@@ -588,11 +588,29 @@ async def sdk_events(request: Request) -> StreamingResponse:
         except Exception:
             logger.exception("shield: SDK SSE RL policy subscription error")
 
+    async def _feed_flags() -> None:
+        try:
+            async for event in engine.backend.subscribe_flag_changes():  # type: ignore[attr-defined]
+                envelope = _json.dumps(event)
+                await queue.put(f"data: {envelope}\n\n")
+        except NotImplementedError:
+            pass
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("shield: SDK SSE flag subscription error")
+
     async def _generate() -> object:
         tasks.append(asyncio.create_task(_feed_states()))
         tasks.append(asyncio.create_task(_feed_rl_policies()))
+        tasks.append(asyncio.create_task(_feed_flags()))
         try:
             while True:
+                # Check for client disconnect before blocking on the queue.
+                # is_disconnected() polls receive() with a 1 ms timeout so it
+                # never blocks the loop for more than a millisecond.
+                if await request.is_disconnected():
+                    break
                 try:
                     # Block until an event arrives or 15 s elapses.
                     msg = await asyncio.wait_for(queue.get(), timeout=15.0)
@@ -605,6 +623,10 @@ async def sdk_events(request: Request) -> StreamingResponse:
         finally:
             for t in tasks:
                 t.cancel()
+            # Await the feeder tasks so their finally blocks (which deregister
+            # subscriber queues) run before this handler returns.  Errors are
+            # suppressed — we only care that cleanup completes.
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     return StreamingResponse(
         _generate(),  # type: ignore[arg-type]
@@ -704,3 +726,338 @@ async def sdk_audit(request: Request) -> JSONResponse:
 
     await engine.backend.write_audit(entry)
     return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Feature flag endpoints
+# ---------------------------------------------------------------------------
+#
+# These endpoints are only mounted when ShieldAdmin(enable_flags=True).
+# They require the [flags] optional extra to be installed — callers get a
+# clear 501 error if the extra is missing.
+# ---------------------------------------------------------------------------
+
+
+def _flags_not_configured() -> JSONResponse:
+    return JSONResponse(
+        {
+            "error": (
+                "Feature flags are not enabled. "
+                "Call engine.use_openfeature() and set enable_flags=True on ShieldAdmin."
+            )
+        },
+        status_code=501,
+    )
+
+
+def _flags_not_installed() -> JSONResponse:
+    return JSONResponse(
+        {
+            "error": (
+                "Feature flags require the [flags] extra. "
+                "Install with: pip install api-shield[flags]"
+            )
+        },
+        status_code=501,
+    )
+
+
+def _flag_models_available() -> bool:
+    """Return True if the openfeature extra is installed."""
+    try:
+        import openfeature  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+async def list_flags(request: Request) -> JSONResponse:
+    """GET /api/flags — list all feature flags."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    flags = await _engine(request).list_flags()
+    return JSONResponse([f.model_dump(mode="json") for f in flags])
+
+
+async def get_flag(request: Request) -> JSONResponse:
+    """GET /api/flags/{key} — get a single feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    flag = await _engine(request).get_flag(key)
+    if flag is None:
+        return _err(f"Flag '{key}' not found", 404)
+    return JSONResponse(flag.model_dump(mode="json"))
+
+
+async def create_flag(request: Request) -> JSONResponse:
+    """POST /api/flags — create a new feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    try:
+        from shield.core.feature_flags.models import FeatureFlag
+
+        flag = FeatureFlag.model_validate(body)
+    except Exception as exc:
+        return _err(f"Invalid flag definition: {exc}")
+
+    # Conflict check
+    existing = await _engine(request).get_flag(flag.key)
+    if existing is not None:
+        return _err(f"Flag '{flag.key}' already exists. Use PUT to update.", 409)
+
+    await _engine(request).save_flag(flag)
+    return JSONResponse(flag.model_dump(mode="json"), status_code=201)
+
+
+async def update_flag(request: Request) -> JSONResponse:
+    """PUT /api/flags/{key} — replace a feature flag (full update)."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    # Key in URL must match key in body if provided.
+    if isinstance(body, dict) and body.get("key", key) != key:
+        return _err("Flag key in URL and body must match")
+
+    if isinstance(body, dict):
+        body["key"] = key
+
+    try:
+        from shield.core.feature_flags.models import FeatureFlag
+
+        flag = FeatureFlag.model_validate(body)
+    except Exception as exc:
+        return _err(f"Invalid flag definition: {exc}")
+
+    await _engine(request).save_flag(flag)
+    return JSONResponse(flag.model_dump(mode="json"))
+
+
+async def patch_flag(request: Request) -> JSONResponse:
+    """PATCH /api/flags/{key} — partial update of a feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    flag = await _engine(request).get_flag(key)
+    if flag is None:
+        return _err(f"Flag '{key}' not found", 404)
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+    if not isinstance(body, dict):
+        return _err("Body must be a JSON object")
+
+    # Never allow patching immutable fields
+    for immutable in ("key", "type"):
+        body.pop(immutable, None)
+
+    try:
+        from shield.core.feature_flags.models import FeatureFlag
+
+        # Build updated flag by merging patch onto existing
+        current = flag.model_dump(mode="python")
+        current.update(body)
+        updated = FeatureFlag.model_validate(current)
+    except Exception as exc:
+        return _err(f"Invalid patch: {exc}")
+
+    # Cross-field validation: off_variation and string fallthrough must name
+    # an existing variation (the model doesn't enforce this itself).
+    variation_names = {v.name for v in updated.variations}
+    if updated.off_variation not in variation_names:
+        return _err(f"off_variation '{updated.off_variation}' does not match any variation name")
+    if isinstance(updated.fallthrough, str) and updated.fallthrough not in variation_names:
+        return _err(f"fallthrough '{updated.fallthrough}' does not match any variation name")
+
+    await _engine(request).save_flag(updated)
+    return JSONResponse(updated.model_dump(mode="json"))
+
+
+async def enable_flag(request: Request) -> JSONResponse:
+    """POST /api/flags/{key}/enable — enable a feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    flag = await _engine(request).get_flag(key)
+    if flag is None:
+        return _err(f"Flag '{key}' not found", 404)
+    flag = flag.model_copy(update={"enabled": True})
+    await _engine(request).save_flag(flag)
+    return JSONResponse(flag.model_dump(mode="json"))
+
+
+async def disable_flag(request: Request) -> JSONResponse:
+    """POST /api/flags/{key}/disable — disable a feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    flag = await _engine(request).get_flag(key)
+    if flag is None:
+        return _err(f"Flag '{key}' not found", 404)
+    flag = flag.model_copy(update={"enabled": False})
+    await _engine(request).save_flag(flag)
+    return JSONResponse(flag.model_dump(mode="json"))
+
+
+async def delete_flag(request: Request) -> JSONResponse:
+    """DELETE /api/flags/{key} — delete a feature flag."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    existing = await _engine(request).get_flag(key)
+    if existing is None:
+        return _err(f"Flag '{key}' not found", 404)
+    await _engine(request).delete_flag(key)
+    return JSONResponse({"ok": True, "deleted": key})
+
+
+async def evaluate_flag(request: Request) -> JSONResponse:
+    """POST /api/flags/{key}/evaluate — evaluate a flag for a given context.
+
+    Body: ``{"default": <value>, "context": {"key": "user_1", "attributes": {...}}}``
+
+    Returns the resolved value, variation, reason, and any metadata.
+    Useful for debugging targeting rules from the dashboard or CLI.
+    """
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+
+    flag = await _engine(request).get_flag(key)
+    if flag is None:
+        return _err(f"Flag '{key}' not found", 404)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    ctx_data = body.get("context", {}) if isinstance(body, dict) else {}
+
+    try:
+        from shield.core.feature_flags.evaluator import FlagEvaluator
+        from shield.core.feature_flags.models import EvaluationContext
+
+        ctx = EvaluationContext.model_validate({"key": "anonymous", **ctx_data})
+        engine = _engine(request)
+        # Gather all flags and segments from the engine for prerequisite resolution.
+        all_flags_list = await engine.list_flags()
+        all_flags = {f.key: f for f in all_flags_list}
+        segments_list = await engine.list_segments()
+        segments = {s.key: s for s in segments_list}
+
+        evaluator = FlagEvaluator(segments=segments)
+        result = evaluator.evaluate(flag, ctx, all_flags)
+    except Exception as exc:
+        return _err(f"Evaluation error: {exc}", 500)
+
+    return JSONResponse(
+        {
+            "flag_key": key,
+            "value": result.value,
+            "variation": result.variation,
+            "reason": result.reason.value,
+            "rule_id": result.rule_id,
+            "prerequisite_key": result.prerequisite_key,
+            "error_message": result.error_message,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Segment endpoints
+# ---------------------------------------------------------------------------
+
+
+async def list_segments(request: Request) -> JSONResponse:
+    """GET /api/segments — list all segments."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    segments = await _engine(request).list_segments()
+    return JSONResponse([s.model_dump(mode="json") for s in segments])
+
+
+async def get_segment(request: Request) -> JSONResponse:
+    """GET /api/segments/{key} — get a single segment."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    segment = await _engine(request).get_segment(key)
+    if segment is None:
+        return _err(f"Segment '{key}' not found", 404)
+    return JSONResponse(segment.model_dump(mode="json"))
+
+
+async def create_segment(request: Request) -> JSONResponse:
+    """POST /api/segments — create a new segment."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    try:
+        from shield.core.feature_flags.models import Segment
+
+        segment = Segment.model_validate(body)
+    except Exception as exc:
+        return _err(f"Invalid segment definition: {exc}")
+
+    existing = await _engine(request).get_segment(segment.key)
+    if existing is not None:
+        return _err(f"Segment '{segment.key}' already exists. Use PUT to update.", 409)
+
+    await _engine(request).save_segment(segment)
+    return JSONResponse(segment.model_dump(mode="json"), status_code=201)
+
+
+async def update_segment(request: Request) -> JSONResponse:
+    """PUT /api/segments/{key} — replace a segment (full update)."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    if isinstance(body, dict) and body.get("key", key) != key:
+        return _err("Segment key in URL and body must match")
+
+    if isinstance(body, dict):
+        body["key"] = key
+
+    try:
+        from shield.core.feature_flags.models import Segment
+
+        segment = Segment.model_validate(body)
+    except Exception as exc:
+        return _err(f"Invalid segment definition: {exc}")
+
+    await _engine(request).save_segment(segment)
+    return JSONResponse(segment.model_dump(mode="json"))
+
+
+async def delete_segment(request: Request) -> JSONResponse:
+    """DELETE /api/segments/{key} — delete a segment."""
+    if not _flag_models_available():
+        return _flags_not_installed()
+    key = request.path_params["key"]
+    existing = await _engine(request).get_segment(key)
+    if existing is None:
+        return _err(f"Segment '{key}' not found", 404)
+    await _engine(request).delete_segment(key)
+    return JSONResponse({"ok": True, "deleted": key})

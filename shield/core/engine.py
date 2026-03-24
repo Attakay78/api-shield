@@ -284,6 +284,34 @@ class _SyncProxy:
         """Sync version of :meth:`ShieldEngine.get_audit_log`."""
         return self._run(self._engine.get_audit_log(path=path, limit=limit))
 
+    # ------------------------------------------------------------------
+    # Feature flags
+    # ------------------------------------------------------------------
+
+    @property
+    def flag_client(self) -> Any:
+        """Return the synchronous flag client, or ``None`` if flags are not active.
+
+        Call ``engine.use_openfeature()`` first to activate the flag system.
+
+        Since OpenFeature evaluation is CPU-bound, this client does **not**
+        require a thread bridge — all methods are safe to call directly from
+        a ``def`` handler running in an anyio worker thread.
+
+        Example::
+
+            @router.get("/checkout")
+            def checkout(request: Request):
+                enabled = engine.sync.flag_client.get_boolean_value(
+                    "new_checkout", False, {"targeting_key": request.state.user_id}
+                )
+                return checkout_v2() if enabled else checkout_v1()
+        """
+        fc = self._engine._flag_client
+        if fc is None:
+            return None
+        return fc.sync
+
 
 class ShieldEngine:
     """Central orchestrator — all route lifecycle logic flows through here.
@@ -344,6 +372,10 @@ class ShieldEngine:
         self._global_rate_limit_policy: Any = None  # GlobalRateLimitPolicy | None
         # Sync proxy — created once, reused on every engine.sync access.
         self.sync: _SyncProxy = _SyncProxy(self)
+        # Feature flags — lazily set by use_openfeature().
+        self._flag_provider: Any = None  # ShieldOpenFeatureProvider | None
+        self._flag_client: Any = None  # ShieldFeatureClient | None
+        self._flag_scheduler: Any = None  # FlagScheduler | None (set by use_openfeature)
 
     # ------------------------------------------------------------------
     # Async context manager — calls backend lifecycle hooks
@@ -407,6 +439,19 @@ class ShieldEngine:
                 self._run_rl_policy_listener(),
                 name="shield-rl-policy-listener",
             )
+        if self._flag_provider is not None:
+            # The OpenFeature SDK calls initialize() synchronously at
+            # set_provider() time.  For async overrides the SDK silently
+            # discards the coroutine; engine.start() detects and awaits it.
+            # For sync initialize (including the base-class no-op) the SDK
+            # already ran it, so we skip the redundant call and go straight
+            # to warming the async backend cache.
+            if asyncio.iscoroutinefunction(type(self._flag_provider).initialize):
+                await self._flag_provider.initialize()
+            else:
+                await self._flag_provider._load_all()
+        if self._flag_scheduler is not None:
+            await self._flag_scheduler.start()
 
     async def stop(self) -> None:
         """Cancel background listener tasks and wait for them to finish.
@@ -429,6 +474,157 @@ class ShieldEngine:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._rl_policy_listener_task
             self._rl_policy_listener_task = None
+        if self._flag_scheduler is not None:
+            await self._flag_scheduler.stop()
+        if self._flag_provider is not None:
+            if asyncio.iscoroutinefunction(type(self._flag_provider).shutdown):
+                await self._flag_provider.shutdown()
+            else:
+                self._flag_provider.shutdown()
+
+    # ------------------------------------------------------------------
+    # Feature flags — OpenFeature wiring
+    # ------------------------------------------------------------------
+
+    def use_openfeature(
+        self,
+        provider: Any = None,
+        hooks: list[Any] | None = None,
+        domain: str = "shield",
+    ) -> Any:
+        """Activate the feature flag system backed by this engine's backend.
+
+        Parameters
+        ----------
+        provider:
+            An OpenFeature-compliant provider to use.  Defaults to
+            ``ShieldOpenFeatureProvider(self.backend)`` — the built-in
+            provider backed by the same backend as the engine.
+        hooks:
+            Additional OpenFeature hooks to register globally.  Default
+            hooks (``LoggingHook``) are always added.
+        domain:
+            The OpenFeature domain name for the client.  Defaults to
+            ``"shield"``.
+
+        Returns
+        -------
+        ShieldFeatureClient
+            The feature client ready for flag evaluations.
+
+        Raises
+        ------
+        ImportError
+            When ``api-shield[flags]`` is not installed.
+        """
+        from shield.core.feature_flags._guard import _require_flags
+
+        _require_flags()
+
+        import openfeature.api as of_api
+        from openfeature.hook import Hook
+
+        from shield.core.feature_flags.client import ShieldFeatureClient
+        from shield.core.feature_flags.hooks import LoggingHook
+        from shield.core.feature_flags.provider import ShieldOpenFeatureProvider
+
+        if provider is None:
+            provider = ShieldOpenFeatureProvider(self.backend)
+
+        self._flag_provider = provider
+
+        # Register the provider under the given domain (OpenFeature >=0.8 API).
+        try:
+            of_api.set_provider(provider, domain=domain)
+        except TypeError:
+            # Older openfeature-sdk versions without domain support.
+            of_api.set_provider(provider)
+
+        from shield.core.feature_flags.hooks import MetricsHook
+
+        metrics_hook = MetricsHook()
+
+        # Build the default hook list and merge with any user-supplied hooks.
+        default_hooks: list[Hook] = [LoggingHook(), metrics_hook]
+        all_hooks = default_hooks + (hooks or [])
+        of_api.add_hooks(all_hooks)
+
+        # Create and cache the client.
+        self._flag_client = ShieldFeatureClient(domain=domain)
+
+        # Create the scheduler (start() is called later in engine.start()).
+        from shield.core.feature_flags.scheduler import FlagScheduler
+
+        self._flag_scheduler = FlagScheduler(self)
+
+        return self._flag_client
+
+    @property
+    def flag_client(self) -> Any:
+        """Return the active ``ShieldFeatureClient``, or ``None`` if not configured.
+
+        Call ``engine.use_openfeature()`` first to activate the flag system.
+        """
+        return self._flag_client
+
+    @property
+    def flag_scheduler(self) -> Any:
+        """Return the active ``FlagScheduler``, or ``None`` if not configured."""
+        return self._flag_scheduler
+
+    # ------------------------------------------------------------------
+    # Feature flag CRUD — single chokepoint for flag + segment operations
+    # ------------------------------------------------------------------
+
+    async def list_flags(self) -> list[Any]:
+        """Return all feature flags from the provider cache (or backend)."""
+        if self._flag_provider is not None:
+            return list(self._flag_provider._flags.values())
+        return await self.backend.load_all_flags()
+
+    async def get_flag(self, key: str) -> Any:
+        """Return a single ``FeatureFlag`` by *key*, or ``None`` if not found."""
+        if self._flag_provider is not None:
+            return self._flag_provider._flags.get(key)
+        flags = await self.backend.load_all_flags()
+        return next((f for f in flags if f.key == key), None)
+
+    async def save_flag(self, flag: Any) -> None:
+        """Persist *flag* to the backend and update the provider cache."""
+        await self.backend.save_flag(flag)
+        if self._flag_provider is not None:
+            self._flag_provider.upsert_flag(flag)
+
+    async def delete_flag(self, key: str) -> None:
+        """Delete a flag by *key* from the backend and provider cache."""
+        await self.backend.delete_flag(key)
+        if self._flag_provider is not None:
+            self._flag_provider.delete_flag(key)
+
+    async def list_segments(self) -> list[Any]:
+        """Return all segments from the provider cache (or backend)."""
+        if self._flag_provider is not None:
+            return list(self._flag_provider._segments.values())
+        return await self.backend.load_all_segments()
+
+    async def get_segment(self, key: str) -> Any:
+        """Return a single ``Segment`` by *key*, or ``None`` if not found."""
+        if self._flag_provider is not None:
+            return self._flag_provider._segments.get(key)
+        segments = await self.backend.load_all_segments()
+        return next((s for s in segments if s.key == key), None)
+
+    async def save_segment(self, segment: Any) -> None:
+        """Persist *segment* to the backend and update the provider cache."""
+        await self.backend.save_segment(segment)
+        if self._flag_provider is not None:
+            self._flag_provider.upsert_segment(segment)
+
+    async def delete_segment(self, key: str) -> None:
+        """Delete a segment by *key* from the backend and provider cache."""
+        await self.backend.delete_segment(key)
+        if self._flag_provider is not None:
+            self._flag_provider.delete_segment(key)
 
     async def _run_global_config_listener(self) -> None:
         """Background coroutine: invalidate the global config cache on remote changes.

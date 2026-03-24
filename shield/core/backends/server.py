@@ -96,6 +96,11 @@ class ShieldServerBackend(ShieldBackend):
         self._rl_policy_cache: dict[str, dict[str, Any]] = {}
         self._rl_policy_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
 
+        # Local feature flag / segment cache (populated by SSE flag events).
+        self._flag_cache: dict[str, Any] = {}  # key → FeatureFlag raw dict
+        self._segment_cache: dict[str, Any] = {}  # key → Segment raw dict
+        self._flag_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
+
         self._client: httpx.AsyncClient | None = None
         self._sse_task: asyncio.Task[None] | None = None
 
@@ -368,6 +373,64 @@ class ShieldServerBackend(ShieldBackend):
                             "ShieldServerBackend[%s]: RL policy deleted — %s", self._app_id, key
                         )
 
+                elif event_type == "flag_updated":
+                    key = envelope.get("key", "")
+                    flag_data = envelope.get("flag")
+                    if key and flag_data is not None:
+                        self._flag_cache[key] = flag_data
+                        flag_event: dict[str, Any] = {
+                            "type": "flag_updated",
+                            "key": key,
+                            "flag": flag_data,
+                        }
+                        for q in self._flag_subscribers:
+                            q.put_nowait(flag_event)
+                        logger.debug(
+                            "ShieldServerBackend[%s]: flag cache updated — %s",
+                            self._app_id,
+                            key,
+                        )
+
+                elif event_type == "flag_deleted":
+                    key = envelope.get("key", "")
+                    if key:
+                        self._flag_cache.pop(key, None)
+                        flag_del_event: dict[str, Any] = {"type": "flag_deleted", "key": key}
+                        for q in self._flag_subscribers:
+                            q.put_nowait(flag_del_event)
+                        logger.debug(
+                            "ShieldServerBackend[%s]: flag deleted — %s", self._app_id, key
+                        )
+
+                elif event_type == "segment_updated":
+                    key = envelope.get("key", "")
+                    seg_data = envelope.get("segment")
+                    if key and seg_data is not None:
+                        self._segment_cache[key] = seg_data
+                        seg_event: dict[str, Any] = {
+                            "type": "segment_updated",
+                            "key": key,
+                            "segment": seg_data,
+                        }
+                        for q in self._flag_subscribers:
+                            q.put_nowait(seg_event)
+                        logger.debug(
+                            "ShieldServerBackend[%s]: segment cache updated — %s",
+                            self._app_id,
+                            key,
+                        )
+
+                elif event_type == "segment_deleted":
+                    key = envelope.get("key", "")
+                    if key:
+                        self._segment_cache.pop(key, None)
+                        seg_del_event: dict[str, Any] = {"type": "segment_deleted", "key": key}
+                        for q in self._flag_subscribers:
+                            q.put_nowait(seg_del_event)
+                        logger.debug(
+                            "ShieldServerBackend[%s]: segment deleted — %s", self._app_id, key
+                        )
+
                 else:
                     # Legacy plain-RouteState payload (old server without typed envelopes).
                     try:
@@ -537,4 +600,36 @@ class ShieldServerBackend(ShieldBackend):
             while True:
                 yield await queue.get()
         finally:
-            self._rl_policy_subscribers.remove(queue)
+            with contextlib.suppress(ValueError):
+                self._rl_policy_subscribers.remove(queue)
+
+    async def subscribe_flag_changes(self) -> AsyncIterator[dict[str, Any]]:
+        """Yield feature flag / segment change events pushed via the SSE connection.
+
+        Each yielded dict has one of these shapes::
+
+            {"type": "flag_updated",    "key": "my-flag",  "flag": {...}}
+            {"type": "flag_deleted",    "key": "my-flag"}
+            {"type": "segment_updated", "key": "my-seg",   "segment": {...}}
+            {"type": "segment_deleted", "key": "my-seg"}
+        """
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._flag_subscribers.append(queue)
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            with contextlib.suppress(ValueError):
+                self._flag_subscribers.remove(queue)
+
+    # ------------------------------------------------------------------
+    # Feature flag storage — returns locally cached data fetched via SSE
+    # ------------------------------------------------------------------
+
+    async def load_all_flags(self) -> list[Any]:
+        """Return all feature flags cached from the Shield Server."""
+        return list(self._flag_cache.values())
+
+    async def load_all_segments(self) -> list[Any]:
+        """Return all segments cached from the Shield Server."""
+        return list(self._segment_cache.values())

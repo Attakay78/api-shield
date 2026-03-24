@@ -11,6 +11,7 @@ from shield.core.models import RouteStatus
 from shield.fastapi.decorators import deprecated
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _build_app(env: str = "dev") -> tuple[FastAPI, ShieldEngine]:
@@ -82,7 +83,7 @@ async def test_deprecated_registers_with_router():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     # @router.get() registers "GET:/v1/users" (method-specific key)
     state = await engine.backend.get_state("GET:/v1/users")
@@ -106,7 +107,7 @@ async def test_deprecated_route_still_returns_200():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v1/users")
@@ -124,7 +125,7 @@ async def test_deprecated_injects_deprecation_header():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v1/users")
@@ -142,7 +143,7 @@ async def test_deprecated_injects_sunset_header():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v1/users")
@@ -160,7 +161,7 @@ async def test_deprecated_injects_link_header_when_successor_set():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v1/users")
@@ -180,7 +181,7 @@ async def test_deprecated_no_link_header_without_successor():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v1/items")
@@ -220,7 +221,7 @@ async def test_deprecated_marked_in_openapi():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()

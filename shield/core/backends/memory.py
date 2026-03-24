@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict, deque
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -69,7 +70,7 @@ class MemoryBackend(ShieldBackend):
         """Persist *state* for *path* and notify any subscribers."""
         self._states[path] = state
         for queue in self._subscribers:
-            await queue.put(state)
+            queue.put_nowait(state)
 
     async def delete_state(self, path: str) -> None:
         """Remove state for *path*. No-op if not registered."""
@@ -120,7 +121,8 @@ class MemoryBackend(ShieldBackend):
                 state = await queue.get()
                 yield state
         finally:
-            self._subscribers.remove(queue)
+            with contextlib.suppress(ValueError):
+                self._subscribers.remove(queue)
 
     async def write_rate_limit_hit(self, hit: RateLimitHit) -> None:
         """Append a rate limit hit record, evicting the oldest when the cap is reached."""
@@ -155,7 +157,7 @@ class MemoryBackend(ShieldBackend):
         self._rl_policies[key] = policy_data
         event: dict[str, Any] = {"action": "set", "key": key, "policy": policy_data}
         for q in self._rl_policy_subscribers:
-            await q.put(event)
+            q.put_nowait(event)
 
     async def get_rate_limit_policies(self) -> list[dict[str, Any]]:
         """Return all persisted rate limit policies."""
@@ -167,7 +169,7 @@ class MemoryBackend(ShieldBackend):
         self._rl_policies.pop(key, None)
         event: dict[str, Any] = {"action": "delete", "key": key}
         for q in self._rl_policy_subscribers:
-            await q.put(event)
+            q.put_nowait(event)
 
     async def subscribe_rate_limit_policy(self) -> AsyncIterator[dict[str, Any]]:
         """Yield rate limit policy change events as they occur."""
@@ -177,4 +179,5 @@ class MemoryBackend(ShieldBackend):
             while True:
                 yield await queue.get()
         finally:
-            self._rl_policy_subscribers.remove(queue)
+            with contextlib.suppress(ValueError):
+                self._rl_policy_subscribers.remove(queue)

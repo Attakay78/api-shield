@@ -8,13 +8,13 @@ independently or together.
 This file defines THREE separate ASGI apps.  Run each in its own terminal:
 
   Shield Server (port 8001):
-    uv run uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
+    uv run --with uvicorn uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
 
   Payments service (port 8000):
-    uv run uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
+    uv run --with uvicorn uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
 
   Orders service (port 8002):
-    uv run uvicorn examples.fastapi.multi_service:orders_app --port 8002 --reload
+    uv run --with uvicorn uvicorn examples.fastapi.multi_service:orders_app --port 8002 --reload
 
 Then visit:
     http://localhost:8001/           — Shield dashboard (admin / secret)
@@ -98,6 +98,7 @@ from shield.fastapi import (
     disabled,
     force_active,
     maintenance,
+    setup_shield_docs,
 )
 from shield.sdk import ShieldSDK
 from shield.server import ShieldServer
@@ -134,6 +135,8 @@ shield_app = ShieldServer(
 payments_sdk = ShieldSDK(
     server_url="http://localhost:8001",
     app_id="payments-service",
+    username="admin",
+    password="secret",
     # Auto-login (recommended): SDK obtains a 1-year sdk-platform token on startup.
     # username="admin",   # inject from env: os.environ["SHIELD_USERNAME"]
     # password="secret",  # inject from env: os.environ["SHIELD_PASSWORD"]
@@ -201,6 +204,7 @@ async def v2_invoices():
 
 payments_app.include_router(payments_router)
 apply_shield_to_openapi(payments_app, payments_sdk.engine)
+setup_shield_docs(payments_app, payments_sdk.engine)
 
 # ---------------------------------------------------------------------------
 # Orders Service (port 8002)
@@ -213,6 +217,8 @@ apply_shield_to_openapi(payments_app, payments_sdk.engine)
 orders_sdk = ShieldSDK(
     server_url="http://localhost:8001",
     app_id="orders-service",
+    username="admin",
+    password="secret",
     # Auto-login (recommended): SDK obtains a 1-year sdk-platform token on startup.
     # username="admin",   # inject from env: os.environ["SHIELD_USERNAME"]
     # password="secret",  # inject from env: os.environ["SHIELD_PASSWORD"]
@@ -278,6 +284,7 @@ async def get_cart():
 
 orders_app.include_router(orders_router)
 apply_shield_to_openapi(orders_app, orders_sdk.engine)
+setup_shield_docs(orders_app, orders_sdk.engine)
 
 # ---------------------------------------------------------------------------
 # CLI reference — multi-service workflow

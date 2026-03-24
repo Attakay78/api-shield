@@ -129,6 +129,48 @@ class ShieldSDK:
         """
         return self._engine
 
+    def use_openfeature(
+        self,
+        hooks: list[Any] | None = None,
+        domain: str = "shield",
+    ) -> None:
+        """Enable OpenFeature feature-flag evaluation for this SDK client.
+
+        Must be called **before** :meth:`attach`.
+
+        Activates :class:`~shield.sdk.flag_provider.ShieldSDKFlagProvider`
+        which:
+
+        * On startup fetches all flags/segments from the Shield Server via
+          ``GET /api/flags`` and ``GET /api/segments``.
+        * Stays current by listening to ``flag_updated``, ``flag_deleted``,
+          ``segment_updated``, and ``segment_deleted`` events on the
+          existing SSE connection — no extra network connections needed.
+
+        Usage::
+
+            sdk = ShieldSDK(server_url="http://shield:9000", app_id="my-svc")
+            sdk.use_openfeature()
+            sdk.attach(app)
+
+            # Evaluate anywhere via the engine's flag client:
+            value = await sdk.engine.flag_client.get_boolean_value(
+                "my-flag", default_value=False
+            )
+
+        Parameters
+        ----------
+        hooks:
+            Optional list of OpenFeature :class:`Hook` objects to register
+            globally for this provider.
+        domain:
+            OpenFeature provider domain name (default ``"shield"``).
+        """
+        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+
+        provider = ShieldSDKFlagProvider(self._backend)
+        self._engine.use_openfeature(provider=provider, hooks=hooks, domain=domain)
+
     def attach(self, app: FastAPI) -> None:
         """Wire shield middleware and lifecycle hooks into *app*.
 
