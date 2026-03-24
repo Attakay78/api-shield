@@ -1,6 +1,6 @@
 [project]
 name = "api-shield"
-version = "0.7.0"
+version = "0.8.0"
 description = "Route lifecycle management for APIs — maintenance mode, env gating, deprecation, and more"
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.0",
     "anyio>=4.0",
-    "starlette>=0.27",
+    "starlette>=0.40",
 ]
 
 [project.urls]
@@ -33,7 +33,7 @@ Repository = "https://github.com/Attakay78/api-shield"
 Issues = "https://github.com/Attakay78/api-shield/issues"
 
 [project.optional-dependencies]
-fastapi   = ["fastapi>=0.100"]
+fastapi   = ["fastapi>=0.115"]
 redis     = ["redis[asyncio]>=5.0"]
 dashboard = [
     "jinja2>=3.1",
@@ -49,8 +49,12 @@ admin     = [
 yaml      = ["pyyaml>=6.0"]
 toml      = ["tomli-w>=1.0"]
 rate-limit = ["limits>=5.8.0"]
+flags     = [
+    "openfeature-sdk>=0.8",
+    "packaging>=23.0",
+]
 all       = [
-    "fastapi>=0.100",
+    "fastapi>=0.115",
     "redis[asyncio]>=5.0",
     "jinja2>=3.1",
     "aiofiles>=23.0",
@@ -61,6 +65,8 @@ all       = [
     "tomli-w>=1.0",
     "python-multipart>=0.0.22",
     "limits>=5.8.0",
+    "openfeature-sdk>=0.8",
+    "packaging>=23.0",
 ]
 docs = [
     "mkdocs-material>=9.5",
@@ -75,11 +81,13 @@ dev = [
     "ruff",
     "mypy",
     "aiofiles>=23.0",
-    "fastapi>=0.100",
+    "fastapi>=0.115",
     "pre-commit>=3.7",
     "tomli-w>=1.0",
     "pyyaml>=6.0",
     "limits>=5.8.0",
+    "openfeature-sdk>=0.8",
+    "packaging>=23.0",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.25",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
@@ -105,6 +113,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"shield/core/feature_flags/__init__.py" = ["E402"]
+"shield/core/feature_flags/hooks.py" = ["E402"]
+"shield/core/feature_flags/provider.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"

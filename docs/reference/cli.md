@@ -51,7 +51,52 @@ shield logout
 
 ---
 
+## Multi-service commands
+
+### `shield services`
+
+List all distinct service names registered with the Shield Server. Use this to discover which services are currently connected before switching context with `SHIELD_SERVICE`.
+
+```bash
+shield services
+```
+
+---
+
+### `shield current-service`
+
+Show the active service context (the value of the `SHIELD_SERVICE` environment variable). Useful for confirming which service subsequent commands will target.
+
+```bash
+shield current-service
+```
+
+**When `SHIELD_SERVICE` is set:**
+
+```
+Active service: payments-service  (from SHIELD_SERVICE)
+```
+
+**When `SHIELD_SERVICE` is not set:**
+
+```
+No active service set.
+Set one with: export SHIELD_SERVICE=<service-name>
+```
+
+---
+
 ## Route commands
+
+Route commands accept an optional `--service` flag to scope to a specific service. All five commands also read the `SHIELD_SERVICE` environment variable as a fallback — an explicit `--service` flag always wins.
+
+```bash
+export SHIELD_SERVICE=payments-service   # set once
+shield status                            # scoped to payments-service
+shield enable GET:/payments              # scoped to payments-service
+unset SHIELD_SERVICE
+shield status --service orders-service   # explicit flag, no env var needed
+```
 
 ### `shield status`
 
@@ -62,12 +107,14 @@ shield status                          # all routes, page 1
 shield status GET:/payments            # one route
 shield status --page 2                 # next page
 shield status --per-page 50           # 50 rows per page
+shield status --service payments-service  # scope to one service
 ```
 
 | Option | Description |
 |---|---|
 | `--page INT` | Page number to display when listing all routes (default: 1) |
 | `--per-page INT` | Rows per page (default: 20) |
+| `--service TEXT` | Filter to a specific service. Falls back to `SHIELD_SERVICE` env var. |
 
 **Example output:**
 
@@ -90,7 +137,12 @@ Restore a route to `ACTIVE`. Works regardless of the current status.
 
 ```bash
 shield enable GET:/payments
+shield enable GET:/payments --service payments-service
 ```
+
+| Option | Description |
+|---|---|
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -102,12 +154,14 @@ Permanently disable a route. Returns 503 to all callers.
 shield disable GET:/payments
 shield disable GET:/payments --reason "Use /v2/payments instead"
 shield disable GET:/payments --reason "hotfix" --until 2h
+shield disable GET:/payments --service payments-service --reason "hotfix"
 ```
 
 | Option | Description |
 |---|---|
 | `--reason TEXT` | Reason shown in error responses and recorded in the audit log |
 | `--until DURATION` | Automatically re-enable after this duration. Accepts `2h`, `30m`, `1d`, or an ISO 8601 datetime. |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -117,6 +171,7 @@ Put a route in maintenance mode. Optionally schedule automatic activation and de
 
 ```bash
 shield maintenance GET:/payments --reason "DB swap"
+shield maintenance GET:/payments --service payments-service --reason "DB swap"
 ```
 
 ```bash
@@ -132,6 +187,7 @@ shield maintenance GET:/payments \
 | `--reason TEXT` | Shown in the 503 error response |
 | `--start DATETIME` | Start of the maintenance window (ISO 8601). Maintenance activates automatically at this time. |
 | `--end DATETIME` | End of the maintenance window. Sets the `Retry-After` header and restores `ACTIVE` automatically. |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -144,6 +200,8 @@ shield schedule GET:/payments \
   --start 2025-06-01T02:00Z \
   --end   2025-06-01T04:00Z \
   --reason "Planned migration"
+shield schedule GET:/payments --service payments-service \
+  --start 2025-06-01T02:00Z --end 2025-06-01T04:00Z
 ```
 
 | Option | Description |
@@ -151,6 +209,7 @@ shield schedule GET:/payments \
 | `--start DATETIME` | When to activate maintenance (ISO 8601, required) |
 | `--end DATETIME` | When to restore the route to `ACTIVE` (ISO 8601, required) |
 | `--reason TEXT` | Reason shown in the 503 response during the window |
+| `--service TEXT` | Target service. Falls back to `SHIELD_SERVICE` env var. |
 
 ---
 
@@ -219,6 +278,75 @@ Remove a path from the exemption list.
 
 ```bash
 shield global exempt-remove /monitoring/ping
+```
+
+---
+
+## `shield sm` / `shield service-maintenance`
+
+`shield sm` and `shield service-maintenance` are aliases for the same command group. Puts all routes of one service into maintenance mode without affecting other services. The affected SDK client's `app_id` must match the service name.
+
+```bash
+shield sm enable payments-service --reason "DB migration"
+shield service-maintenance enable payments-service   # identical
+```
+
+### `shield sm status`
+
+Show the current maintenance configuration for a service.
+
+```bash
+shield sm status <service>
+```
+
+```bash
+shield sm status payments-service
+```
+
+**Example output:**
+
+```
+  Service maintenance (payments-service): ON
+  Reason               : DB migration
+  Include @force_active: no
+  Exempt paths         :
+    • /health
+```
+
+---
+
+### `shield sm enable`
+
+Block all routes of a service immediately. Routes return `503` until `shield sm disable` is called.
+
+```bash
+shield sm enable <service>
+```
+
+```bash
+shield sm enable payments-service --reason "DB migration"
+shield sm enable payments-service --reason "Upgrade" --exempt /health --exempt GET:/ready
+shield sm enable orders-service --include-force-active
+```
+
+| Option | Description |
+|---|---|
+| `--reason TEXT` | Shown in every 503 response while maintenance is active |
+| `--exempt PATH` | Exempt a path from the block (repeatable). Use bare `/health` or `GET:/health`. |
+| `--include-force-active` | Also block `@force_active` routes. Use with care. |
+
+---
+
+### `shield sm disable`
+
+Restore all routes of a service to their individual states.
+
+```bash
+shield sm disable <service>
+```
+
+```bash
+shield sm disable payments-service
 ```
 
 ---
@@ -391,11 +519,105 @@ shield grl disable
 
 ---
 
+## `shield srl` / `shield service-rate-limit`
+
+`shield srl` and `shield service-rate-limit` are aliases for the same command group. Manages the rate limit policy for a single service — applies to all routes of that service. Requires `api-shield[rate-limit]` on the server.
+
+```bash
+shield srl get payments-service
+shield service-rate-limit get payments-service   # identical
+```
+
+### `shield srl get`
+
+Show the current rate limit policy for a service, including limit, algorithm, key strategy, burst, exempt routes, and enabled state.
+
+```bash
+shield srl get <service>
+```
+
+```bash
+shield srl get payments-service
+```
+
+---
+
+### `shield srl set`
+
+Configure the rate limit for a service. Creates a new policy or replaces the existing one.
+
+```bash
+shield srl set <service> <limit>
+```
+
+```bash
+shield srl set payments-service 1000/minute
+shield srl set payments-service 500/minute --algorithm sliding_window --key ip
+shield srl set payments-service 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
+```
+
+| Option | Description |
+|---|---|
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
+| `--burst INT` | Extra requests above the base limit |
+| `--exempt TEXT` | Exempt route (repeatable). Bare path (`/health`) or method-prefixed (`GET:/metrics`) |
+
+---
+
+### `shield srl delete`
+
+Remove the service rate limit policy entirely.
+
+```bash
+shield srl delete <service>
+```
+
+```bash
+shield srl delete payments-service
+```
+
+---
+
+### `shield srl reset`
+
+Clear all counters for the service. The policy is kept; clients get their full quota back on the next request.
+
+```bash
+shield srl reset <service>
+```
+
+```bash
+shield srl reset payments-service
+```
+
+---
+
+### `shield srl enable`
+
+Resume a paused service rate limit policy.
+
+```bash
+shield srl enable <service>
+```
+
+---
+
+### `shield srl disable`
+
+Pause the service rate limit without removing it. Per-route policies continue to enforce normally.
+
+```bash
+shield srl disable <service>
+```
+
+---
+
 ## Audit log
 
 ### `shield log`
 
-Display the audit log, newest entries first. The `Status` column shows `old > new` for route state changes and a coloured action label for rate limit policy changes (including global RL actions such as `global set`, `global reset`, `global enabled`, `global disabled`).
+Display the audit log, newest entries first. The `Status` column shows `old > new` for route state changes and a coloured action label for rate limit policy changes (including global RL actions such as `global set`, `global reset`, `global enabled`, `global disabled`, and service RL actions such as `svc set`, `svc reset`, `svc enabled`, `svc disabled`). The `Path` column shows human-readable labels for sentinel-keyed entries: `[Global Maintenance]`, `[Global Rate Limit]`, `[{service} Maintenance]`, and `[{service} Rate Limit]`.
 
 ```bash
 shield log                          # page 1, 20 rows

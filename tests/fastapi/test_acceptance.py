@@ -24,6 +24,7 @@ from shield.fastapi import (
     force_active,
     maintenance,
 )
+from tests.fastapi._helpers import _trigger_startup
 
 
 @pytest.fixture
@@ -59,7 +60,7 @@ async def acceptance_app():
     app.include_router(router)
     apply_shield_to_openapi(app, engine)
 
-    await app.router.startup()
+    await _trigger_startup(app)
     return app, engine
 
 

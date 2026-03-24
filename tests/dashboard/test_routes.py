@@ -320,8 +320,11 @@ async def test_sse_keepalive_when_subscribe_unsupported() -> None:
         request = Request(scope)
         response = await r.events(request)
 
-        # Patch anyio.sleep to return immediately so the keepalive fires instantly.
-        with unittest.mock.patch("shield.dashboard.routes.anyio.sleep", return_value=None):
+        # Patch anyio.sleep to return immediately and simulate connected client.
+        with (
+            unittest.mock.patch("shield.dashboard.routes.anyio.sleep", return_value=None),
+            unittest.mock.patch.object(request, "is_disconnected", return_value=False),
+        ):
             gen = response.body_iterator  # type: ignore[union-attr]
             first_chunk = await asyncio.wait_for(gen.__anext__(), timeout=2.0)  # type: ignore[union-attr]
 

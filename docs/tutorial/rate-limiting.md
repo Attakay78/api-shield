@@ -375,6 +375,61 @@ shield rl delete GET:/public/posts                      # remove persisted overr
 !!! note "Decorator metadata is the initial state"
     The limit declared in `@rate_limit(...)` is the startup default. If a policy is mutated at runtime and persisted (file or Redis backend), the persisted value takes effect on restart, just like route state.
 
+!!! note "Route must exist"
+    `shield rl set` (and `engine.set_rate_limit_policy()`) validate that the route is registered before saving the policy. If the route does not exist, the CLI prints an error and no policy is created. This prevents phantom policies for typos or stale routes.
+
+!!! tip "SDK clients receive changes in real time"
+    When using Shield Server + ShieldSDK, policies set via `shield rl set` or the dashboard are broadcast over the SSE stream as typed `rl_policy` events and applied to every connected SDK client immediately — no restart required. The propagation delay is the SSE round-trip (typically under 5 ms on a LAN).
+
+---
+
+## Setting limits from the dashboard (Unprotected Routes)
+
+The **Rate Limits** tab in the admin dashboard (`/shield/rate-limits`) includes an **Unprotected Routes** section that lists every registered route that currently has no rate limit policy. This is useful for:
+
+- Auditing which routes are exposed without throttling
+- Adding limits to routes that were not annotated with `@rate_limit` at deploy time
+
+Each row has an **Add Limit** button that opens a modal where you can configure:
+
+| Field | Description |
+|---|---|
+| Limit | Limit string, e.g. `100/minute` |
+| Algorithm | `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| Key strategy | `ip`, `user`, `api_key`, `global` |
+| Burst | Extra requests above the base limit |
+
+The HTTP method is read directly from the route key and shown in the modal header — no separate field to fill in.
+
+Submitting the form calls `POST /api/rate-limits` under the hood and redirects back to the Rate Limits page with the new policy visible immediately. The policy behaves identically to one declared with `@rate_limit` — it is persisted, survives restarts (on file or Redis backends), and propagates to SDK clients via SSE.
+
+---
+
+## Per-service rate limit (multi-service)
+
+When running multiple services with Shield Server and `ShieldSDK`, you can set a rate limit that applies to **every route of one service** without decorating individual handlers.
+
+```bash
+# Cap all payments-service routes at 1000 per minute per IP
+shield srl set payments-service 1000/minute
+
+# Shared counter across all callers
+shield srl set payments-service 5000/hour --key global
+
+# Pause and resume enforcement
+shield srl disable payments-service
+shield srl enable  payments-service
+
+# Clear counters (policy stays in place)
+shield srl reset payments-service
+```
+
+The service rate limit sits between the all-services global rate limit (`shield grl`) and individual per-route limits. A request passes through all three layers in order before reaching the handler. You can configure any combination of the three independently.
+
+From the dashboard: open the **Rate Limits** tab and filter to a service. A **Service Rate Limit** card appears above the policies table with controls to configure, pause, reset, and remove the policy.
+
+See [Per-service rate limit reference](../reference/rate-limiting.md#per-service-rate-limit) and the [`shield srl` CLI reference](../reference/cli.md#shield-srl--shield-service-rate-limit) for the full API.
+
 ---
 
 ## Blocked requests log

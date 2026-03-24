@@ -26,6 +26,7 @@ from shield.core.models import RouteStatus
 from shield.fastapi.decorators import disabled, env_only, force_active, maintenance
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _make_app(env: str = "dev") -> tuple[FastAPI, ShieldEngine]:
@@ -170,7 +171,7 @@ async def test_shield_router_with_prefix_middleware_enforces_state():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/api/invoices")
@@ -192,7 +193,7 @@ async def test_shield_router_with_prefix_active_route_passes():
         return {"users": []}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/v2/users")
@@ -218,7 +219,7 @@ async def test_prefixed_shield_router_parameterised_route():
         return {"item_id": item_id}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
 
     # Both the registered key and the middleware lookup must use the full
     # template: GET:/api/items/{item_id}

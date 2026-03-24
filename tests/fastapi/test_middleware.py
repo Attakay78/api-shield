@@ -18,6 +18,7 @@ from shield.core.models import MaintenanceWindow
 from shield.fastapi.decorators import disabled, env_only, force_active, maintenance
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _build_app(env: str = "dev") -> tuple[FastAPI, ShieldEngine]:
@@ -34,7 +35,7 @@ def _include(app: FastAPI, router: ShieldRouter) -> None:
 
 
 async def _startup(app: FastAPI) -> None:
-    await app.router.startup()
+    await _trigger_startup(app)
 
 
 # ---------------------------------------------------------------------------

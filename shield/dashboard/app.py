@@ -65,6 +65,35 @@ def ShieldDashboard(
     templates.env.filters["encode_path"] = lambda p: (
         base64.urlsafe_b64encode(p.encode()).decode().rstrip("=")
     )
+
+    def _clean_path(state: object) -> str:
+        svc = getattr(state, "service", None)
+        raw = getattr(state, "path", "")
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    def _clean_entry_path(entry: object) -> str:
+        svc = getattr(entry, "service", None)
+        raw = getattr(entry, "path", "")
+        # Translate internal sentinel keys to human-friendly labels
+        if raw == "__global__":
+            return "[Global Maintenance]"
+        if raw == "__global_rl__":
+            return "[Global Rate Limit]"
+        if raw.startswith("__shield:svc_global:") and raw.endswith("__"):
+            name = raw[len("__shield:svc_global:") : -2]
+            return f"[{name} Maintenance]"
+        if raw.startswith("__shield:svc_rl:") and raw.endswith("__"):
+            name = raw[len("__shield:svc_rl:") : -2]
+            return f"[{name} Rate Limit]"
+        if svc and raw.startswith(f"{svc}:"):
+            return raw[len(svc) + 1 :]
+        return raw
+
+    templates.env.filters["clean_path"] = _clean_path
+    templates.env.filters["clean_entry_path"] = _clean_entry_path
+
     # Expose path_slug as a global so templates can call it without import.
     templates.env.globals["path_slug"] = r.path_slug
 
@@ -80,9 +109,13 @@ def ShieldDashboard(
             Route("/routes", r.routes_partial),
             Route("/modal/global/enable", r.modal_global_enable),
             Route("/modal/global/disable", r.modal_global_disable),
+            Route("/modal/service/enable", r.modal_service_enable),
+            Route("/modal/service/disable", r.modal_service_disable),
             Route("/modal/{action}/{path_key}", r.action_modal),
             Route("/global-maintenance/enable", r.global_maintenance_enable, methods=["POST"]),
             Route("/global-maintenance/disable", r.global_maintenance_disable, methods=["POST"]),
+            Route("/service-maintenance/enable", r.service_maintenance_enable, methods=["POST"]),
+            Route("/service-maintenance/disable", r.service_maintenance_disable, methods=["POST"]),
             Route("/toggle/{path_key}", r.toggle, methods=["POST"]),
             Route("/disable/{path_key}", r.disable, methods=["POST"]),
             Route("/enable/{path_key}", r.enable, methods=["POST"]),

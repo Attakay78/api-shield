@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict, deque
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -52,6 +53,8 @@ class MemoryBackend(ShieldBackend):
         self._rl_hits_by_path: defaultdict[str, list[RateLimitHit]] = defaultdict(list)
         # Rate limit policy store — keyed "METHOD:/path" → policy dict.
         self._rl_policies: dict[str, dict[str, Any]] = {}
+        # Subscribers for rate limit policy changes.
+        self._rl_policy_subscribers: list[asyncio.Queue[dict[str, Any]]] = []
 
     async def get_state(self, path: str) -> RouteState:
         """Return the current state for *path*.
@@ -67,7 +70,7 @@ class MemoryBackend(ShieldBackend):
         """Persist *state* for *path* and notify any subscribers."""
         self._states[path] = state
         for queue in self._subscribers:
-            await queue.put(state)
+            queue.put_nowait(state)
 
     async def delete_state(self, path: str) -> None:
         """Remove state for *path*. No-op if not registered."""
@@ -118,7 +121,8 @@ class MemoryBackend(ShieldBackend):
                 state = await queue.get()
                 yield state
         finally:
-            self._subscribers.remove(queue)
+            with contextlib.suppress(ValueError):
+                self._subscribers.remove(queue)
 
     async def write_rate_limit_hit(self, hit: RateLimitHit) -> None:
         """Append a rate limit hit record, evicting the oldest when the cap is reached."""
@@ -148,13 +152,32 @@ class MemoryBackend(ShieldBackend):
     async def set_rate_limit_policy(
         self, path: str, method: str, policy_data: dict[str, Any]
     ) -> None:
-        """Persist *policy_data* for *path*/*method*."""
-        self._rl_policies[f"{method.upper()}:{path}"] = policy_data
+        """Persist *policy_data* for *path*/*method* and notify subscribers."""
+        key = f"{method.upper()}:{path}"
+        self._rl_policies[key] = policy_data
+        event: dict[str, Any] = {"action": "set", "key": key, "policy": policy_data}
+        for q in self._rl_policy_subscribers:
+            q.put_nowait(event)
 
     async def get_rate_limit_policies(self) -> list[dict[str, Any]]:
         """Return all persisted rate limit policies."""
         return list(self._rl_policies.values())
 
     async def delete_rate_limit_policy(self, path: str, method: str) -> None:
-        """Remove the persisted rate limit policy for *path*/*method*."""
-        self._rl_policies.pop(f"{method.upper()}:{path}", None)
+        """Remove the persisted rate limit policy for *path*/*method* and notify subscribers."""
+        key = f"{method.upper()}:{path}"
+        self._rl_policies.pop(key, None)
+        event: dict[str, Any] = {"action": "delete", "key": key}
+        for q in self._rl_policy_subscribers:
+            q.put_nowait(event)
+
+    async def subscribe_rate_limit_policy(self) -> AsyncIterator[dict[str, Any]]:
+        """Yield rate limit policy change events as they occur."""
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._rl_policy_subscribers.append(queue)
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            with contextlib.suppress(ValueError):
+                self._rl_policy_subscribers.remove(queue)

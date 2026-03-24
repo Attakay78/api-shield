@@ -167,6 +167,17 @@ class ShieldBackend(ABC):
         # Unreachable — makes this a valid async generator return type.
         yield
 
+    async def get_registered_paths(self) -> set[str]:
+        """Return the set of all registered path keys for deduplication.
+
+        Used by ``ShieldEngine.register_batch()`` to detect already-registered
+        routes without re-querying the full state list.  The default
+        implementation derives the set from ``list_states()``; backends that
+        store routes under transformed keys (e.g. ``ShieldServerBackend`` which
+        adds a service prefix) should override this to return local/plain keys.
+        """
+        return {s.path for s in await self.list_states()}
+
     # ------------------------------------------------------------------
     # Rate limit hit log — concrete default implementations
     # ------------------------------------------------------------------
@@ -263,6 +274,58 @@ class ShieldBackend(ABC):
         _GLOBAL_RL_KEY = "__shield:global_rl__"
         await self.delete_state(_GLOBAL_RL_KEY)
 
+    # ------------------------------------------------------------------
+    # Per-service rate limit policy persistence — concrete default
+    # implementations using the sentinel RouteState pattern.
+    # Stored as a sentinel with path ``__shield:svc_rl:{service}__``.
+    # No subclass changes required for existing backends.
+    # ------------------------------------------------------------------
+
+    async def get_service_rate_limit_policy(self, service: str) -> dict[str, Any] | None:
+        """Return the persisted per-service rate limit policy dict, or ``None``."""
+        import json
+
+        key = f"__shield:svc_rl:{service}__"
+        try:
+            state = await self.get_state(key)
+            return dict(json.loads(state.reason))
+        except (KeyError, Exception):
+            return None
+
+    async def set_service_rate_limit_policy(
+        self, service: str, policy_data: dict[str, Any]
+    ) -> None:
+        """Persist *policy_data* as the rate limit policy for *service*."""
+        import json
+
+        key = f"__shield:svc_rl:{service}__"
+        sentinel = RouteState(
+            path=key,
+            status=RouteStatus.ACTIVE,
+            reason=json.dumps(policy_data),
+            service=service,
+        )
+        await self.set_state(key, sentinel)
+
+    async def delete_service_rate_limit_policy(self, service: str) -> None:
+        """Remove the persisted rate limit policy for *service*."""
+        key = f"__shield:svc_rl:{service}__"
+        await self.delete_state(key)
+
+    async def get_all_service_rate_limit_policies(self) -> dict[str, dict[str, Any]]:
+        """Return all persisted per-service rate limit policies as ``{service: policy_data}``."""
+        import json
+
+        result: dict[str, dict[str, Any]] = {}
+        for state in await self.list_states():
+            if state.path.startswith("__shield:svc_rl:") and state.path.endswith("__"):
+                svc = state.path[len("__shield:svc_rl:") : -2]
+                try:
+                    result[svc] = dict(json.loads(state.reason))
+                except Exception:
+                    pass
+        return result
+
     async def subscribe_rate_limit_policy(self) -> AsyncIterator[dict[str, Any]]:
         """Stream rate limit policy changes as they occur.
 
@@ -279,3 +342,72 @@ class ShieldBackend(ABC):
             f"{type(self).__name__} does not support rate limit policy pub/sub."
         )
         yield  # make this a valid async generator
+
+    # ------------------------------------------------------------------
+    # Feature flag storage — concrete in-memory default implementations
+    #
+    # All backends get basic in-memory flag/segment storage for free.
+    # FileBackend and RedisBackend can override for persistence.
+    # Storage is lazily initialised on first use so existing backends
+    # that do not call super().__init__() are not affected.
+    # ------------------------------------------------------------------
+
+    def _flag_store(self) -> dict[str, Any]:
+        """Lazy per-instance dict for flag objects."""
+        if not hasattr(self, "_flag_store_dict"):
+            object.__setattr__(self, "_flag_store_dict", {})
+        return self._flag_store_dict  # type: ignore[attr-defined, no-any-return]
+
+    def _segment_store(self) -> dict[str, Any]:
+        """Lazy per-instance dict for segment objects."""
+        if not hasattr(self, "_segment_store_dict"):
+            object.__setattr__(self, "_segment_store_dict", {})
+        return self._segment_store_dict  # type: ignore[attr-defined, no-any-return]
+
+    async def load_all_flags(self) -> list[Any]:
+        """Return all stored feature flags.
+
+        Returns a list of ``FeatureFlag`` objects.  The default
+        implementation uses an in-memory store.  Override for persistent
+        backends.
+        """
+        return list(self._flag_store().values())
+
+    async def save_flag(self, flag: Any) -> None:
+        """Persist *flag* (a ``FeatureFlag`` instance) by its key.
+
+        Default implementation keeps flags in memory.  Override for
+        persistent backends.
+        """
+        self._flag_store()[flag.key] = flag
+
+    async def delete_flag(self, flag_key: str) -> None:
+        """Remove the flag with *flag_key* from storage.
+
+        No-op if the flag does not exist.
+        """
+        self._flag_store().pop(flag_key, None)
+
+    async def load_all_segments(self) -> list[Any]:
+        """Return all stored segments.
+
+        Returns a list of ``Segment`` objects.  The default
+        implementation uses an in-memory store.  Override for persistent
+        backends.
+        """
+        return list(self._segment_store().values())
+
+    async def save_segment(self, segment: Any) -> None:
+        """Persist *segment* (a ``Segment`` instance) by its key.
+
+        Default implementation keeps segments in memory.  Override for
+        persistent backends.
+        """
+        self._segment_store()[segment.key] = segment
+
+    async def delete_segment(self, segment_key: str) -> None:
+        """Remove the segment with *segment_key* from storage.
+
+        No-op if the segment does not exist.
+        """
+        self._segment_store().pop(segment_key, None)

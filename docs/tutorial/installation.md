@@ -22,6 +22,9 @@ uv add "api-shield[fastapi,cli]"
 # FastAPI + rate limiting
 uv add "api-shield[fastapi,rate-limit]"
 
+# FastAPI + feature flags
+uv add "api-shield[fastapi,flags]"
+
 # Everything (FastAPI adapter, Redis, dashboard, CLI, admin, rate limiting)
 uv add "api-shield[all]"
 ```
@@ -44,6 +47,7 @@ pip install "api-shield[all]"
 | `admin` | Unified `ShieldAdmin` (dashboard + REST API) | Recommended for CLI support |
 | `cli` | `shield` command-line tool + httpx client | Operators managing routes from the terminal |
 | `rate-limit` | `limits` library for `@rate_limit` enforcement | Any app using rate limiting |
+| `flags` | `openfeature-sdk` + `packaging` for the feature flag system | Any app using feature flags |
 | `all` | All of the above | Easiest option for most projects |
 
 ---
@@ -83,6 +87,7 @@ SHIELD_SERVER_URL=http://localhost:8000/shield
 
 ---
 
-## Next step
+## Next steps
 
-[**Tutorial: Your first decorator →**](first-decorator.md)
+- [**Tutorial: Your first decorator →**](first-decorator.md)
+- [**Tutorial: Feature Flags →**](feature-flags.md)

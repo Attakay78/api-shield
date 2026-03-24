@@ -10,6 +10,7 @@ from shield.fastapi.decorators import disabled, env_only, maintenance
 from shield.fastapi.middleware import ShieldMiddleware
 from shield.fastapi.openapi import apply_shield_to_openapi
 from shield.fastapi.router import ShieldRouter
+from tests.fastapi._helpers import _trigger_startup
 
 
 def _make_full_app(env: str = "dev"):
@@ -38,7 +39,7 @@ async def test_disabled_route_hidden_from_openapi():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -64,7 +65,7 @@ async def test_env_gated_route_hidden_in_wrong_env():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -81,7 +82,7 @@ async def test_env_gated_route_visible_in_correct_env():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -130,7 +131,7 @@ async def test_maintenance_route_still_in_schema():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     schema = app.openapi()
@@ -181,7 +182,7 @@ async def test_openapi_reflects_state_change_without_restart():
         return {}
 
     app.include_router(router)
-    await app.router.startup()
+    await _trigger_startup(app)
     apply_shield_to_openapi(app, engine)
 
     # First call — /old is disabled and should be hidden.

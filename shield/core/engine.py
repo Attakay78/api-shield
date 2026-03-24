@@ -172,6 +172,41 @@ class _SyncProxy:
         """Sync version of :meth:`ShieldEngine.set_global_exempt_paths`."""
         return self._run(self._engine.set_global_exempt_paths(paths))
 
+    def get_service_maintenance(self, service: str) -> GlobalMaintenanceConfig:
+        """Sync version of :meth:`ShieldEngine.get_service_maintenance`."""
+        return self._run(self._engine.get_service_maintenance(service))
+
+    def enable_service_maintenance(
+        self,
+        service: str,
+        reason: str = "",
+        exempt_paths: list[str] | None = None,
+        include_force_active: bool = False,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> GlobalMaintenanceConfig:
+        """Sync version of :meth:`ShieldEngine.enable_service_maintenance`."""
+        return self._run(
+            self._engine.enable_service_maintenance(
+                service=service,
+                reason=reason,
+                exempt_paths=exempt_paths,
+                include_force_active=include_force_active,
+                actor=actor,
+                platform=platform,
+            )
+        )
+
+    def disable_service_maintenance(
+        self, service: str, actor: str = "system", platform: str = "system"
+    ) -> GlobalMaintenanceConfig:
+        """Sync version of :meth:`ShieldEngine.disable_service_maintenance`."""
+        return self._run(
+            self._engine.disable_service_maintenance(
+                service=service, actor=actor, platform=platform
+            )
+        )
+
     # ------------------------------------------------------------------
     # Rate limiting
     # ------------------------------------------------------------------
@@ -268,6 +303,62 @@ class _SyncProxy:
         """Sync version of :meth:`ShieldEngine.disable_global_rate_limit`."""
         self._run(self._engine.disable_global_rate_limit(actor=actor, platform=platform))
 
+    def get_service_rate_limit(self, service: str) -> Any:
+        """Sync version of :meth:`ShieldEngine.get_service_rate_limit`."""
+        return self._run(self._engine.get_service_rate_limit(service))
+
+    def set_service_rate_limit(
+        self,
+        service: str,
+        limit: str,
+        *,
+        algorithm: str | None = None,
+        key_strategy: str | None = None,
+        on_missing_key: str | None = None,
+        burst: int = 0,
+        exempt_routes: list[str] | None = None,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> Any:
+        """Sync version of :meth:`ShieldEngine.set_service_rate_limit`."""
+        return self._run(
+            self._engine.set_service_rate_limit(
+                service,
+                limit,
+                algorithm=algorithm,
+                key_strategy=key_strategy,
+                on_missing_key=on_missing_key,
+                burst=burst,
+                exempt_routes=exempt_routes,
+                actor=actor,
+                platform=platform,
+            )
+        )
+
+    def delete_service_rate_limit(
+        self, service: str, *, actor: str = "system", platform: str = "system"
+    ) -> None:
+        """Sync version of :meth:`ShieldEngine.delete_service_rate_limit`."""
+        self._run(self._engine.delete_service_rate_limit(service, actor=actor, platform=platform))
+
+    def reset_service_rate_limit(
+        self, service: str, *, actor: str = "system", platform: str = "system"
+    ) -> None:
+        """Sync version of :meth:`ShieldEngine.reset_service_rate_limit`."""
+        self._run(self._engine.reset_service_rate_limit(service, actor=actor, platform=platform))
+
+    def enable_service_rate_limit(
+        self, service: str, *, actor: str = "system", platform: str = "system"
+    ) -> None:
+        """Sync version of :meth:`ShieldEngine.enable_service_rate_limit`."""
+        self._run(self._engine.enable_service_rate_limit(service, actor=actor, platform=platform))
+
+    def disable_service_rate_limit(
+        self, service: str, *, actor: str = "system", platform: str = "system"
+    ) -> None:
+        """Sync version of :meth:`ShieldEngine.disable_service_rate_limit`."""
+        self._run(self._engine.disable_service_rate_limit(service, actor=actor, platform=platform))
+
     # ------------------------------------------------------------------
     # Read-only queries
     # ------------------------------------------------------------------
@@ -283,6 +374,34 @@ class _SyncProxy:
     def get_audit_log(self, path: str | None = None, limit: int = 100) -> list[AuditEntry]:
         """Sync version of :meth:`ShieldEngine.get_audit_log`."""
         return self._run(self._engine.get_audit_log(path=path, limit=limit))
+
+    # ------------------------------------------------------------------
+    # Feature flags
+    # ------------------------------------------------------------------
+
+    @property
+    def flag_client(self) -> Any:
+        """Return the synchronous flag client, or ``None`` if flags are not active.
+
+        Call ``engine.use_openfeature()`` first to activate the flag system.
+
+        Since OpenFeature evaluation is CPU-bound, this client does **not**
+        require a thread bridge — all methods are safe to call directly from
+        a ``def`` handler running in an anyio worker thread.
+
+        Example::
+
+            @router.get("/checkout")
+            def checkout(request: Request):
+                enabled = engine.sync.flag_client.get_boolean_value(
+                    "new_checkout", False, {"targeting_key": request.state.user_id}
+                )
+                return checkout_v2() if enabled else checkout_v1()
+        """
+        fc = self._engine._flag_client
+        if fc is None:
+            return None
+        return fc.sync
 
 
 class ShieldEngine:
@@ -342,8 +461,13 @@ class ShieldEngine:
         self._rate_limiter: Any = None  # ShieldRateLimiter | None
         self._rate_limit_policies: dict[str, Any] = {}  # "METHOD:/path" → RateLimitPolicy
         self._global_rate_limit_policy: Any = None  # GlobalRateLimitPolicy | None
+        self._service_rate_limit_policies: dict[str, Any] = {}  # service → GlobalRateLimitPolicy
         # Sync proxy — created once, reused on every engine.sync access.
         self.sync: _SyncProxy = _SyncProxy(self)
+        # Feature flags — lazily set by use_openfeature().
+        self._flag_provider: Any = None  # ShieldOpenFeatureProvider | None
+        self._flag_client: Any = None  # ShieldFeatureClient | None
+        self._flag_scheduler: Any = None  # FlagScheduler | None (set by use_openfeature)
 
     # ------------------------------------------------------------------
     # Async context manager — calls backend lifecycle hooks
@@ -407,6 +531,19 @@ class ShieldEngine:
                 self._run_rl_policy_listener(),
                 name="shield-rl-policy-listener",
             )
+        if self._flag_provider is not None:
+            # The OpenFeature SDK calls initialize() synchronously at
+            # set_provider() time.  For async overrides the SDK silently
+            # discards the coroutine; engine.start() detects and awaits it.
+            # For sync initialize (including the base-class no-op) the SDK
+            # already ran it, so we skip the redundant call and go straight
+            # to warming the async backend cache.
+            if asyncio.iscoroutinefunction(type(self._flag_provider).initialize):
+                await self._flag_provider.initialize()
+            else:
+                await self._flag_provider._load_all()
+        if self._flag_scheduler is not None:
+            await self._flag_scheduler.start()
 
     async def stop(self) -> None:
         """Cancel background listener tasks and wait for them to finish.
@@ -429,6 +566,214 @@ class ShieldEngine:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._rl_policy_listener_task
             self._rl_policy_listener_task = None
+        if self._flag_scheduler is not None:
+            await self._flag_scheduler.stop()
+        if self._flag_provider is not None:
+            if asyncio.iscoroutinefunction(type(self._flag_provider).shutdown):
+                await self._flag_provider.shutdown()
+            else:
+                self._flag_provider.shutdown()
+
+    # ------------------------------------------------------------------
+    # Feature flags — OpenFeature wiring
+    # ------------------------------------------------------------------
+
+    def use_openfeature(
+        self,
+        provider: Any = None,
+        hooks: list[Any] | None = None,
+        domain: str = "shield",
+    ) -> Any:
+        """Activate the feature flag system backed by this engine's backend.
+
+        Parameters
+        ----------
+        provider:
+            An OpenFeature-compliant provider to use.  Defaults to
+            ``ShieldOpenFeatureProvider(self.backend)`` — the built-in
+            provider backed by the same backend as the engine.
+        hooks:
+            Additional OpenFeature hooks to register globally.  Default
+            hooks (``LoggingHook``) are always added.
+        domain:
+            The OpenFeature domain name for the client.  Defaults to
+            ``"shield"``.
+
+        Returns
+        -------
+        ShieldFeatureClient
+            The feature client ready for flag evaluations.
+
+        Raises
+        ------
+        ImportError
+            When ``api-shield[flags]`` is not installed.
+        """
+        from shield.core.feature_flags._guard import _require_flags
+
+        _require_flags()
+
+        import openfeature.api as of_api
+        from openfeature.hook import Hook
+
+        from shield.core.feature_flags.client import ShieldFeatureClient
+        from shield.core.feature_flags.hooks import LoggingHook
+        from shield.core.feature_flags.provider import ShieldOpenFeatureProvider
+
+        if provider is None:
+            provider = ShieldOpenFeatureProvider(self.backend)
+
+        self._flag_provider = provider
+
+        # Register the provider under the given domain (OpenFeature >=0.8 API).
+        try:
+            of_api.set_provider(provider, domain=domain)
+        except TypeError:
+            # Older openfeature-sdk versions without domain support.
+            of_api.set_provider(provider)
+
+        from shield.core.feature_flags.hooks import MetricsHook
+
+        metrics_hook = MetricsHook()
+
+        # Build the default hook list and merge with any user-supplied hooks.
+        default_hooks: list[Hook] = [LoggingHook(), metrics_hook]
+        all_hooks = default_hooks + (hooks or [])
+        of_api.add_hooks(all_hooks)
+
+        # Create and cache the client.
+        self._flag_client = ShieldFeatureClient(domain=domain)
+
+        # Create the scheduler (start() is called later in engine.start()).
+        from shield.core.feature_flags.scheduler import FlagScheduler
+
+        self._flag_scheduler = FlagScheduler(self)
+
+        return self._flag_client
+
+    @property
+    def flag_client(self) -> Any:
+        """Return the active ``ShieldFeatureClient``, or ``None`` if not configured.
+
+        Call ``engine.use_openfeature()`` first to activate the flag system.
+        """
+        return self._flag_client
+
+    @property
+    def flag_scheduler(self) -> Any:
+        """Return the active ``FlagScheduler``, or ``None`` if not configured."""
+        return self._flag_scheduler
+
+    # ------------------------------------------------------------------
+    # Feature flag CRUD — single chokepoint for flag + segment operations
+    # ------------------------------------------------------------------
+
+    async def list_flags(self) -> list[Any]:
+        """Return all feature flags from the provider cache (or backend)."""
+        if self._flag_provider is not None:
+            return list(self._flag_provider._flags.values())
+        return await self.backend.load_all_flags()
+
+    async def get_flag(self, key: str) -> Any:
+        """Return a single ``FeatureFlag`` by *key*, or ``None`` if not found."""
+        if self._flag_provider is not None:
+            return self._flag_provider._flags.get(key)
+        flags = await self.backend.load_all_flags()
+        return next((f for f in flags if f.key == key), None)
+
+    async def save_flag(
+        self,
+        flag: Any,
+        actor: str = "system",
+        platform: str = "",
+        action: str | None = None,
+        audit: bool = True,
+    ) -> None:
+        """Persist *flag* to the backend and update the provider cache."""
+        existing = await self.get_flag(flag.key)
+        default_action = "flag_created" if existing is None else "flag_updated"
+        await self.backend.save_flag(flag)
+        if self._flag_provider is not None:
+            self._flag_provider.upsert_flag(flag)
+        if audit:
+            await self._audit_rl(
+                path=f"flag:{flag.key}",
+                action=action or default_action,
+                actor=actor,
+                platform=platform,
+            )
+
+    async def delete_flag(
+        self,
+        key: str,
+        actor: str = "system",
+        platform: str = "",
+        audit: bool = True,
+    ) -> None:
+        """Delete a flag by *key* from the backend and provider cache."""
+        await self.backend.delete_flag(key)
+        if self._flag_provider is not None:
+            self._flag_provider.delete_flag(key)
+        if audit:
+            await self._audit_rl(
+                path=f"flag:{key}",
+                action="flag_deleted",
+                actor=actor,
+                platform=platform,
+            )
+
+    async def list_segments(self) -> list[Any]:
+        """Return all segments from the provider cache (or backend)."""
+        if self._flag_provider is not None:
+            return list(self._flag_provider._segments.values())
+        return await self.backend.load_all_segments()
+
+    async def get_segment(self, key: str) -> Any:
+        """Return a single ``Segment`` by *key*, or ``None`` if not found."""
+        if self._flag_provider is not None:
+            return self._flag_provider._segments.get(key)
+        segments = await self.backend.load_all_segments()
+        return next((s for s in segments if s.key == key), None)
+
+    async def save_segment(
+        self,
+        segment: Any,
+        actor: str = "system",
+        platform: str = "",
+        audit: bool = True,
+    ) -> None:
+        """Persist *segment* to the backend and update the provider cache."""
+        existing = await self.get_segment(segment.key)
+        action = "segment_created" if existing is None else "segment_updated"
+        await self.backend.save_segment(segment)
+        if self._flag_provider is not None:
+            self._flag_provider.upsert_segment(segment)
+        if audit:
+            await self._audit_rl(
+                path=f"segment:{segment.key}",
+                action=action,
+                actor=actor,
+                platform=platform,
+            )
+
+    async def delete_segment(
+        self,
+        key: str,
+        actor: str = "system",
+        platform: str = "",
+        audit: bool = True,
+    ) -> None:
+        """Delete a segment by *key* from the backend and provider cache."""
+        await self.backend.delete_segment(key)
+        if self._flag_provider is not None:
+            self._flag_provider.delete_segment(key)
+        if audit:
+            await self._audit_rl(
+                path=f"segment:{key}",
+                action="segment_deleted",
+                actor=actor,
+                platform=platform,
+            )
 
     async def _run_global_config_listener(self) -> None:
         """Background coroutine: invalidate the global config cache on remote changes.
@@ -590,8 +935,10 @@ class ShieldEngine:
         if state is None:
             return  # no state registered → effectively ACTIVE
 
+        service = state.service if state is not None else None
+
         if state.status == RouteStatus.ACTIVE:
-            return await self._run_rate_limit_check(path, method or "", context)
+            return await self._run_rate_limit_check(path, method or "", context, service=service)
 
         if state.status == RouteStatus.MAINTENANCE:
             retry_after = state.window.end if state.window else None
@@ -612,15 +959,19 @@ class ShieldEngine:
         if state.status == RouteStatus.DEPRECATED:
             # Deprecated routes still serve requests — headers injected by middleware.
             # Rate limit check still runs for deprecated routes.
-            return await self._run_rate_limit_check(path, method or "", context)
+            return await self._run_rate_limit_check(path, method or "", context, service=service)
 
         # Rate limiting runs after all lifecycle checks (maintenance / disabled
         # routes short-circuit before touching any counters).  Within the rate
         # limit check, the global limit is evaluated first.
-        await self._run_rate_limit_check(path, method or "", context)
+        await self._run_rate_limit_check(path, method or "", context, service=service)
 
     async def _run_rate_limit_check(
-        self, path: str, method: str, context: dict[str, Any] | None
+        self,
+        path: str,
+        method: str,
+        context: dict[str, Any] | None,
+        service: str | None = None,
     ) -> Any:
         """Run the rate limit check for *path*/*method* if a policy is registered.
 
@@ -640,6 +991,15 @@ class ShieldEngine:
         if grl is not None and grl.enabled:
             if not self._is_globally_exempt(path, method, grl.exempt_routes):
                 await self._run_global_rate_limit_check(path, method, request, grl)
+
+        # Per-service rate limit — runs after the all-services global limit
+        # but before the per-route limit.  Only applies when the route belongs
+        # to a named service and a policy has been configured for that service.
+        if service:
+            srl = self._service_rate_limit_policies.get(service)
+            if srl is not None and srl.enabled:
+                if not self._is_globally_exempt(path, method, srl.exempt_routes):
+                    await self._run_service_rate_limit_check(path, method, request, srl, service)
 
         # Per-route check — only reached when the global limit passed (or the
         # route is exempt from the global limit, or no global limit is set).
@@ -668,6 +1028,52 @@ class ShieldEngine:
                 route_result = result
 
         return route_result
+
+    async def _run_service_rate_limit_check(
+        self,
+        path: str,
+        method: str,
+        request: Any,
+        srl_policy: Any,
+        service: str,
+    ) -> None:
+        """Check the per-service rate limit for *path*/*method*.
+
+        Uses ``__svc_rl:{service}__`` as the virtual path so all routes of
+        the same service share one counter namespace.  Raises
+        ``RateLimitExceededException`` when the limit is exceeded.
+        """
+        await self._ensure_rate_limiter()
+
+        from shield.core.rate_limit.models import RateLimitPolicy
+
+        virtual_path = f"__svc_rl:{service}__"
+        srl_as_policy = RateLimitPolicy(
+            path=virtual_path,
+            method="ALL",
+            limit=srl_policy.limit,
+            algorithm=srl_policy.algorithm,
+            key_strategy=srl_policy.key_strategy,
+            on_missing_key=srl_policy.on_missing_key,
+            burst=srl_policy.burst,
+        )
+
+        result = await self._rate_limiter.check(
+            path=virtual_path,
+            method="ALL",
+            request=request,
+            policy=srl_as_policy,
+        )
+
+        if not result.allowed:
+            await self._record_rate_limit_hit(path, method or "ALL", srl_as_policy, result)
+            raise RateLimitExceededException(
+                limit=result.limit,
+                retry_after_seconds=result.retry_after_seconds,
+                reset_at=result.reset_at,
+                remaining=0,
+                key=result.key,
+            )
 
     def _is_globally_exempt(self, path: str, method: str, exempt_routes: list[str]) -> bool:
         """Return ``True`` if *path*/*method* is in the global exempt list.
@@ -841,9 +1247,12 @@ class ShieldEngine:
             return
 
         # One backend call to discover every already-persisted route.
+        # Use get_registered_paths() instead of list_states() so that
+        # backends that store routes under transformed keys (e.g.
+        # ShieldServerBackend which adds a service prefix) correctly
+        # compare against plain local paths.
         try:
-            existing = await self.backend.list_states()
-            existing_keys: set[str] = {s.path for s in existing}
+            existing_keys: set[str] = await self.backend.get_registered_paths()
         except Exception:
             logger.exception(
                 "shield: register_batch — failed to list existing states, "
@@ -1195,6 +1604,90 @@ class ShieldEngine:
         return updated
 
     # ------------------------------------------------------------------
+    # Per-service global maintenance
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _service_global_key(service: str) -> str:
+        return f"__shield:svc_global:{service}__"
+
+    async def get_service_maintenance(self, service: str) -> GlobalMaintenanceConfig:
+        """Return the current per-service maintenance config for *service*."""
+        key = self._service_global_key(service)
+        try:
+            state = await self.backend.get_state(key)
+            return GlobalMaintenanceConfig.model_validate_json(state.reason)
+        except (KeyError, Exception):
+            return GlobalMaintenanceConfig()
+
+    async def enable_service_maintenance(
+        self,
+        service: str,
+        reason: str = "",
+        exempt_paths: list[str] | None = None,
+        include_force_active: bool = False,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> GlobalMaintenanceConfig:
+        """Enable maintenance mode for all routes belonging to *service*.
+
+        Stores a per-service sentinel in the backend (similar to the
+        all-services global maintenance sentinel).  SDK clients with the
+        matching ``app_id`` pick this up via SSE and apply it as an
+        effective global maintenance for their service only.
+        """
+        key = self._service_global_key(service)
+        cfg = GlobalMaintenanceConfig(
+            enabled=True,
+            reason=reason,
+            exempt_paths=exempt_paths or [],
+            include_force_active=include_force_active,
+        )
+        sentinel = RouteState(
+            path=key,
+            status=RouteStatus.ACTIVE,
+            reason=cfg.model_dump_json(),
+            service=service,
+        )
+        await self.backend.set_state(key, sentinel)
+        await self._audit(
+            path=key,
+            action="service_maintenance_on",
+            actor=actor,
+            reason=reason,
+            platform=platform,
+            previous_status=RouteStatus.ACTIVE,
+            new_status=RouteStatus.MAINTENANCE,
+        )
+        return cfg
+
+    async def disable_service_maintenance(
+        self,
+        service: str,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> GlobalMaintenanceConfig:
+        """Disable per-service maintenance, restoring normal per-route state."""
+        key = self._service_global_key(service)
+        cfg = GlobalMaintenanceConfig(enabled=False)
+        sentinel = RouteState(
+            path=key,
+            status=RouteStatus.ACTIVE,
+            reason=cfg.model_dump_json(),
+            service=service,
+        )
+        await self.backend.set_state(key, sentinel)
+        await self._audit(
+            path=key,
+            action="service_maintenance_off",
+            actor=actor,
+            platform=platform,
+            previous_status=RouteStatus.MAINTENANCE,
+            new_status=RouteStatus.ACTIVE,
+        )
+        return cfg
+
+    # ------------------------------------------------------------------
     # Webhook management
     # ------------------------------------------------------------------
 
@@ -1410,6 +1903,27 @@ class ShieldEngine:
             platform=platform,
         )
 
+    @staticmethod
+    def _validate_limit_string(limit: str) -> None:
+        """Raise ``ValueError`` with a helpful message if *limit* is not a valid rate limit string.
+
+        Uses the ``limits`` library's own parser so the check is authoritative.
+        Only called when the library is installed; silently skips otherwise.
+        """
+        try:
+            from limits import parse as _parse
+        except ImportError:
+            return  # limits not installed yet; engine._ensure_rate_limiter will handle it
+        try:
+            _parse(limit)
+        except ValueError:
+            valid = "second, minute, hour, day, month, year (or their plurals)"
+            raise ValueError(
+                f"Invalid rate limit string {limit!r}. "
+                f"Use the format '<count>/<granularity>', e.g. '100/minute'. "
+                f"Valid granularities: {valid}."
+            ) from None
+
     async def set_rate_limit_policy(
         self,
         path: str,
@@ -1429,7 +1943,25 @@ class ShieldEngine:
         so it takes effect immediately without a restart.
 
         Returns the ``RateLimitPolicy`` instance.
+
+        Raises
+        ------
+        ValueError
+            When *limit* is not a valid rate limit string (e.g. ``"100/minutesedrr"``).
+        RouteNotFoundException
+            When *path* is not registered in the backend.  Rate limit policies
+            are only meaningful for routes that actually exist — applying one to
+            an unknown path would create a phantom entry that never fires.
         """
+        self._validate_limit_string(limit)
+        # Guard: verify the route is registered before creating a policy.
+        # AmbiguousRouteError means the path exists under several HTTP methods,
+        # which is perfectly valid for a per-path rate limit.
+        try:
+            await self._resolve_existing(path)
+        except AmbiguousRouteError:
+            pass  # route exists — just registered under multiple methods
+
         from shield.core.rate_limit.models import (
             RateLimitAlgorithm,
             RateLimitKeyStrategy,
@@ -1522,6 +2054,7 @@ class ShieldEngine:
 
         # Also restore the global rate limit policy if one was persisted.
         await self._restore_global_rate_limit_policy()
+        await self._restore_service_rate_limit_policies()
 
     async def _restore_global_rate_limit_policy(self) -> None:
         """Load the persisted global rate limit policy from the backend."""
@@ -1564,6 +2097,7 @@ class ShieldEngine:
 
         Returns the ``GlobalRateLimitPolicy`` instance.
         """
+        self._validate_limit_string(limit)
         from shield.core.rate_limit.models import (
             GlobalRateLimitPolicy,
             OnMissingKey,
@@ -1691,6 +2225,182 @@ class ShieldEngine:
             platform=platform,
         )
 
+    async def _restore_service_rate_limit_policies(self) -> None:
+        """Load all persisted per-service rate limit policies from the backend."""
+        try:
+            all_policies = await self.backend.get_all_service_rate_limit_policies()
+        except Exception:
+            logger.exception("shield: failed to restore service rate limit policies from backend")
+            return
+
+        from shield.core.rate_limit.models import GlobalRateLimitPolicy
+
+        for service, policy_data in all_policies.items():
+            try:
+                self._service_rate_limit_policies[service] = GlobalRateLimitPolicy.model_validate(
+                    policy_data
+                )
+                logger.info("shield: restored service rate limit policy for %r", service)
+            except Exception:
+                logger.exception(
+                    "shield: failed to parse service rate limit policy for %r", service
+                )
+
+    # ------------------------------------------------------------------
+    # Per-service rate limit CRUD
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _service_rl_key(service: str) -> str:
+        return f"__shield:svc_rl:{service}__"
+
+    async def get_service_rate_limit(self, service: str) -> Any:
+        """Return the current ``GlobalRateLimitPolicy`` for *service*, or ``None``."""
+        return self._service_rate_limit_policies.get(service)
+
+    async def set_service_rate_limit(
+        self,
+        service: str,
+        limit: str,
+        *,
+        algorithm: str | None = None,
+        key_strategy: str | None = None,
+        on_missing_key: str | None = None,
+        burst: int = 0,
+        exempt_routes: list[str] | None = None,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> Any:
+        """Set or update the per-service rate limit policy for *service*.
+
+        Applies to all routes of *service* combined.  Persisted so the
+        policy survives restarts.  Returns the ``GlobalRateLimitPolicy``.
+        """
+        self._validate_limit_string(limit)
+        from shield.core.rate_limit.models import (
+            GlobalRateLimitPolicy,
+            OnMissingKey,
+            RateLimitAlgorithm,
+            RateLimitKeyStrategy,
+        )
+
+        algo = RateLimitAlgorithm(algorithm) if algorithm else RateLimitAlgorithm.FIXED_WINDOW
+        key_strat = RateLimitKeyStrategy(key_strategy) if key_strategy else RateLimitKeyStrategy.IP
+        omk = OnMissingKey(on_missing_key) if on_missing_key else None
+
+        is_update = service in self._service_rate_limit_policies
+        policy = GlobalRateLimitPolicy(
+            limit=limit,
+            algorithm=algo,
+            key_strategy=key_strat,
+            on_missing_key=omk,
+            burst=burst,
+            exempt_routes=exempt_routes or [],
+            enabled=True,
+        )
+        self._service_rate_limit_policies[service] = policy
+        await self.backend.set_service_rate_limit_policy(service, policy.model_dump(mode="json"))
+        logger.info(
+            "shield: service rate limit policy %s for %r (%s) by %s",
+            "updated" if is_update else "set",
+            service,
+            limit,
+            actor,
+        )
+        await self._audit_rl(
+            path=self._service_rl_key(service),
+            action="svc_rl_updated" if is_update else "svc_rl_set",
+            actor=actor,
+            reason=f"{limit} · {algo} · {key_strat}",
+            platform=platform,
+        )
+        return policy
+
+    async def delete_service_rate_limit(
+        self,
+        service: str,
+        *,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> None:
+        """Remove the per-service rate limit policy for *service*."""
+        self._service_rate_limit_policies.pop(service, None)
+        await self.backend.delete_service_rate_limit_policy(service)
+        logger.info("shield: service rate limit policy deleted for %r by %s", service, actor)
+        await self._audit_rl(
+            path=self._service_rl_key(service),
+            action="svc_rl_deleted",
+            actor=actor,
+            platform=platform,
+        )
+
+    async def reset_service_rate_limit(
+        self,
+        service: str,
+        *,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> None:
+        """Reset the in-process rate limit counters for *service*.
+
+        Clears the ``__svc_rl:{service}__`` counter namespace.  The policy
+        itself is not removed.
+        """
+        if self._rate_limiter is None:
+            return
+        virtual_path = f"__svc_rl:{service}__"
+        await self._rate_limiter.reset(path=virtual_path, method="ALL")
+        await self._audit_rl(
+            path=self._service_rl_key(service),
+            action="svc_rl_reset",
+            actor=actor,
+            platform=platform,
+        )
+
+    async def enable_service_rate_limit(
+        self,
+        service: str,
+        *,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> None:
+        """Re-enable a paused per-service rate limit policy."""
+        policy = self._service_rate_limit_policies.get(service)
+        if policy is None or policy.enabled:
+            return
+        self._service_rate_limit_policies[service] = policy.model_copy(update={"enabled": True})
+        await self.backend.set_service_rate_limit_policy(
+            service, self._service_rate_limit_policies[service].model_dump(mode="json")
+        )
+        await self._audit_rl(
+            path=self._service_rl_key(service),
+            action="svc_rl_enabled",
+            actor=actor,
+            platform=platform,
+        )
+
+    async def disable_service_rate_limit(
+        self,
+        service: str,
+        *,
+        actor: str = "system",
+        platform: str = "system",
+    ) -> None:
+        """Pause (disable) a per-service rate limit policy without removing it."""
+        policy = self._service_rate_limit_policies.get(service)
+        if policy is None or not policy.enabled:
+            return
+        self._service_rate_limit_policies[service] = policy.model_copy(update={"enabled": False})
+        await self.backend.set_service_rate_limit_policy(
+            service, self._service_rate_limit_policies[service].model_dump(mode="json")
+        )
+        await self._audit_rl(
+            path=self._service_rl_key(service),
+            action="svc_rl_disabled",
+            actor=actor,
+            platform=platform,
+        )
+
     # ------------------------------------------------------------------
     # Read methods
     # ------------------------------------------------------------------
@@ -1744,10 +2454,18 @@ class ShieldEngine:
         platform: str = "system",
     ) -> None:
         """Write an audit entry for a route state change."""
+        # Carry the service label forward so audit rows can be filtered by service.
+        service: str | None = None
+        try:
+            state = await self.backend.get_state(path)
+            service = state.service
+        except Exception:  # noqa: BLE001
+            pass
         entry = AuditEntry(
             id=str(uuid.uuid4()),
             timestamp=datetime.now(UTC),
             path=path,
+            service=service,
             action=action,
             actor=actor,
             platform=platform,

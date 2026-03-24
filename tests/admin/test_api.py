@@ -445,3 +445,56 @@ async def test_set_rate_limit_with_algorithm(
     )
     assert resp.status_code == 201
     assert resp.json()["algorithm"] == "fixed_window"
+
+
+@_rl_mark
+async def test_set_rate_limit_unknown_route_returns_404(
+    open_client: AsyncClient,
+) -> None:
+    """POST /api/rate-limits for a path not registered in the engine returns 404."""
+    resp = await open_client.post(
+        "/api/rate-limits",
+        json={"path": "/does/not/exist", "method": "GET", "limit": "10/minute"},
+    )
+    assert resp.status_code == 404
+
+
+@_rl_mark
+async def test_set_rate_limit_registered_route_returns_201(
+    open_client: AsyncClient, engine: ShieldEngine
+) -> None:
+    """POST /api/rate-limits with a path that is registered returns 201."""
+    resp = await open_client.post(
+        "/api/rate-limits",
+        json={"path": "/payments", "method": "GET", "limit": "20/minute"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["path"] == "/payments"
+    assert body["limit"] == "20/minute"
+
+
+@_rl_mark
+async def test_set_rate_limit_for_ambiguous_route_succeeds(
+    open_client: AsyncClient, engine: ShieldEngine
+) -> None:
+    """POST /api/rate-limits for a bare path that is registered under multiple
+    HTTP methods (ambiguous) still succeeds with 201."""
+    # Seed the same path under two methods so the engine sees an ambiguous route.
+    from shield.core.models import RouteState, RouteStatus
+
+    await engine.backend.set_state(
+        "GET:/api/items",
+        RouteState(path="GET:/api/items", status=RouteStatus.ACTIVE),
+    )
+    await engine.backend.set_state(
+        "POST:/api/items",
+        RouteState(path="POST:/api/items", status=RouteStatus.ACTIVE),
+    )
+
+    resp = await open_client.post(
+        "/api/rate-limits",
+        json={"path": "/api/items", "method": "GET", "limit": "15/minute"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["path"] == "/api/items"

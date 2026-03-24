@@ -13,9 +13,9 @@
 !!! warning "Early Access: your feedback shapes the roadmap"
     `api-shield` is fully functional and ready to use. We are actively building on a solid foundation and would love to hear from you. If you have feedback, feature ideas, or suggestions, **[open an issue on GitHub](https://github.com/Attakay78/api-shield/issues)**. Every voice helps make the library better for everyone.
 
-**Route(API) lifecycle management for ASGI Python web frameworks: maintenance mode, environment gating, deprecation, rate limiting, admin panels, and more. No restarts required.**
+**Feature flags and runtime control for Python APIs — rollouts, rate limits, manage maintenance windows across single ASGI services or a multi-service fleet without redeploying.**
 
-Most "route lifecycle management" tools are blunt instruments: shut everything down or nothing at all. `api-shield` treats each route as a first-class entity with its own lifecycle. State changes take effect immediately through middleware, with no redeployment and no server restart.
+Most "runtime control management" tools are blunt instruments: shut everything down or nothing at all. `api-shield` treats each route as a first-class entity with its own lifecycle. State changes take effect immediately, with no redeployment and no server restart.
 
 ---
 
@@ -104,6 +104,7 @@ These features are framework-agnostic and available to every adapter.
 | ⏰ **Scheduled windows** | `asyncio`-native scheduler that activates and deactivates maintenance windows automatically |
 | 🔔 **Webhooks** | Fire HTTP POST on every state change, with a built-in Slack formatter and support for custom formatters |
 | 🚦 **Rate limiting** | Per-IP, per-user, per-API-key, or global counters with tiered limits, burst allowance, and runtime policy mutation |
+| 🚩 **Feature flags** | Boolean, string, integer, float, and JSON flags with targeting rules, user segments, percentage rollouts, prerequisites, and a live evaluation stream — built on the OpenFeature standard |
 
 ### Framework adapters
 
@@ -162,7 +163,9 @@ api-shield is an **ASGI-native** library. The core (`shield.core`) is framework-
 - [**Tutorial: Installation**](tutorial/installation.md): get up and running in seconds
 - [**Tutorial: First Decorator**](tutorial/first-decorator.md): put your first route in maintenance mode
 - [**Tutorial: Rate Limiting**](tutorial/rate-limiting.md): per-IP, per-user, tiered limits, and more
+- [**Tutorial: Feature Flags**](tutorial/feature-flags.md): targeting rules, segments, rollouts, and live events
 - [**Reference: Decorators**](reference/decorators.md): full decorator API
 - [**Reference: Rate Limiting**](reference/rate-limiting.md): `@rate_limit` parameters, models, and CLI commands
 - [**Reference: ShieldEngine**](reference/engine.md): programmatic control
+- [**Reference: Feature Flags**](reference/feature-flags.md): full flag/segment API, models, and CLI commands
 - [**Reference: CLI**](reference/cli.md): all CLI commands

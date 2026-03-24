@@ -98,11 +98,13 @@ nav:
       - Adding Middleware: tutorial/middleware.md
       - Backends: tutorial/backends.md
       - Rate Limiting: tutorial/rate-limiting.md
+      - Feature Flags: tutorial/feature-flags.md
       - Admin Dashboard: tutorial/admin-dashboard.md
       - CLI: tutorial/cli.md
   - Reference:
       - Decorators: reference/decorators.md
       - Rate Limiting: reference/rate-limiting.md
+      - Feature Flags: reference/feature-flags.md
       - ShieldEngine: reference/engine.md
       - Backends: reference/backends.md
       - Middleware: reference/middleware.md
@@ -110,8 +112,9 @@ nav:
       - Exceptions: reference/exceptions.md
       - CLI Commands: reference/cli.md
   - Guides:
-      - Production Monitoring & Deployment: guides/production.md
+      - Shield Server (Multi-Service): guides/shield-server.md
       - Distributed Deployments: guides/distributed.md
+      - Production Monitoring & Deployment: guides/production.md
   - Adapters:
       - Overview: adapters/index.md
       - FastAPI: adapters/fastapi.md
