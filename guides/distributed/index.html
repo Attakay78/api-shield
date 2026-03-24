@@ -13,17 +13,17 @@
         <link rel="canonical" href="https://attakay78.github.io/api-shield/guides/distributed/">
       
       
-        <link rel="prev" href="../production/">
+        <link rel="prev" href="../shield-server/">
       
       
-        <link rel="next" href="../../adapters/">
+        <link rel="next" href="../production/">
       
       
         
       
       
       <link rel="icon" href="../../assets/logo.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -287,7 +287,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../production/" class="md-tabs__link">
+        <a href="../shield-server/" class="md-tabs__link">
           
   
   
@@ -635,6 +635,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../tutorial/feature-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../tutorial/admin-dashboard/" class="md-nav__link">
         
   
@@ -788,6 +816,34 @@
     
   
     Rate Limiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/feature-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Flags
   
 
     
@@ -1040,14 +1096,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../production/" class="md-nav__link">
+      <a href="../shield-server/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Production Monitoring & Deployment
+    Shield Server (Multi-Service)
   
 
     
@@ -1316,6 +1372,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rate-limit-policy-sse-propagation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limit policy SSE propagation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#choosing-the-right-backend" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1352,6 +1419,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production Monitoring & Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1778,6 +1873,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rate-limit-policy-sse-propagation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limit policy SSE propagation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#choosing-the-right-backend" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1853,7 +1959,7 @@
     
     
       <li class="md-path__item">
-        <a href="../production/" class="md-path__link">
+        <a href="../shield-server/" class="md-path__link">
           
   <span class="md-ellipsis">
     Guides
@@ -1946,7 +2052,7 @@
 </tr>
 <tr>
 <td><code>subscribe_rate_limit_policy()</code></td>
-<td><code>NotImplementedError</code></td>
+<td><code>asyncio.Queue</code></td>
 <td><code>NotImplementedError</code></td>
 <td>Redis pub/sub</td>
 </tr>
@@ -2069,7 +2175,8 @@
 </span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>         &quot;policy&quot;: {...}}                                   _rate_limit_policies[key] = new_policy
 </span></code></pre></div>
 <p><code>ShieldEngine.start()</code> creates a <code>shield-rl-policy-listener</code> background task. Each message on <code>shield:rl-policy-change</code> carries the full policy payload (for <code>set</code>) or just the key (for <code>delete</code>), so the receiving instance applies the delta directly without an extra Redis round-trip.</p>
-<p>For <code>MemoryBackend</code> and <code>FileBackend</code>, <code>subscribe_rate_limit_policy()</code> raises <code>NotImplementedError</code>. The listener exits silently — single-instance deployments need no cross-process sync.</p>
+<p>For <code>FileBackend</code>, <code>subscribe_rate_limit_policy()</code> raises <code>NotImplementedError</code>. The listener exits silently — <code>FileBackend</code> is single-process only, so cross-process sync is unnecessary.</p>
+<p><code>MemoryBackend</code> now implements <code>subscribe_rate_limit_policy()</code> via an <code>asyncio.Queue</code>, meaning the Shield Server can broadcast RL policy events to all SDK clients connected over SSE — see <a href="#rate-limit-policy-sse-propagation">Rate limit policy SSE propagation</a> below.</p>
 <h3 id="the-request-lifecycle-across-instances">The request lifecycle across instances<a class="headerlink" href="#the-request-lifecycle-across-instances" title="Permanent link">&para;</a></h3>
 <p>Here is the complete flow for a request arriving at Instance B when Instance A has placed <code>/api/payments</code> in maintenance:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Instance A                         Redis                    Instance B
@@ -2123,29 +2230,48 @@
 <p><strong>When Instance A disables a route, Instance B's <code>/docs</code> and <code>/openapi.json</code> will continue to show that route until Instance B's own schema cache is invalidated (by a local state change or a restart).</strong> For most production deployments this is acceptable, as developer-facing docs are not on the critical request path and the actual request handling (via <code>engine.check()</code>) is always consistent thanks to Redis.</p>
 <p>If you need fully consistent OpenAPI schemas across instances, you can force a cache refresh by calling <code>app.openapi.cache_clear()</code> (or the equivalent for your schema caching setup) in response to <code>shield:changes</code> pub/sub messages.</p>
 <hr />
+<h2 id="rate-limit-policy-sse-propagation">Rate limit policy SSE propagation<a class="headerlink" href="#rate-limit-policy-sse-propagation" title="Permanent link">&para;</a></h2>
+<p>When using <strong>Shield Server + ShieldSDK</strong>, rate limit policies set via the CLI (<code>shield rl set</code>) or the dashboard are immediately broadcast to all connected SDK clients over the persistent SSE stream — no restart required.</p>
+<p>The SSE stream now carries typed envelopes:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>data: {&quot;type&quot;: &quot;state&quot;,     &quot;payload&quot;: {...RouteState...}}
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>data: {&quot;type&quot;: &quot;rl_policy&quot;, &quot;action&quot;: &quot;set&quot;,    &quot;key&quot;: &quot;GET:/api/pay&quot;, &quot;policy&quot;: {...}}
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>data: {&quot;type&quot;: &quot;rl_policy&quot;, &quot;action&quot;: &quot;delete&quot;, &quot;key&quot;: &quot;GET:/api/pay&quot;}
+</span></code></pre></div>
+<p>When <code>ShieldServerBackend</code> receives an <code>rl_policy</code> event, it updates its local <code>_rl_policy_cache</code> and notifies the engine's existing <code>_run_rl_policy_listener()</code> background task, which applies the policy change to <code>engine._rate_limit_policies</code> immediately. The propagation path is:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>shield rl set GET:/api/pay 100/minute
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>  → Shield Server engine.set_rate_limit_policy()
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  → MemoryBackend._rl_policy_subscribers (asyncio.Queue fan-out)
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>  → sdk_events SSE stream (typed envelope)
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>  → ShieldServerBackend._listen_sse() (background task)
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>  → _run_rl_policy_listener() (background task)
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>  → engine._rate_limit_policies updated
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>  → next request enforces new limit  ← typically &lt; 5 ms end-to-end on a LAN
+</span></code></pre></div>
+<p>Per-request enforcement reads <code>engine._rate_limit_policies</code> synchronously — no network hop, no lock, zero added latency.</p>
+<hr />
 <h2 id="choosing-the-right-backend">Choosing the right backend<a class="headerlink" href="#choosing-the-right-backend" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Do you need state to survive a restart?
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>│
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├── No  → MemoryBackend (development / tests)
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>└── Yes
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    │
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    Do you run more than one instance?
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    │
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    ├── No  → FileBackend (simple single-instance prod)
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    │
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    └── Yes → RedisBackend (multi-instance / load-balanced prod)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Do you need state to survive a restart?
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>│
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>├── No  → MemoryBackend (development / tests)
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>│
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>└── Yes
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    │
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    Do you run more than one instance?
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    │
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    ├── No  → FileBackend (simple single-instance prod)
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    │
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    └── Yes → RedisBackend (multi-instance / load-balanced prod)
 </span></code></pre></div>
 <hr />
 <h2 id="fail-open-guarantee">Fail-open guarantee<a class="headerlink" href="#fail-open-guarantee" title="Permanent link">&para;</a></h2>
 <p>Regardless of backend, api-shield will <strong>never take down your API due to its own backend being unreachable</strong>. Every <code>backend.get_state()</code> call is wrapped in a try/except inside <code>engine.check()</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">try</span><span class="p">:</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="k">continue</span>       <span class="c1"># path not registered → treat as ACTIVE</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;shield: backend error — failing open&quot;</span><span class="p">)</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="k">return</span> <span class="kc">None</span>    <span class="c1"># allow the request through</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="k">continue</span>       <span class="c1"># path not registered → treat as ACTIVE</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;shield: backend error — failing open&quot;</span><span class="p">)</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="k">return</span> <span class="kc">None</span>    <span class="c1"># allow the request through</span>
 </span></code></pre></div>
 <p>If Redis goes down, all <code>engine.check()</code> calls fail-open: every request passes through as if all routes are <code>ACTIVE</code>. Shield logs the errors at <code>ERROR</code> level but never surfaces them as HTTP failures to your clients. Your API continues to serve traffic; you just lose the protection layer temporarily.</p>
 <p>The same applies to global maintenance: if reading <code>GlobalMaintenanceConfig</code> from the backend raises an exception, the exception is caught and the request is allowed through.</p>
@@ -2198,7 +2324,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../production/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Production Monitoring &amp; Deployment">
+          <a href="../shield-server/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Shield Server (Multi-Service)">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2208,20 +2334,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Production Monitoring & Deployment
+                Shield Server (Multi-Service)
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../adapters/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview">
+          <a href="../production/" class="md-footer__link md-footer__link--next" aria-label="Next: Production Monitoring &amp; Deployment">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Overview
+                Production Monitoring & Deployment
               </div>
             </div>
             <div class="md-footer__button md-icon">

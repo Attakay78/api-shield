@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/logo.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -287,7 +287,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../guides/production/" class="md-tabs__link">
+        <a href="../../guides/shield-server/" class="md-tabs__link">
           
   
   
@@ -686,6 +686,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#shield-server-shieldsdk-multi-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shield Server + ShieldSDK (multi-service)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Shield Server + ShieldSDK (multi-service)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-backend-should-the-shield-server-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which backend should the Shield Server use?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-rate-limit-counters-across-sdk-replicas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared rate limit counters across SDK replicas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#using-make_engine-recommended" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -764,6 +814,34 @@
     
   
     Rate Limiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../feature-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Flags
   
 
     
@@ -937,6 +1015,34 @@
     
   
     Rate Limiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/feature-flags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Flags
   
 
     
@@ -1186,14 +1292,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/production/" class="md-nav__link">
+      <a href="../../guides/shield-server/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Production Monitoring & Deployment
+    Shield Server (Multi-Service)
   
 
     
@@ -1222,6 +1328,34 @@
     
   
     Distributed Deployments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production Monitoring & Deployment
   
 
     
@@ -1512,6 +1646,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#shield-server-shieldsdk-multi-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shield Server + ShieldSDK (multi-service)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Shield Server + ShieldSDK (multi-service)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-backend-should-the-shield-server-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which backend should the Shield Server use?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-rate-limit-counters-across-sdk-replicas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared rate limit counters across SDK replicas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#using-make_engine-recommended" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1758,43 +1942,162 @@ adds latency to every request. Always provision Redis in the same region as the
 service that uses it.</p>
 </div>
 <hr />
+<h2 id="shield-server-shieldsdk-multi-service">Shield Server + ShieldSDK (multi-service)<a class="headerlink" href="#shield-server-shieldsdk-multi-service" title="Permanent link">&para;</a></h2>
+<p>When you run multiple independent services, a dedicated <strong>Shield Server</strong> acts as the centralised control plane. Each service connects to it via <strong>ShieldSDK</strong>, which keeps an in-process cache synced over a persistent SSE connection — so enforcement never touches the network per request.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>┌────────────────────────────────┐
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>│  Shield Server (port 9000)     │
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>│  ShieldServer(backend=...)     │
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>│  Dashboard, REST API, SSE      │
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>└──────────────┬─────────────────┘
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>               │  HTTP + SSE
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>     ┌─────────┴──────────┐
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>     ▼                    ▼
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>┌──────────────┐  ┌──────────────┐
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>│ payments-app │  │ orders-app   │
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>│ ShieldSDK    │  │ ShieldSDK    │
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>│ (local cache)│  │ (local cache)│
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>└──────────────┘  └──────────────┘
+</span></code></pre></div>
+<p><strong>Shield Server setup:</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.server</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShieldServer</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.backends.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">MemoryBackend</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">shield_app</span> <span class="o">=</span> <span class="n">ShieldServer</span><span class="p">(</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">backend</span><span class="o">=</span><span class="n">MemoryBackend</span><span class="p">(),</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;secret&quot;</span><span class="p">),</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">token_expiry</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>          <span class="c1"># dashboard / CLI users: 1 hour</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">sdk_token_expiry</span><span class="o">=</span><span class="mi">31536000</span><span class="p">,</span>  <span class="c1"># SDK service tokens: 1 year (default)</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="p">)</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Run: uvicorn myapp:shield_app --port 9000</span>
+</span></code></pre></div>
+<p><strong>Service setup — three auth configurations:</strong></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShieldSDK</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># No auth on the Shield Server — nothing needed</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">sdk</span> <span class="o">=</span> <span class="n">ShieldSDK</span><span class="p">(</span><span class="n">server_url</span><span class="o">=</span><span class="s2">&quot;http://shield-server:9000&quot;</span><span class="p">,</span> <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;payments-service&quot;</span><span class="p">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Auto-login (recommended for production): SDK logs in on startup with platform=&quot;sdk&quot;</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">sdk</span> <span class="o">=</span> <span class="n">ShieldSDK</span><span class="p">(</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">server_url</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;SHIELD_SERVER_URL&quot;</span><span class="p">],</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;payments-service&quot;</span><span class="p">,</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="n">username</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;SHIELD_USERNAME&quot;</span><span class="p">],</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">password</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;SHIELD_PASSWORD&quot;</span><span class="p">],</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="p">)</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="c1"># Pre-issued token: obtain once via `shield login`, store as a secret</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="n">sdk</span> <span class="o">=</span> <span class="n">ShieldSDK</span><span class="p">(</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="n">server_url</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;SHIELD_SERVER_URL&quot;</span><span class="p">],</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;payments-service&quot;</span><span class="p">,</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="n">token</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;SHIELD_TOKEN&quot;</span><span class="p">],</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="p">)</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="n">sdk</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>   <span class="c1"># wires middleware + startup/shutdown</span>
+</span></code></pre></div>
+<h3 id="which-backend-should-the-shield-server-use">Which backend should the Shield Server use?<a class="headerlink" href="#which-backend-should-the-shield-server-use" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Shield Server instances</th>
+<th>Backend choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (development)</td>
+<td><code>MemoryBackend</code> — state lives in-process, lost on restart</td>
+</tr>
+<tr>
+<td>1 (production)</td>
+<td><code>FileBackend</code> — state survives restarts</td>
+</tr>
+<tr>
+<td>2+ (HA / load-balanced)</td>
+<td><code>RedisBackend</code> — all Shield Server nodes share state via pub/sub</td>
+</tr>
+</tbody>
+</table>
+<h3 id="shared-rate-limit-counters-across-sdk-replicas">Shared rate limit counters across SDK replicas<a class="headerlink" href="#shared-rate-limit-counters-across-sdk-replicas" title="Permanent link">&para;</a></h3>
+<p>Each SDK client enforces rate limits locally using its own counters. When a service runs multiple replicas, each replica has independent counters — a <code>100/minute</code> limit is enforced independently per replica by default.</p>
+<p>To enforce the limit <strong>across all replicas combined</strong>, pass a shared <code>RedisBackend</code> as <code>rate_limit_backend</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.backends.redis</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisBackend</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">sdk</span> <span class="o">=</span> <span class="n">ShieldSDK</span><span class="p">(</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">server_url</span><span class="o">=</span><span class="s2">&quot;http://shield-server:9000&quot;</span><span class="p">,</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">app_id</span><span class="o">=</span><span class="s2">&quot;payments-service&quot;</span><span class="p">,</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    <span class="n">rate_limit_backend</span><span class="o">=</span><span class="n">RedisBackend</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">&quot;redis://redis:6379/1&quot;</span><span class="p">),</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="deployment-matrix">Deployment matrix<a class="headerlink" href="#deployment-matrix" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Services</th>
+<th>Replicas per service</th>
+<th>Shield Server backend</th>
+<th>SDK <code>rate_limit_backend</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>any — use embedded <code>ShieldAdmin</code> instead</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2+</td>
+<td>1 each</td>
+<td><code>MemoryBackend</code> or <code>FileBackend</code></td>
+<td>not needed</td>
+</tr>
+<tr>
+<td>2+</td>
+<td>2+ each</td>
+<td><code>RedisBackend</code></td>
+<td><code>RedisBackend</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../guides/shield-server/"><strong>Shield Server guide →</strong></a> for a complete walkthrough.</p>
+<hr />
 <h2 id="using-make_engine-recommended">Using <code>make_engine</code> (recommended)<a class="headerlink" href="#using-make_engine-recommended" title="Permanent link">&para;</a></h2>
 <p><code>make_engine()</code> reads <code>SHIELD_BACKEND</code> (and related env vars) so you never hardcode the backend:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_engine</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">()</span>                           <span class="c1"># reads env + .shield file</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">current_env</span><span class="o">=</span><span class="s2">&quot;staging&quot;</span><span class="p">)</span>      <span class="c1"># override env</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;redis&quot;</span><span class="p">)</span>            <span class="c1"># force backend type</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_engine</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">()</span>                           <span class="c1"># reads env + .shield file</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">current_env</span><span class="o">=</span><span class="s2">&quot;staging&quot;</span><span class="p">)</span>      <span class="c1"># override env</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">make_engine</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;redis&quot;</span><span class="p">)</span>            <span class="c1"># force backend type</span>
 </span></code></pre></div>
 <p>This lets you use <code>MemoryBackend</code> locally and <code>RedisBackend</code> in production without touching your app code.</p>
 <hr />
 <h2 id="custom-backends">Custom backends<a class="headerlink" href="#custom-backends" title="Permanent link">&para;</a></h2>
 <p>Any storage layer can be used by subclassing <code>ShieldBackend</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.backends.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShieldBackend</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">AuditEntry</span><span class="p">,</span> <span class="n">RouteState</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyBackend</span><span class="p">(</span><span class="n">ShieldBackend</span><span class="p">):</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteState</span><span class="p">:</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="c1"># MUST raise KeyError if not found</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>        <span class="o">...</span>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">set_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">RouteState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>        <span class="o">...</span>
-</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
-</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>        <span class="o">...</span>
-</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_states</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">RouteState</span><span class="p">]:</span>
-</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>        <span class="o">...</span>
-</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
-</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">write_audit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="n">AuditEntry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>        <span class="o">...</span>
-</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
-</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_audit_log</span><span class="p">(</span>
-</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
-</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">AuditEntry</span><span class="p">]:</span>
-</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>        <span class="o">...</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.backends.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShieldBackend</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">shield.core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">AuditEntry</span><span class="p">,</span> <span class="n">RouteState</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyBackend</span><span class="p">(</span><span class="n">ShieldBackend</span><span class="p">):</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteState</span><span class="p">:</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="c1"># MUST raise KeyError if not found</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>        <span class="o">...</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">set_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">RouteState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>        <span class="o">...</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        <span class="o">...</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_states</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">RouteState</span><span class="p">]:</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>        <span class="o">...</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">write_audit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="n">AuditEntry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>        <span class="o">...</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_audit_log</span><span class="p">(</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">AuditEntry</span><span class="p">]:</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>        <span class="o">...</span>
 </span></code></pre></div>
 <p>See <a href="../../adapters/custom/"><strong>Adapters: Building your own backend →</strong></a> for a full SQLite example.</p>
 <div class="admonition warning">
@@ -1809,22 +2112,22 @@ that has a rate limit applied.</p>
 <hr />
 <h2 id="lifecycle-hooks">Lifecycle hooks<a class="headerlink" href="#lifecycle-hooks" title="Permanent link">&para;</a></h2>
 <p>Override <code>startup()</code> and <code>shutdown()</code> for connection setup/teardown:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyBackend</span><span class="p">(</span><span class="n">ShieldBackend</span><span class="p">):</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">startup</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="k">await</span> <span class="n">connect_to_db</span><span class="p">()</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">shutdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyBackend</span><span class="p">(</span><span class="n">ShieldBackend</span><span class="p">):</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">startup</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="k">await</span> <span class="n">connect_to_db</span><span class="p">()</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">shutdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </span></code></pre></div>
 <p>Use <code>async with engine:</code> in your app lifespan to call them automatically:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nd">@asynccontextmanager</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">):</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">engine</span><span class="p">:</span>   <span class="c1"># → backend.startup() … backend.shutdown()</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="k">yield</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="nd">@asynccontextmanager</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">):</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">engine</span><span class="p">:</span>   <span class="c1"># → backend.startup() … backend.shutdown()</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="k">yield</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">)</span>
 </span></code></pre></div>
 <hr />
 <hr />
@@ -1857,8 +2160,8 @@ that has a rate limit applied.</p>
 </tbody>
 </table>
 <p>For production deployments with multiple workers, use <code>RedisBackend</code>. Redis counters are atomic and shared across all processes.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Rate limit counters automatically use Redis when the main backend is Redis</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">ShieldEngine</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">RedisBackend</span><span class="p">(</span><span class="s2">&quot;redis://localhost:6379/0&quot;</span><span class="p">))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Rate limit counters automatically use Redis when the main backend is Redis</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">engine</span> <span class="o">=</span> <span class="n">ShieldEngine</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">RedisBackend</span><span class="p">(</span><span class="s2">&quot;redis://localhost:6379/0&quot;</span><span class="p">))</span>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">FileBackend and multi-worker</p>
