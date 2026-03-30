@@ -1,12 +1,12 @@
-# Security Policy for API-Shield 🔒
+# Security Policy for API-Switchly 🔒
 
-Security is a top priority for API-Shield and its users. Please read this policy to understand how we handle security issues.
+Security is a top priority for API-Switchly and its users. Please read this policy to understand how we handle security issues.
 
 ---
 
 ## Supported Versions
 
-We actively maintain the latest version of API-Shield.  
+We actively maintain the latest version of API-Switchly.  
 
 To help keep your applications secure:
 
@@ -20,7 +20,7 @@ Keeping your dependencies up to date ensures you benefit from the latest feature
 
 ## Reporting a Vulnerability
 
-If you discover a potential security issue in API-Shield, please report it immediately. Even if you’re unsure, we appreciate your help.
+If you discover a potential security issue in API-Switchly, please report it immediately. Even if you’re unsure, we appreciate your help.
 
 - Email: **richardquaicoe78@gmail.com**  
 - Include as much detail as possible:
@@ -41,4 +41,4 @@ We aim to address issues quickly and keep both users and the community safe.
 
 ---
 
-Thank you for helping make API-Shield secure! 🙏
+Thank you for helping make API-Switchly secure! 🙏

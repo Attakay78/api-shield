@@ -1,8 +1,8 @@
-"""Tests for shield.core.rate_limit.models."""
+"""Tests for switchly.core.rate_limit.models."""
 
 from __future__ import annotations
 
-from shield.core.rate_limit.models import (
+from switchly.core.rate_limit.models import (
     STRATEGY_DEFAULTS,
     OnMissingKey,
     RateLimitAlgorithm,

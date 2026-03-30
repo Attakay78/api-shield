@@ -1,12 +1,12 @@
-"""Integration tests: shield decorators on plain APIRouter (not ShieldRouter).
+"""Integration tests: switchly decorators on plain APIRouter (not SwitchlyRouter).
 
 These tests verify that ``@maintenance``, ``@disabled``, ``@env_only``, and
 ``@deprecated`` work correctly when applied to routes on a vanilla
 ``fastapi.APIRouter`` or directly on the ``FastAPI`` app — without
-``ShieldRouter`` being involved.
+``SwitchlyRouter`` being involved.
 
-The ``ShieldMiddleware`` lazy-scans all app routes on the first request and
-registers any ``__shield_meta__``-bearing endpoints with the engine.
+The ``SwitchlyMiddleware`` lazy-scans all app routes on the first request and
+registers any ``__switchly_meta__``-bearing endpoints with the engine.
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from __future__ import annotations
 from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.fastapi.decorators import deprecated, disabled, env_only, maintenance
-from shield.fastapi.middleware import ShieldMiddleware
+from switchly.core.backends.memory import MemoryBackend
+from switchly.core.engine import SwitchlyEngine
+from switchly.fastapi.decorators import deprecated, disabled, env_only, maintenance
+from switchly.fastapi.middleware import SwitchlyMiddleware
 
 
-def _make_app(env: str = "dev") -> tuple[FastAPI, ShieldEngine]:
-    engine = ShieldEngine(backend=MemoryBackend(), current_env=env)
+def _make_app(env: str = "dev") -> tuple[FastAPI, SwitchlyEngine]:
+    engine = SwitchlyEngine(backend=MemoryBackend(), current_env=env)
     app = FastAPI()
-    app.add_middleware(ShieldMiddleware, engine=engine)
+    app.add_middleware(SwitchlyMiddleware, engine=engine)
     return app, engine
 
 
@@ -189,9 +189,9 @@ async def test_plain_router_undecorated_passes_through():
 async def test_scan_routes_standalone():
     """scan_routes() can be called manually (e.g. in a lifespan) to register
     all decorated routes before the first request."""
-    from shield.fastapi.router import scan_routes
+    from switchly.fastapi.router import scan_routes
 
-    engine = ShieldEngine(backend=MemoryBackend(), current_env="production")
+    engine = SwitchlyEngine(backend=MemoryBackend(), current_env="production")
     app = FastAPI()
     router = APIRouter()
 

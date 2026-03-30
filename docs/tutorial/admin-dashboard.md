@@ -1,40 +1,40 @@
 # Admin Dashboard
 
-`ShieldAdmin` is the unified admin interface. It mounts the HTMX dashboard UI and the REST API (used by the CLI) under a single path.
+`SwitchlyAdmin` is the unified admin interface. It mounts the HTMX dashboard UI and the REST API (used by the CLI) under a single path.
 
 ---
 
-## Mounting ShieldAdmin
+## Mounting SwitchlyAdmin
 
 ```python
 from fastapi import FastAPI
-from shield.core.engine import ShieldEngine
-from shield.fastapi.middleware import ShieldMiddleware
-from shield.admin import ShieldAdmin
+from switchly import SwitchlyEngine
+from switchly.fastapi import SwitchlyMiddleware
+from switchly.fastapi import SwitchlyAdmin
 
-engine = ShieldEngine()
+engine = SwitchlyEngine()
 
 app = FastAPI()
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 
-# Mount at /shield — exposes dashboard UI + REST API
+# Mount at /switchly — exposes dashboard UI + REST API
 app.mount(
-    "/shield",
-    ShieldAdmin(
+    "/switchly",
+    SwitchlyAdmin(
         engine=engine,
         auth=("admin", "secret"),
-        prefix="/shield",
+        prefix="/switchly",
     ),
 )
 ```
 
 After starting the server:
 
-- **Dashboard UI**: `http://localhost:8000/shield/`
-- **Audit log**: `http://localhost:8000/shield/audit`
-- **Rate limits**: `http://localhost:8000/shield/rate-limits`
-- **Blocked requests**: `http://localhost:8000/shield/blocked`
-- **REST API**: `http://localhost:8000/shield/api/`
+- **Dashboard UI**: `http://localhost:8000/switchly/`
+- **Audit log**: `http://localhost:8000/switchly/audit`
+- **Rate limits**: `http://localhost:8000/switchly/rate-limits`
+- **Blocked requests**: `http://localhost:8000/switchly/blocked`
+- **REST API**: `http://localhost:8000/switchly/api/`
 
 ---
 
@@ -45,31 +45,31 @@ After starting the server:
 === "Single user"
 
     ```python
-    ShieldAdmin(engine=engine, auth=("admin", "secret"))
+    SwitchlyAdmin(engine=engine, auth=("admin", "secret"))
     ```
 
 === "Multiple users"
 
     ```python
-    ShieldAdmin(engine=engine, auth=[("alice", "pass1"), ("bob", "pass2")])
+    SwitchlyAdmin(engine=engine, auth=[("alice", "pass1"), ("bob", "pass2")])
     ```
 
 === "Custom auth backend"
 
     ```python
-    from shield.admin.auth import ShieldAuthBackend
+    from switchly.fastapi import SwitchlyAuthBackend
 
-    class MyDBAuth(ShieldAuthBackend):
+    class MyDBAuth(SwitchlyAuthBackend):
         def authenticate_user(self, username: str, password: str) -> bool:
             return db.check(username, password)
 
-    ShieldAdmin(engine=engine, auth=MyDBAuth())
+    SwitchlyAdmin(engine=engine, auth=MyDBAuth())
     ```
 
 === "No auth (open access)"
 
     ```python
-    ShieldAdmin(engine=engine)
+    SwitchlyAdmin(engine=engine)
     ```
 
 !!! tip "Token invalidation"
@@ -80,7 +80,7 @@ After starting the server:
 ## Dashboard UI
 
 <figure class="screenshot" markdown>
-  ![Shield Admin Dashboard](../assets/dashboard.png)
+  ![Switchly Admin Dashboard](../assets/dashboard.png)
   <figcaption>The admin dashboard showing route states, status badges, and per-route actions.</figcaption>
 </figure>
 
@@ -103,25 +103,25 @@ The dashboard renders all registered routes with live status badges:
 
 ### Live updates (SSE)
 
-The dashboard connects to the `/shield/events` SSE endpoint. When state changes (from another browser tab, CLI command, or API call), the affected row updates in real time without a page reload.
+The dashboard connects to the `/switchly/events` SSE endpoint. When state changes (from another browser tab, CLI command, or API call), the affected row updates in real time without a page reload.
 
 ### Rate limits
 
-`http://localhost:8000/shield/rate-limits` shows all registered rate limit policies. Each row has three actions:
+`http://localhost:8000/switchly/rate-limits` shows all registered rate limit policies. Each row has three actions:
 
 - **Reset** — clear counters immediately so clients get their full quota back
 - **Edit** — update the limit, algorithm, or key strategy without redeploying
 - **Delete** — remove a persisted policy override
 
-Requires `api-shield[rate-limit]` installed on the server.
+Requires `switchly[rate-limit]` installed on the server.
 
 ### Blocked requests
 
-`http://localhost:8000/shield/blocked` shows a paginated log of every request that was rejected with a 429. The log is capped at 10,000 entries (configurable via `max_rl_hit_entries` on the engine).
+`http://localhost:8000/switchly/blocked` shows a paginated log of every request that was rejected with a 429. The log is capped at 10,000 entries (configurable via `max_rl_hit_entries` on the engine).
 
 ### Audit log
 
-`http://localhost:8000/shield/audit` shows a paginated table of all state changes:
+`http://localhost:8000/switchly/audit` shows a paginated table of all state changes:
 
 - Timestamp
 - Route
@@ -135,7 +135,7 @@ Requires `api-shield[rate-limit]` installed on the server.
 
 ## REST API
 
-The same mount exposes a JSON API used by the `shield` CLI:
+The same mount exposes a JSON API used by the `switchly` CLI:
 
 | Method | Path | Description |
 |---|---|---|
@@ -163,10 +163,10 @@ The same mount exposes a JSON API used by the `shield` CLI:
 ## Advanced options
 
 ```python
-ShieldAdmin(
+SwitchlyAdmin(
     engine=engine,
     auth=("admin", "secret"),
-    prefix="/shield",             # must match the mount path
+    prefix="/switchly",             # must match the mount path
     secret_key="stable-key",      # omit in dev; set for production to survive restarts
     token_expiry=86400,           # token lifetime in seconds (default: 24 h)
 )
@@ -174,9 +174,9 @@ ShieldAdmin(
 
 | Option | Default | Description |
 |---|---|---|
-| `engine` | required | The `ShieldEngine` instance |
+| `engine` | required | The `SwitchlyEngine` instance |
 | `auth` | `None` (open) | Credentials (see forms above) |
-| `prefix` | `"/shield"` | Mount path prefix (must match `app.mount()`) |
+| `prefix` | `"/switchly"` | Mount path prefix (must match `app.mount()`) |
 | `secret_key` | random | HMAC signing key; set a stable value in production |
 | `token_expiry` | `86400` | Token lifetime in seconds |
 

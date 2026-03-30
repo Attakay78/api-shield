@@ -14,11 +14,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from shield.core.engine import ShieldEngine
-from shield.fastapi import (
-    ShieldMiddleware,
-    ShieldRouter,
-    apply_shield_to_openapi,
+from switchly.core.engine import SwitchlyEngine
+from switchly.fastapi import (
+    SwitchlyMiddleware,
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
     disabled,
     env_only,
     force_active,
@@ -30,10 +30,10 @@ from tests.fastapi._helpers import _trigger_startup
 @pytest.fixture
 async def acceptance_app():
     """Build the exact app from the CLAUDE.md acceptance example."""
-    engine = ShieldEngine(
+    engine = SwitchlyEngine(
         current_env="production"
     )  # explicit: acceptance scenario tests env-gating in production
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/payments")
     @maintenance(reason="DB migration")
@@ -56,9 +56,9 @@ async def acceptance_app():
         return {"status": "ok"}
 
     app = FastAPI()
-    app.add_middleware(ShieldMiddleware, engine=engine)
+    app.add_middleware(SwitchlyMiddleware, engine=engine)
     app.include_router(router)
-    apply_shield_to_openapi(app, engine)
+    apply_switchly_to_openapi(app, engine)
 
     await _trigger_startup(app)
     return app, engine
@@ -95,7 +95,7 @@ async def test_old_endpoint_returns_503(acceptance_app):
 async def test_health_always_200(acceptance_app):
     app, engine = acceptance_app
     # force_active routes are immune to state changes — the engine rejects them.
-    from shield.core.exceptions import RouteProtectedException
+    from switchly.core.exceptions import RouteProtectedException
 
     with pytest.raises(RouteProtectedException):
         await engine.set_maintenance("/health", reason="test")

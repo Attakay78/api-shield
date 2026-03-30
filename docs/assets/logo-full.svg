@@ -1,40 +1,37 @@
 <svg width="900" height="260" viewBox="0 0 900 260" xmlns="http://www.w3.org/2000/svg">
 
-  <!-- Shield Icon -->
-  <g transform="translate(40,0)">
+  <!-- Switchly Icon -->
+  <g transform="translate(40,30)">
 
-    <!-- Shield -->
-    <path
-      d="
-      M110 40
-      L170 75
-      L170 130
-      C170 180 140 210 110 225
-      C80 210 50 180 50 130
-      L50 75
-      Z"
-      fill="#F59E0B"/>
+    <!-- Gradient Circle -->
+    <defs>
+      <radialGradient id="gradSwitchly" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#FFD580"/>
+        <stop offset="100%" stop-color="#F59E0B"/>
+      </radialGradient>
+    </defs>
+    <circle cx="80" cy="100" r="80" fill="url(#gradSwitchly)"/>
 
-    <!-- Routing lines -->
-    <g stroke="white" stroke-width="6" stroke-linecap="round">
-
-      <!-- main route -->
-      <line x1="110" y1="85" x2="110" y2="125"/>
-
-      <!-- branch left -->
-      <line x1="110" y1="125" x2="80" y2="155"/>
-
-      <!-- branch right -->
-      <line x1="110" y1="125" x2="140" y2="155"/>
-
+    <!-- Curved switching arrows -->
+    <g stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M50 80 C70 60, 90 60, 110 80" /> <!-- top arrow -->
+      <path d="M50 120 C70 140, 90 140, 110 120" /> <!-- bottom arrow -->
     </g>
 
-    <!-- nodes -->
+    <!-- Node circles -->
     <g fill="white">
+      <circle cx="80" cy="50" r="7"/>
+      <circle cx="50" cy="80" r="7"/>
       <circle cx="110" cy="80" r="7"/>
-      <circle cx="110" cy="125" r="7"/>
-      <circle cx="80" cy="155" r="7"/>
-      <circle cx="140" cy="155" r="7"/>
+      <circle cx="50" cy="120" r="7"/>
+      <circle cx="110" cy="120" r="7"/>
+      <circle cx="80" cy="150" r="7"/>
+    </g>
+
+    <!-- Arrowheads -->
+    <g fill="white">
+      <polygon points="77,47 83,47 80,52"/> <!-- top arrowhead -->
+      <polygon points="77,147 83,147 80,152"/> <!-- bottom arrowhead -->
     </g>
 
   </g>
@@ -49,7 +46,7 @@
     fill="#F59E0B"
     letter-spacing="0.5">
 
-    API-Shield
+    Switchly
 
   </text>
 

@@ -14,11 +14,11 @@ import base64
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from shield.admin.app import ShieldAdmin
-from shield.core.engine import ShieldEngine
-from shield.core.models import RouteState, RouteStatus
-from shield.core.rate_limit.storage import HAS_LIMITS
-from shield.dashboard.routes import _get_unrated_routes
+from switchly.admin.app import SwitchlyAdmin
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.models import RouteState, RouteStatus
+from switchly.core.rate_limit.storage import HAS_LIMITS
+from switchly.dashboard.routes import _get_unrated_routes
 
 # ---------------------------------------------------------------------------
 # Skip marker — skip every rate-limit test when the limits library is absent
@@ -48,9 +48,9 @@ def _make_state(path: str, service: str = "") -> RouteState:
 
 
 @pytest.fixture
-async def engine() -> ShieldEngine:
-    """Provide a ShieldEngine pre-loaded with two test routes."""
-    e = ShieldEngine()
+async def engine() -> SwitchlyEngine:
+    """Provide a SwitchlyEngine pre-loaded with two test routes."""
+    e = SwitchlyEngine()
     await e.backend.set_state(
         "/api/items", RouteState(path="/api/items", status=RouteStatus.ACTIVE)
     )
@@ -61,14 +61,14 @@ async def engine() -> ShieldEngine:
 
 
 @pytest.fixture
-def admin(engine: ShieldEngine) -> object:
-    """Return a ShieldAdmin ASGI app (no auth)."""
-    return ShieldAdmin(engine=engine)
+def admin(engine: SwitchlyEngine) -> object:
+    """Return a SwitchlyAdmin ASGI app (no auth)."""
+    return SwitchlyAdmin(engine=engine)
 
 
 @pytest.fixture
 async def client(admin: object) -> AsyncClient:
-    """Return an httpx AsyncClient pointing at the ShieldAdmin app."""
+    """Return an httpx AsyncClient pointing at the SwitchlyAdmin app."""
     async with AsyncClient(
         transport=ASGITransport(app=admin),  # type: ignore[arg-type]
         base_url="http://testserver",
@@ -102,6 +102,25 @@ def test_get_unrated_routes_excludes_rated() -> None:
     assert "/api/orders" in paths
 
 
+def test_get_unrated_routes_excludes_method_prefixed_rated() -> None:
+    """Routes stored as 'METHOD:/path' are excluded when a policy exists for that path."""
+    # scan_routes registers routes with method prefix: "GET:/api/items"
+    states = [
+        _make_state("GET:/api/items"),
+        _make_state("POST:/api/items"),
+        _make_state("GET:/api/orders"),
+    ]
+    policies = {"GET:/api/items": object()}
+    result = _get_unrated_routes(states, policies, "")
+    paths = {s.path for s in result}
+    # GET:/api/items is rated — excluded
+    assert "GET:/api/items" not in paths
+    # POST:/api/items shares the same path — also excluded (same bare path "/api/items")
+    assert "POST:/api/items" not in paths
+    # GET:/api/orders has no policy — included
+    assert "GET:/api/orders" in paths
+
+
 def test_get_unrated_routes_service_filter() -> None:
     """With service filter, only routes matching that service are included."""
     states = [
@@ -117,7 +136,7 @@ def test_get_unrated_routes_service_filter() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — ShieldAdmin /rate-limits page
+# Integration tests — SwitchlyAdmin /rate-limits page
 # ---------------------------------------------------------------------------
 
 
@@ -132,7 +151,7 @@ async def test_rate_limits_page_includes_unprotected_section(
 
 
 async def test_rate_limits_page_no_unprotected_when_all_rated(
-    engine: ShieldEngine, admin: object
+    engine: SwitchlyEngine, admin: object
 ) -> None:
     """When every route has a policy, 'Unprotected Routes' should not appear."""
     # Add policies for both registered routes.
@@ -171,7 +190,7 @@ async def test_modal_rl_add_returns_200(client: AsyncClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_rl_add_creates_policy_and_redirects(engine: ShieldEngine, admin: object) -> None:
+async def test_rl_add_creates_policy_and_redirects(engine: SwitchlyEngine, admin: object) -> None:
     """POST /rl/add with a registered path creates the policy and returns 204
     with an HX-Redirect header pointing at /rate-limits."""
     async with AsyncClient(
@@ -199,7 +218,7 @@ async def test_rl_add_unknown_route_returns_error(admin: object) -> None:
     """POST /rl/add for a path that is not registered in the engine rejects
     the request — the handler raises RouteNotFoundException (propagates as a
     server error since rl_add does not catch it)."""
-    from shield.core.exceptions import RouteNotFoundException
+    from switchly.core.exceptions import RouteNotFoundException
 
     async with AsyncClient(
         transport=ASGITransport(app=admin),  # type: ignore[arg-type]

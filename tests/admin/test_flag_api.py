@@ -1,4 +1,4 @@
-"""Tests for the feature flag + segment REST API endpoints in ShieldAdmin.
+"""Tests for the feature flag + segment REST API endpoints in SwitchlyAdmin.
 
 All tests use an in-process ASGI transport — no real server needed.
 The admin is mounted with ``enable_flags=True`` so flag routes are active.
@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from shield.admin.app import ShieldAdmin
-from shield.core.engine import ShieldEngine
-from shield.core.feature_flags.models import (
+from switchly.admin.app import SwitchlyAdmin
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.feature_flags.models import (
     FeatureFlag,
     Segment,
 )
@@ -22,14 +22,14 @@ from shield.core.feature_flags.models import (
 
 
 @pytest.fixture
-def engine() -> ShieldEngine:
-    return ShieldEngine()
+def engine() -> SwitchlyEngine:
+    return SwitchlyEngine()
 
 
 @pytest.fixture
-def admin(engine: ShieldEngine):
-    """ShieldAdmin with flags enabled, no auth."""
-    return ShieldAdmin(engine=engine, enable_flags=True)
+def admin(engine: SwitchlyEngine):
+    """SwitchlyAdmin with flags enabled, no auth."""
+    return SwitchlyAdmin(engine=engine, enable_flags=True)
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ def _segment_payload(key: str = "beta") -> dict:
 
 class TestFlagsNotMounted:
     async def test_flag_routes_absent_when_disabled(self, engine):
-        admin_no_flags = ShieldAdmin(engine=engine, enable_flags=False)
+        admin_no_flags = SwitchlyAdmin(engine=engine, enable_flags=False)
         async with AsyncClient(
             transport=ASGITransport(app=admin_no_flags),
             base_url="http://testserver",

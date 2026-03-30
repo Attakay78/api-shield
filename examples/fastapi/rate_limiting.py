@@ -26,29 +26,34 @@ Then exercise the endpoints:
     curl http://localhost:8000/burst             # 5/minute + burst 3 = 8 total
 
 Admin dashboard (login: admin / secret):
-    http://localhost:8000/shield/
+    http://localhost:8000/switchly/
 
 CLI — view and mutate policies at runtime (no redeploy needed):
-    shield login admin
-    shield rl list
-    shield rl set GET:/public/posts 20/minute   # raise the limit live
-    shield rl set POST:/data 10/second --algorithm fixed_window
-    shield rl hits                              # blocked requests log
-    shield rl reset GET:/public/posts           # clear counters
-    shield rl delete GET:/public/posts          # remove persisted override
+    switchly login admin
+    switchly rl list
+    switchly rl set GET:/public/posts 20/minute   # raise the limit live
+    switchly rl set POST:/data 10/second --algorithm fixed_window
+    switchly rl hits                              # blocked requests log
+    switchly rl reset GET:/public/posts           # clear counters
+    switchly rl delete GET:/public/posts          # remove persisted override
 """
 
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
 
-from shield.admin import ShieldAdmin
-from shield.core.config import make_engine
-from shield.fastapi import ShieldMiddleware, ShieldRouter, apply_shield_to_openapi, maintenance
-from shield.fastapi.decorators import rate_limit
+from switchly import make_engine
+from switchly.fastapi import (
+    SwitchlyAdmin,
+    SwitchlyMiddleware,
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
+    maintenance,
+    rate_limit,
+)
 
 engine = make_engine()
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 
 # ---------------------------------------------------------------------------
@@ -255,9 +260,9 @@ async def checkout():
     quota is fully preserved when the route comes back online.
 
     Try it:
-        shield maintenance /checkout --reason "upgrade"   # put in maintenance
+        switchly maintenance /checkout --reason "upgrade"   # put in maintenance
         # hammer the endpoint — counters stay at 0
-        shield enable /checkout                           # restore
+        switchly enable /checkout                           # restore
         # full quota available immediately
     """
     return {"checkout": "ok"}
@@ -274,22 +279,22 @@ def health():
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="api-shield — Rate Limiting Example",
+    title="switchly — Rate Limiting Example",
     description=(
         "Demonstrates `@rate_limit` with all key strategies, algorithms, "
         "burst, tiers, exempt IPs, and runtime policy mutation via the CLI."
     ),
 )
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 app.include_router(router)
-apply_shield_to_openapi(app, engine)
+apply_switchly_to_openapi(app, engine)
 
 app.mount(
-    "/shield",
-    ShieldAdmin(
+    "/switchly",
+    SwitchlyAdmin(
         engine=engine,
         auth=("admin", "secret"),
-        prefix="/shield",
+        prefix="/switchly",
     ),
 )

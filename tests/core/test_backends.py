@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from shield.core.backends.file import FileBackend
-from shield.core.backends.memory import MemoryBackend
-from shield.core.backends.redis import RedisBackend
-from shield.core.models import AuditEntry, RouteState, RouteStatus
+from switchly.core.backends.file import FileBackend
+from switchly.core.backends.memory import MemoryBackend
+from switchly.core.backends.redis import RedisBackend
+from switchly.core.models import AuditEntry, RouteState, RouteStatus
 
 # ---------------------------------------------------------------------------
 # Redis availability check
@@ -45,7 +45,7 @@ def memory_backend() -> MemoryBackend:
 
 @pytest.fixture
 def file_backend(tmp_path: Path) -> FileBackend:
-    return FileBackend(str(tmp_path / "shield.json"))
+    return FileBackend(str(tmp_path / "switchly.json"))
 
 
 @pytest.fixture
@@ -216,7 +216,7 @@ async def test_file_subscribe_raises(tmp_path):
 
 async def test_file_backend_persists_between_instances(tmp_path):
     """Data written by one FileBackend instance is readable by another."""
-    file_path = str(tmp_path / "shield.json")
+    file_path = str(tmp_path / "switchly.json")
     b1 = FileBackend(file_path)
     await b1.set_state("/api/test", _make_state())
 

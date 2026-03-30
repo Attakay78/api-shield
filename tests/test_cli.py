@@ -1,6 +1,6 @@
-"""Tests for the shield CLI — HTTP client mode.
+"""Tests for the switchly CLI — HTTP client mode.
 
-The CLI is now a thin HTTP client.  Tests create an in-process ShieldAdmin
+The CLI is now a thin HTTP client.  Tests create an in-process SwitchlyAdmin
 ASGI app and inject it into the CLI via the ``make_client`` monkeypatch,
 so no real server is needed.
 
@@ -20,13 +20,13 @@ import pytest
 import pytest as _pytest
 from typer.testing import CliRunner
 
-from shield.admin.app import ShieldAdmin
-from shield.cli.client import ShieldClient, ShieldClientError
-from shield.cli.main import _parse_dt, _parse_route, _parse_until
-from shield.cli.main import cli as app
-from shield.core.engine import ShieldEngine
-from shield.core.models import RouteState, RouteStatus
-from shield.core.rate_limit.storage import HAS_LIMITS
+from switchly.admin.app import SwitchlyAdmin
+from switchly.cli.client import SwitchlyClient, SwitchlyClientError
+from switchly.cli.main import _parse_dt, _parse_route, _parse_until
+from switchly.cli.main import cli as app
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.models import RouteState, RouteStatus
+from switchly.core.rate_limit.storage import HAS_LIMITS
 
 runner = CliRunner()
 
@@ -36,9 +36,9 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 
 
-def _seed_engine(*paths: str) -> ShieldEngine:
-    """Create a ShieldEngine and seed *paths* as ACTIVE routes (synchronously)."""
-    e = ShieldEngine()
+def _seed_engine(*paths: str) -> SwitchlyEngine:
+    """Create a SwitchlyEngine and seed *paths* as ACTIVE routes (synchronously)."""
+    e = SwitchlyEngine()
 
     async def _run() -> None:
         for path in paths:
@@ -59,18 +59,18 @@ def _do_async(coro_fn: object) -> object:
     return results[0] if results else None
 
 
-def _open_client(engine: ShieldEngine) -> ShieldClient:
-    """Return a ShieldClient backed by an in-process ShieldAdmin (no auth)."""
-    admin = ShieldAdmin(engine=engine)
-    return ShieldClient(
+def _open_client(engine: SwitchlyEngine) -> SwitchlyClient:
+    """Return a SwitchlyClient backed by an in-process SwitchlyAdmin (no auth)."""
+    admin = SwitchlyAdmin(engine=engine)
+    return SwitchlyClient(
         base_url="http://testserver",
         transport=httpx.ASGITransport(app=admin),  # type: ignore[arg-type]
     )
 
 
-def invoke_with_client(client: ShieldClient, *args: str) -> object:
+def invoke_with_client(client: SwitchlyClient, *args: str) -> object:
     """Invoke a CLI command with *client* injected via ``make_client``."""
-    with patch("shield.cli.main.make_client", return_value=client):
+    with patch("switchly.cli.main.make_client", return_value=client):
         return runner.invoke(app, list(args), catch_exceptions=False)
 
 
@@ -147,7 +147,7 @@ def test_parse_route_no_leading_slash() -> None:
 
 
 def test_status_empty() -> None:
-    e = ShieldEngine()  # empty — no need for async seeding
+    e = SwitchlyEngine()  # empty — no need for async seeding
     client = _open_client(e)
     result = invoke_with_client(client, "status")
     assert result.exit_code == 0
@@ -270,7 +270,7 @@ def test_schedule_command() -> None:
 
 
 def test_log_empty() -> None:
-    e = ShieldEngine()
+    e = SwitchlyEngine()
     client = _open_client(e)
     result = invoke_with_client(client, "log")
     assert result.exit_code == 0
@@ -319,103 +319,103 @@ def test_log_limit() -> None:
 
 
 def test_get_server_url_from_env(monkeypatch) -> None:
-    """SHIELD_SERVER_URL env var is the highest priority source."""
-    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env-host:9000/shield")
-    from shield.cli import config as cfg
+    """SWITCHLY_SERVER_URL env var is the highest priority source."""
+    monkeypatch.setenv("SWITCHLY_SERVER_URL", "http://env-host:9000/switchly")
+    from switchly.cli import config as cfg
 
-    assert cfg.get_server_url() == "http://env-host:9000/shield"
+    assert cfg.get_server_url() == "http://env-host:9000/switchly"
 
 
-def test_get_server_url_from_dot_shield_file(tmp_path, monkeypatch) -> None:
-    """.shield file SERVER_URL is used when no env var is set."""
-    shield_file = tmp_path / ".shield"
-    shield_file.write_text("SHIELD_SERVER_URL=http://project-host:8080/shield\n")
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+def test_get_server_url_from_dot_switchly_file(tmp_path, monkeypatch) -> None:
+    """.switchly file SERVER_URL is used when no env var is set."""
+    switchly_file = tmp_path / ".switchly"
+    switchly_file.write_text("SWITCHLY_SERVER_URL=http://project-host:8080/switchly\n")
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    # Point find_shield_file at our tmp directory.
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
-    assert cfg.get_server_url() == "http://project-host:8080/shield"
+    # Point find_switchly_file at our tmp directory.
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: switchly_file)
+    assert cfg.get_server_url() == "http://project-host:8080/switchly"
 
 
 def test_get_server_url_from_user_config(tmp_path, monkeypatch) -> None:
-    """~/.shield/config.json is used when no env var and no .shield file."""
+    """~/.switchly/config.json is used when no env var and no .switchly file."""
     config_file = tmp_path / "config.json"
-    config_file.write_text('{"server_url": "http://user-config-host/shield"}')
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    config_file.write_text('{"server_url": "http://user-config-host/switchly"}')
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: None)
     monkeypatch.setattr(cfg, "get_config_path", lambda: config_file)
-    assert cfg.get_server_url() == "http://user-config-host/shield"
+    assert cfg.get_server_url() == "http://user-config-host/switchly"
 
 
 def test_get_server_url_default(monkeypatch) -> None:
     """Falls back to the built-in default when nothing is configured."""
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: None)
     monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
-    assert cfg.get_server_url() == "http://localhost:8000/shield"
+    assert cfg.get_server_url() == "http://localhost:8000/switchly"
 
 
-def test_env_var_takes_priority_over_dot_shield(tmp_path, monkeypatch) -> None:
-    """Env var wins over .shield file."""
-    shield_file = tmp_path / ".shield"
-    shield_file.write_text("SHIELD_SERVER_URL=http://project-host/shield\n")
-    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env-wins/shield")
-    from shield.cli import config as cfg
+def test_env_var_takes_priority_over_dot_switchly(tmp_path, monkeypatch) -> None:
+    """Env var wins over .switchly file."""
+    switchly_file = tmp_path / ".switchly"
+    switchly_file.write_text("SWITCHLY_SERVER_URL=http://project-host/switchly\n")
+    monkeypatch.setenv("SWITCHLY_SERVER_URL", "http://env-wins/switchly")
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
-    assert cfg.get_server_url() == "http://env-wins/shield"
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: switchly_file)
+    assert cfg.get_server_url() == "http://env-wins/switchly"
 
 
-def test_dot_shield_takes_priority_over_user_config(tmp_path, monkeypatch) -> None:
-    """.shield file wins over user config.json."""
-    shield_file = tmp_path / ".shield"
-    shield_file.write_text("SHIELD_SERVER_URL=http://project-wins/shield\n")
+def test_dot_switchly_takes_priority_over_user_config(tmp_path, monkeypatch) -> None:
+    """.switchly file wins over user config.json."""
+    switchly_file = tmp_path / ".switchly"
+    switchly_file.write_text("SWITCHLY_SERVER_URL=http://project-wins/switchly\n")
     config_file = tmp_path / "config.json"
-    config_file.write_text('{"server_url": "http://user-config/shield"}')
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    config_file.write_text('{"server_url": "http://user-config/switchly"}')
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: shield_file)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: switchly_file)
     monkeypatch.setattr(cfg, "get_config_path", lambda: config_file)
-    assert cfg.get_server_url() == "http://project-wins/shield"
+    assert cfg.get_server_url() == "http://project-wins/switchly"
 
 
-def test_find_shield_file_walks_up(tmp_path) -> None:
-    """find_shield_file walks up from a subdirectory."""
-    from shield.cli.config import find_shield_file
+def test_find_switchly_file_walks_up(tmp_path) -> None:
+    """find_switchly_file walks up from a subdirectory."""
+    from switchly.cli.config import find_switchly_file
 
-    # Create .shield in tmp_path and start search from a nested subdir.
-    shield_file = tmp_path / ".shield"
-    shield_file.write_text("SHIELD_SERVER_URL=http://found/shield\n")
+    # Create .switchly in tmp_path and start search from a nested subdir.
+    switchly_file = tmp_path / ".switchly"
+    switchly_file.write_text("SWITCHLY_SERVER_URL=http://found/switchly\n")
     nested = tmp_path / "a" / "b" / "c"
     nested.mkdir(parents=True)
-    found = find_shield_file(start=nested)
-    assert found == shield_file
+    found = find_switchly_file(start=nested)
+    assert found == switchly_file
 
 
-def test_find_shield_file_returns_none_when_absent(tmp_path) -> None:
-    """find_shield_file returns None when no .shield file exists in the tree."""
-    from shield.cli.config import find_shield_file
+def test_find_switchly_file_returns_none_when_absent(tmp_path) -> None:
+    """find_switchly_file returns None when no .switchly file exists in the tree."""
+    from switchly.cli.config import find_switchly_file
 
-    # Use a temp dir with no .shield file.
+    # Use a temp dir with no .switchly file.
     nested = tmp_path / "deep"
     nested.mkdir()
-    # We can't easily test the full walk without a .shield file, but we
+    # We can't easily test the full walk without a .switchly file, but we
     # can verify a path that definitely won't have one (the tmp dir itself).
-    assert find_shield_file(start=tmp_path) is None
+    assert find_switchly_file(start=tmp_path) is None
 
 
 def test_require_server_url_always_returns_value(monkeypatch) -> None:
     """require_server_url() always returns a string (no SystemExit)."""
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: None)
     monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
     url = cfg.require_server_url()
     assert isinstance(url, str)
@@ -423,29 +423,29 @@ def test_require_server_url_always_returns_value(monkeypatch) -> None:
 
 
 def test_url_source_env(monkeypatch) -> None:
-    monkeypatch.setenv("SHIELD_SERVER_URL", "http://env/shield")
-    from shield.cli import config as cfg
+    monkeypatch.setenv("SWITCHLY_SERVER_URL", "http://env/switchly")
+    from switchly.cli import config as cfg
 
     assert "env" in cfg.get_server_url_source()
 
 
 def test_url_source_default(monkeypatch) -> None:
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: None)
     monkeypatch.setattr(cfg, "get_config_path", lambda: cfg.Path("/nonexistent/config.json"))
     assert cfg.get_server_url_source() == "default"
 
 
 def test_config_show_displays_source(tmp_path, monkeypatch) -> None:
     """config show includes the URL source in parentheses."""
-    monkeypatch.delenv("SHIELD_SERVER_URL", raising=False)
-    from shield.cli import config as cfg
+    monkeypatch.delenv("SWITCHLY_SERVER_URL", raising=False)
+    from switchly.cli import config as cfg
 
-    monkeypatch.setattr(cfg, "find_shield_file", lambda start=None: None)
+    monkeypatch.setattr(cfg, "find_switchly_file", lambda start=None: None)
     monkeypatch.setattr(
-        "shield.cli.config.get_config_path",
+        "switchly.cli.config.get_config_path",
         lambda: tmp_path / "config.json",
     )
     result = runner.invoke(app, ["config", "show"], catch_exceptions=False)
@@ -456,12 +456,12 @@ def test_config_show_displays_source(tmp_path, monkeypatch) -> None:
 
 def test_config_set_url(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "shield.cli.config.get_config_path",
+        "switchly.cli.config.get_config_path",
         lambda: tmp_path / "config.json",
     )
     result = runner.invoke(
         app,
-        ["config", "set-url", "http://localhost:8000/shield"],
+        ["config", "set-url", "http://localhost:8000/switchly"],
         catch_exceptions=False,
     )
     assert result.exit_code == 0
@@ -470,7 +470,7 @@ def test_config_set_url(tmp_path, monkeypatch) -> None:
 
 def test_config_show(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "shield.cli.config.get_config_path",
+        "switchly.cli.config.get_config_path",
         lambda: tmp_path / "config.json",
     )
     result = runner.invoke(app, ["config", "show"], catch_exceptions=False)
@@ -485,18 +485,18 @@ def test_config_show(tmp_path, monkeypatch) -> None:
 
 def test_login_success(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "shield.cli.config.get_config_path",
+        "switchly.cli.config.get_config_path",
         lambda: tmp_path / "config.json",
     )
-    e = ShieldEngine()
-    admin = ShieldAdmin(engine=e, auth=("admin", "secret"))
+    e = SwitchlyEngine()
+    admin = SwitchlyAdmin(engine=e, auth=("admin", "secret"))
     transport = httpx.ASGITransport(app=admin)  # type: ignore[arg-type]
 
     with (
-        patch("shield.cli.config.require_server_url", return_value="http://testserver"),
+        patch("switchly.cli.config.require_server_url", return_value="http://testserver"),
         patch(
-            "shield.cli.main.ShieldClient",
-            return_value=ShieldClient(base_url="http://testserver", transport=transport),
+            "switchly.cli.main.SwitchlyClient",
+            return_value=SwitchlyClient(base_url="http://testserver", transport=transport),
         ),
     ):
         result = runner.invoke(
@@ -512,18 +512,18 @@ def test_login_success(tmp_path, monkeypatch) -> None:
 
 def test_login_wrong_password_exits_1(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "shield.cli.config.get_config_path",
+        "switchly.cli.config.get_config_path",
         lambda: tmp_path / "config.json",
     )
-    e = ShieldEngine()
-    admin = ShieldAdmin(engine=e, auth=("admin", "secret"))
+    e = SwitchlyEngine()
+    admin = SwitchlyAdmin(engine=e, auth=("admin", "secret"))
     transport = httpx.ASGITransport(app=admin)  # type: ignore[arg-type]
 
     with (
-        patch("shield.cli.config.require_server_url", return_value="http://testserver"),
+        patch("switchly.cli.config.require_server_url", return_value="http://testserver"),
         patch(
-            "shield.cli.main.ShieldClient",
-            return_value=ShieldClient(base_url="http://testserver", transport=transport),
+            "switchly.cli.main.SwitchlyClient",
+            return_value=SwitchlyClient(base_url="http://testserver", transport=transport),
         ),
     ):
         result = runner.invoke(
@@ -541,9 +541,9 @@ def test_login_wrong_password_exits_1(tmp_path, monkeypatch) -> None:
 
 
 def test_401_shows_login_hint() -> None:
-    e = ShieldEngine()
+    e = SwitchlyEngine()
     client = _open_client(e)
-    with patch.object(client, "list_routes", side_effect=ShieldClientError("Auth required", 401)):
+    with patch.object(client, "list_routes", side_effect=SwitchlyClientError("Auth required", 401)):
         result = invoke_with_client(client, "status")
     assert result.exit_code == 1
     assert "login" in result.output.lower()
@@ -555,7 +555,7 @@ def test_401_shows_login_hint() -> None:
 
 
 def test_global_status() -> None:
-    e = ShieldEngine()
+    e = SwitchlyEngine()
     client = _open_client(e)
     result = invoke_with_client(client, "global", "status")
     assert result.exit_code == 0
@@ -563,7 +563,7 @@ def test_global_status() -> None:
 
 
 def test_global_enable_disable() -> None:
-    e = ShieldEngine()
+    e = SwitchlyEngine()
     client = _open_client(e)
 
     result = invoke_with_client(client, "global", "enable", "--reason", "emergency")
@@ -591,7 +591,7 @@ def test_disable_method_specific_route() -> None:
 
 
 def test_invalid_method_raises_error() -> None:
-    e = ShieldEngine()
+    e = SwitchlyEngine()
     _open_client(e)
     result = runner.invoke(app, ["disable", "BREW:/payments"], catch_exceptions=False)
     assert result.exit_code != 0
@@ -606,7 +606,7 @@ _rl_skipif = _pytest.mark.skipif(not HAS_LIMITS, reason="limits library not inst
 
 @_rl_skipif
 def test_rl_set_creates_policy() -> None:
-    """shield rl set GET:/api/items 10/minute — METHOD:/path form."""
+    """switchly rl set GET:/api/items 10/minute — METHOD:/path form."""
     e = _seed_engine("/api/items")
     client = _open_client(e)
     result = invoke_with_client(client, "rl", "set", "GET:/api/items", "10/minute")
@@ -616,7 +616,7 @@ def test_rl_set_creates_policy() -> None:
 
 @_rl_skipif
 def test_rl_set_path_only_defaults_to_get() -> None:
-    """shield rl set /api/items 10/minute — plain /path defaults to GET."""
+    """switchly rl set /api/items 10/minute — plain /path defaults to GET."""
     e = _seed_engine("/api/items")
     client = _open_client(e)
     result = invoke_with_client(client, "rl", "set", "/api/items", "10/minute")
@@ -626,7 +626,7 @@ def test_rl_set_path_only_defaults_to_get() -> None:
 
 @_rl_skipif
 def test_rl_set_with_method_and_algorithm() -> None:
-    """shield rl set POST:/api/pay 5/second --algorithm fixed_window."""
+    """switchly rl set POST:/api/pay 5/second --algorithm fixed_window."""
     e = _seed_engine("/api/pay")
     client = _open_client(e)
     result = invoke_with_client(
@@ -654,7 +654,7 @@ def test_rl_list_shows_policies() -> None:
 
 @_rl_skipif
 def test_rl_delete_removes_policy() -> None:
-    """shield rl delete GET:/api/items — METHOD:/path form."""
+    """switchly rl delete GET:/api/items — METHOD:/path form."""
     e = _seed_engine("/api/items")
     client = _open_client(e)
     invoke_with_client(client, "rl", "set", "GET:/api/items", "10/minute")
@@ -668,7 +668,7 @@ def test_rl_delete_removes_policy() -> None:
 
 @_rl_skipif
 def test_rl_delete_path_only_defaults_to_get() -> None:
-    """shield rl delete /api/items — plain /path defaults to GET."""
+    """switchly rl delete /api/items — plain /path defaults to GET."""
     e = _seed_engine("/api/items")
     client = _open_client(e)
     invoke_with_client(client, "rl", "set", "GET:/api/items", "10/minute")

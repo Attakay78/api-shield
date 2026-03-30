@@ -16,7 +16,7 @@
 - [ ] `ruff check .` passes with no errors
 - [ ] `ruff format .` applied
 - [ ] `pytest` passes locally
-- [ ] `shield.core` has no new imports from `shield.fastapi`, `shield.dashboard`, or `shield.cli`
+- [ ] `switchly.core` has no new imports from `switchly.fastapi`, `switchly.dashboard`, or `switchly.cli`
 - [ ] All new public functions and classes have docstrings
 
 ## Related issues

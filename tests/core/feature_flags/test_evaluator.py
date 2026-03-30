@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from shield.core.feature_flags.evaluator import FlagEvaluator
-from shield.core.feature_flags.models import (
+from switchly.core.feature_flags.evaluator import FlagEvaluator
+from switchly.core.feature_flags.models import (
     EvaluationContext,
     EvaluationReason,
     FeatureFlag,
