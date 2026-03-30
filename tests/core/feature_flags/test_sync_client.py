@@ -1,4 +1,4 @@
-"""Tests for _SyncShieldFeatureClient and engine.sync.flag_client.
+"""Tests for _SyncSwitchlyFeatureClient and engine.sync.flag_client.
 
 Verifies that all five evaluation methods work correctly from a
 synchronous context (the way FastAPI runs ``def`` route handlers).
@@ -8,19 +8,19 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("openfeature", reason="api-shield[flags] not installed")
+pytest.importorskip("openfeature", reason="switchly[flags] not installed")
 
-from shield.core.engine import ShieldEngine
-from shield.core.feature_flags.client import ShieldFeatureClient, _SyncShieldFeatureClient
-from shield.core.feature_flags.models import FeatureFlag, FlagType, FlagVariation
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.feature_flags.client import SwitchlyFeatureClient, _SyncSwitchlyFeatureClient
+from switchly.core.feature_flags.models import FeatureFlag, FlagType, FlagVariation
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_engine() -> ShieldEngine:
-    engine = ShieldEngine()
+def _make_engine() -> SwitchlyEngine:
+    engine = SwitchlyEngine()
     engine.use_openfeature()
     return engine
 
@@ -40,19 +40,19 @@ def _make_flag(
 
 
 # ---------------------------------------------------------------------------
-# _SyncShieldFeatureClient — unit
+# _SyncSwitchlyFeatureClient — unit
 # ---------------------------------------------------------------------------
 
 
-class TestSyncShieldFeatureClient:
+class TestSyncSwitchlyFeatureClient:
     def test_is_returned_by_flag_client_sync_property(self) -> None:
         engine = _make_engine()
-        fc: ShieldFeatureClient = engine._flag_client
-        assert isinstance(fc.sync, _SyncShieldFeatureClient)
+        fc: SwitchlyFeatureClient = engine._flag_client
+        assert isinstance(fc.sync, _SyncSwitchlyFeatureClient)
 
     def test_each_call_returns_fresh_instance(self) -> None:
         engine = _make_engine()
-        fc: ShieldFeatureClient = engine._flag_client
+        fc: SwitchlyFeatureClient = engine._flag_client
         # Two accesses to .sync return separate objects (not cached),
         # but both wrap the same underlying OpenFeature client.
         a = fc.sync
@@ -106,14 +106,14 @@ class TestSyncShieldFeatureClient:
 
 class TestEngineSyncFlagClient:
     def test_returns_none_before_use_openfeature(self) -> None:
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         assert engine.sync.flag_client is None
 
     def test_returns_sync_client_after_use_openfeature(self) -> None:
         engine = _make_engine()
         fc = engine.sync.flag_client
         assert fc is not None
-        assert isinstance(fc, _SyncShieldFeatureClient)
+        assert isinstance(fc, _SyncSwitchlyFeatureClient)
 
     def test_evaluates_registered_boolean_flag(self) -> None:
         """A saved boolean flag returns its fallthrough value."""

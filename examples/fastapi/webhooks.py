@@ -1,6 +1,6 @@
 """FastAPI — Webhooks Example.
 
-Demonstrates how api-shield fires HTTP webhooks on every route state change.
+Demonstrates how switchly fires HTTP webhooks on every route state change.
 
 This example is fully self-contained: the webhook receivers are mounted on the
 same FastAPI app, so no external service is needed. Change a route state via
@@ -15,12 +15,12 @@ Then open two terminals:
     watch -n1 curl -s http://localhost:8000/webhook-log
 
   Terminal 2 — trigger state changes:
-    shield config set-url http://localhost:8000/shield
-    shield login admin           # password: secret
-    shield disable GET:/payments --reason "hotfix"
-    shield enable  GET:/payments
-    shield maintenance GET:/orders --reason "stock sync"
-    shield enable  GET:/orders
+    switchly config set-url http://localhost:8000/switchly
+    switchly login admin           # password: secret
+    switchly disable GET:/payments --reason "hotfix"
+    switchly enable  GET:/payments
+    switchly maintenance GET:/orders --reason "stock sync"
+    switchly enable  GET:/orders
 
 Three webhooks are registered on startup:
   1. /webhooks/generic  — raw default_formatter JSON payload
@@ -38,14 +38,12 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
-from shield.admin import ShieldAdmin
-from shield.core.config import make_engine
-from shield.core.models import RouteState
-from shield.core.webhooks import SlackWebhookFormatter, default_formatter
-from shield.fastapi import (
-    ShieldMiddleware,
-    ShieldRouter,
-    apply_shield_to_openapi,
+from switchly import RouteState, SlackWebhookFormatter, default_formatter, make_engine
+from switchly.fastapi import (
+    SwitchlyAdmin,
+    SwitchlyMiddleware,
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
     disabled,
     force_active,
     maintenance,
@@ -57,7 +55,7 @@ from shield.fastapi import (
 
 CURRENT_ENV = os.getenv("APP_ENV", "dev")
 engine = make_engine(current_env=CURRENT_ENV)
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 # ---------------------------------------------------------------------------
 # In-memory log — stores the last 50 webhook events received
@@ -74,7 +72,7 @@ _webhook_log: deque[dict[str, Any]] = deque(maxlen=50)
 def custom_formatter(event: str, path: str, state: RouteState) -> dict[str, Any]:
     """Minimal custom formatter — returns only the fields our consumer needs."""
     return {
-        "source": "api-shield",
+        "source": "switchly",
         "event": event,
         "route": path,
         "status": state.status,
@@ -162,7 +160,7 @@ async def webhook_log() -> HTMLResponse:
 <head>
   <meta charset="utf-8">
   <meta http-equiv="refresh" content="5">
-  <title>Webhook Log — api-shield</title>
+  <title>Webhook Log — switchly</title>
   <style>
     body {{ font-family: sans-serif; margin: 2rem auto; max-width: 960px; color: #111; }}
     h1   {{ font-size: 1.5rem; }}
@@ -185,7 +183,7 @@ async def webhook_log() -> HTMLResponse:
 
 
 # ---------------------------------------------------------------------------
-# Sample shielded routes — change their state to trigger webhooks
+# Sample switchlyed routes — change their state to trigger webhooks
 # ---------------------------------------------------------------------------
 
 
@@ -199,7 +197,7 @@ async def health() -> dict:
 @router.get("/payments")
 @maintenance(reason="Scheduled DB migration — back at 04:00 UTC")
 async def get_payments() -> dict:
-    """Starts in maintenance. Enable via CLI: shield enable GET:/payments"""
+    """Starts in maintenance. Enable via CLI: switchly enable GET:/payments"""
     return {"payments": []}
 
 
@@ -221,7 +219,7 @@ async def legacy() -> dict:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="api-shield — Webhooks Example",
+    title="switchly — Webhooks Example",
     description=(
         "Demonstrates webhook notifications on route state changes.\n\n"
         "**Webhook receivers** (all `@force_active`):\n"
@@ -233,9 +231,9 @@ app = FastAPI(
     ),
 )
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 app.include_router(router)
-apply_shield_to_openapi(app, engine)
+apply_switchly_to_openapi(app, engine)
 
 # ---------------------------------------------------------------------------
 # Register webhooks — all three point at this same app (self-contained)
@@ -252,6 +250,6 @@ engine.add_webhook(f"{BASE_URL}/webhooks/custom", formatter=custom_formatter)
 # ---------------------------------------------------------------------------
 
 app.mount(
-    "/shield",
-    ShieldAdmin(engine=engine, auth=("admin", "secret"), prefix="/shield"),
+    "/switchly",
+    SwitchlyAdmin(engine=engine, auth=("admin", "secret"), prefix="/switchly"),
 )

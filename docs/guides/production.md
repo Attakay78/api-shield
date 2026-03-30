@@ -1,6 +1,6 @@
 # Production Monitoring & Deployment Automation
 
-This guide covers practical patterns for integrating api-shield into the scripts and pipelines that keep your production systems healthy.
+This guide covers practical patterns for integrating switchly into the scripts and pipelines that keep your production systems healthy.
 
 ---
 
@@ -8,21 +8,21 @@ This guide covers practical patterns for integrating api-shield into the scripts
 
 ### Poll route health via the REST API
 
-The `ShieldAdmin` REST API is JSON over HTTP, so any monitoring tool that can make an HTTP request can query it. No `shield` CLI install needed on the monitoring host.
+The `SwitchlyAdmin` REST API is JSON over HTTP, so any monitoring tool that can make an HTTP request can query it. No `switchly` CLI install needed on the monitoring host.
 
 ```bash
 #!/usr/bin/env bash
 # check-routes.sh — exit 1 if any route is unexpectedly disabled
 
-SHIELD_URL="${SHIELD_SERVER_URL:-http://localhost:8000/shield}"
-TOKEN="${SHIELD_TOKEN}"
+SWITCHLY_URL="${SWITCHLY_SERVER_URL:-http://localhost:8000/switchly}"
+TOKEN="${SWITCHLY_TOKEN}"
 
 routes=$(curl -sf \
-  -H "X-Shield-Token: $TOKEN" \
-  "$SHIELD_URL/api/routes")
+  -H "X-Switchly-Token: $TOKEN" \
+  "$SWITCHLY_URL/api/routes")
 
 if [ $? -ne 0 ]; then
-  echo "ERROR: Could not reach ShieldAdmin at $SHIELD_URL" >&2
+  echo "ERROR: Could not reach SwitchlyAdmin at $SWITCHLY_URL" >&2
   exit 1
 fi
 
@@ -41,7 +41,7 @@ echo "OK: all routes nominal"
 Run this from cron, Datadog, or any scheduler:
 
 ```cron
-*/5 * * * * /opt/scripts/check-routes.sh >> /var/log/shield-monitor.log 2>&1
+*/5 * * * * /opt/scripts/check-routes.sh >> /var/log/switchly-monitor.log 2>&1
 ```
 
 ---
@@ -50,22 +50,22 @@ Run this from cron, Datadog, or any scheduler:
 
 ```python
 #!/usr/bin/env python3
-"""monitor_routes.py — check api-shield route states and alert on anomalies."""
+"""monitor_routes.py — check switchly route states and alert on anomalies."""
 
 import os
 import sys
 import httpx
 
-SHIELD_URL = os.environ.get("SHIELD_SERVER_URL", "http://localhost:8000/shield")
-TOKEN = os.environ["SHIELD_TOKEN"]
+SWITCHLY_URL = os.environ.get("SWITCHLY_SERVER_URL", "http://localhost:8000/switchly")
+TOKEN = os.environ["SWITCHLY_TOKEN"]
 
 ALERT_ON = {"disabled", "maintenance"}   # statuses that warrant an alert
 
 
 def fetch_routes() -> list[dict]:
     resp = httpx.get(
-        f"{SHIELD_URL}/api/routes",
-        headers={"X-Shield-Token": TOKEN},
+        f"{SWITCHLY_URL}/api/routes",
+        headers={"X-Switchly-Token": TOKEN},
         timeout=10,
     )
     resp.raise_for_status()
@@ -98,56 +98,56 @@ if __name__ == "__main__":
 
 ### Webhook alerting (Slack / PagerDuty)
 
-api-shield fires webhooks on every state change — enable, disable, maintenance on/off. Webhook delivery always originates from the process that owns the engine where state mutations happen. Where you register them depends on your deployment mode.
+switchly fires webhooks on every state change — enable, disable, maintenance on/off. Webhook delivery always originates from the process that owns the engine where state mutations happen. Where you register them depends on your deployment mode.
 
 #### Embedded mode (single service)
 
-Register directly on the engine before mounting `ShieldAdmin`:
+Register directly on the engine before mounting `SwitchlyAdmin`:
 
 ```python
-from shield.core.engine import ShieldEngine
-from shield.core.webhooks import SlackWebhookFormatter
-from shield.fastapi import ShieldAdmin
+from switchly import SwitchlyEngine
+from switchly import SlackWebhookFormatter
+from switchly.fastapi import SwitchlyAdmin
 
-engine = ShieldEngine()
+engine = SwitchlyEngine()
 engine.add_webhook(
     url=os.environ["SLACK_WEBHOOK_URL"],
     formatter=SlackWebhookFormatter(),
 )
 engine.add_webhook(url=os.environ["PAGERDUTY_WEBHOOK_URL"])
 
-admin = ShieldAdmin(engine=engine, auth=("admin", os.environ["SHIELD_PASS"]))
-app.mount("/shield", admin)
+admin = SwitchlyAdmin(engine=engine, auth=("admin", os.environ["SWITCHLY_PASS"]))
+app.mount("/switchly", admin)
 ```
 
-#### Shield Server mode (multi-service)
+#### Switchly Server mode (multi-service)
 
-State mutations happen on the **Shield Server**, not on SDK clients. Build the engine explicitly so you can call `add_webhook()` on it before passing it to `ShieldAdmin`:
+State mutations happen on the **Switchly Server**, not on SDK clients. Build the engine explicitly so you can call `add_webhook()` on it before passing it to `SwitchlyAdmin`:
 
 ```python
-# shield_server.py
+# switchly_server.py
 import os
-from shield.core.engine import ShieldEngine
-from shield.core.backends.redis import RedisBackend
-from shield.core.webhooks import SlackWebhookFormatter
-from shield.admin.app import ShieldAdmin
+from switchly import SwitchlyEngine
+from switchly import RedisBackend
+from switchly import SlackWebhookFormatter
+from switchly.fastapi import SwitchlyAdmin
 
-engine = ShieldEngine(backend=RedisBackend(os.environ["REDIS_URL"]))
+engine = SwitchlyEngine(backend=RedisBackend(os.environ["REDIS_URL"]))
 engine.add_webhook(
     url=os.environ["SLACK_WEBHOOK_URL"],
     formatter=SlackWebhookFormatter(),
 )
 engine.add_webhook(url=os.environ["PAGERDUTY_WEBHOOK_URL"])
 
-shield_app = ShieldAdmin(
+switchly_app = SwitchlyAdmin(
     engine=engine,
-    auth=("admin", os.environ["SHIELD_PASS"]),
-    secret_key=os.environ["SHIELD_SECRET_KEY"],
+    auth=("admin", os.environ["SWITCHLY_PASS"]),
+    secret_key=os.environ["SWITCHLY_SECRET_KEY"],
 )
 ```
 
 !!! note
-    SDK service apps (`ShieldSDK`) never fire webhooks. They only enforce state locally — all mutations and therefore all webhook triggers originate on the Shield Server.
+    SDK service apps (`SwitchlySDK`) never fire webhooks. They only enforce state locally — all mutations and therefore all webhook triggers originate on the Switchly Server.
 
 Webhook payload sent on every state change:
 
@@ -161,7 +161,7 @@ Webhook payload sent on every state change:
 }
 ```
 
-Webhook failures are non-blocking; they are logged and never affect the request path. On multi-node Shield Server deployments (`RedisBackend`), Redis `SET NX` deduplication ensures only one node fires per event.
+Webhook failures are non-blocking; they are logged and never affect the request path. On multi-node Switchly Server deployments (`RedisBackend`), Redis `SET NX` deduplication ensures only one node fires per event.
 
 ---
 
@@ -176,14 +176,14 @@ The safest deployment pattern: enable maintenance before the deploy, run migrati
 # deploy.sh
 set -euo pipefail
 
-SHIELD_URL="${SHIELD_SERVER_URL:-http://localhost:8000/shield}"
+SWITCHLY_URL="${SWITCHLY_SERVER_URL:-http://localhost:8000/switchly}"
 
-shield_cmd() {
-  shield --server-url "$SHIELD_URL" "$@"
+switchly_cmd() {
+  switchly --server-url "$SWITCHLY_URL" "$@"
 }
 
 echo "==> Enabling global maintenance..."
-shield_cmd global enable \
+switchly_cmd global enable \
   --reason "Deploying v$(cat VERSION) — back in ~5 minutes" \
   --exempt /health \
   --exempt GET:/readiness
@@ -198,7 +198,7 @@ echo "==> Waiting for health check..."
 until curl -sf http://localhost:8000/health; do sleep 2; done
 
 echo "==> Disabling global maintenance..."
-shield_cmd global disable
+switchly_cmd global disable
 
 echo "==> Deploy complete."
 ```
@@ -214,7 +214,7 @@ For zero-downtime deploys where only specific routes need to go offline:
 # rolling-deploy.sh
 set -euo pipefail
 
-shield maintenance "POST:/orders" \
+switchly maintenance "POST:/orders" \
   --reason "Order service upgrade — ETA 10 minutes" \
   --start "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --end "$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
@@ -225,7 +225,7 @@ docker compose up -d --no-deps --build orders
 # Wait for readiness
 until curl -sf http://localhost:8001/health; do sleep 2; done
 
-shield enable "POST:/orders"
+switchly enable "POST:/orders"
 echo "Orders service back online."
 ```
 
@@ -245,20 +245,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SHIELD_SERVER_URL: ${{ secrets.SHIELD_SERVER_URL }}
+      SWITCHLY_SERVER_URL: ${{ secrets.SWITCHLY_SERVER_URL }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install shield CLI
-        run: pip install "api-shield[cli]"
+      - name: Install switchly CLI
+        run: pip install "switchly[cli]"
 
-      - name: Authenticate with ShieldAdmin
-        run: shield login ${{ secrets.SHIELD_USER }} --password ${{ secrets.SHIELD_PASS }}
+      - name: Authenticate with SwitchlyAdmin
+        run: switchly login ${{ secrets.SWITCHLY_USER }} --password ${{ secrets.SWITCHLY_PASS }}
 
       - name: Enable global maintenance
         run: |
-          shield global enable \
+          switchly global enable \
             --reason "GitHub Actions deploy — commit ${{ github.sha }}" \
             --exempt /health
 
@@ -273,13 +273,13 @@ jobs:
 
       - name: Disable global maintenance
         if: always()   # run even if a previous step failed
-        run: shield global disable
+        run: switchly global disable
 
       - name: Verify routes
         run: |
-          shield status
+          switchly status
           # fail the workflow if any route is unexpectedly disabled
-          shield status | grep -qv DISABLED || exit 1
+          switchly status | grep -qv DISABLED || exit 1
 ```
 
 !!! tip "Always disable on failure"
@@ -305,7 +305,7 @@ spec:
                   - sh
                   - -c
                   - |
-                    shield --server-url $SHIELD_SERVER_URL \
+                    switchly --server-url $SWITCHLY_SERVER_URL \
                       maintenance GET:/payments \
                       --reason "Pod shutting down (rolling update)"
           readinessProbe:
@@ -323,31 +323,31 @@ And a post-deploy Job to re-enable:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: shield-enable-routes
+  name: switchly-enable-routes
 spec:
   template:
     spec:
       restartPolicy: OnFailure
       containers:
-        - name: shield-cli
+        - name: switchly-cli
           image: python:3.13-slim
           command:
             - sh
             - -c
             - |
-              pip install -q "api-shield[cli]"
-              shield login $SHIELD_USER --password $SHIELD_PASS
-              shield enable GET:/payments
-              shield global disable
+              pip install -q "switchly[cli]"
+              switchly login $SWITCHLY_USER --password $SWITCHLY_PASS
+              switchly enable GET:/payments
+              switchly global disable
           env:
-            - name: SHIELD_SERVER_URL
-              value: "http://api-svc/shield"
-            - name: SHIELD_USER
+            - name: SWITCHLY_SERVER_URL
+              value: "http://api-svc/switchly"
+            - name: SWITCHLY_USER
               valueFrom:
-                secretKeyRef: { name: shield-creds, key: username }
-            - name: SHIELD_PASS
+                secretKeyRef: { name: switchly-creds, key: username }
+            - name: SWITCHLY_PASS
               valueFrom:
-                secretKeyRef: { name: shield-creds, key: password }
+                secretKeyRef: { name: switchly-creds, key: password }
 ```
 
 ---
@@ -358,7 +358,7 @@ For recurring maintenance windows (nightly jobs, weekly DB vacuums):
 
 ```bash
 # crontab — every Sunday 02:00–04:00 UTC
-0 2 * * 0 shield schedule GET:/reports \
+0 2 * * 0 switchly schedule GET:/reports \
   --start "$(date -u +\%Y-\%m-\%dT02:00:00Z)" \
   --end   "$(date -u +\%Y-\%m-\%dT04:00:00Z)" \
   --reason "Weekly report rebuild"
@@ -369,10 +369,10 @@ Or schedule programmatically from Python:
 ```python
 import asyncio
 from datetime import datetime, UTC, timedelta
-from shield.core.engine import ShieldEngine
-from shield.core.models import MaintenanceWindow
+from switchly import SwitchlyEngine
+from switchly import MaintenanceWindow
 
-async def schedule_nightly(engine: ShieldEngine) -> None:
+async def schedule_nightly(engine: SwitchlyEngine) -> None:
     now = datetime.now(UTC)
     tonight = now.replace(hour=2, minute=0, second=0, microsecond=0)
     if tonight < now:
@@ -400,12 +400,12 @@ Pull the audit log to detect unexpected state changes (e.g. a route disabled by 
 import httpx, os, sys
 from datetime import datetime, UTC, timedelta
 
-SHIELD_URL = os.environ.get("SHIELD_SERVER_URL", "http://localhost:8000/shield")
-TOKEN = os.environ["SHIELD_TOKEN"]
+SWITCHLY_URL = os.environ.get("SWITCHLY_SERVER_URL", "http://localhost:8000/switchly")
+TOKEN = os.environ["SWITCHLY_TOKEN"]
 LOOKBACK = timedelta(minutes=15)
 
 resp = httpx.get(
-    f"{SHIELD_URL}/api/audit?limit=50",
+    f"{SWITCHLY_URL}/api/audit?limit=50",
     headers={"Authorization": f"Bearer {TOKEN}"},
     timeout=10,
 )
@@ -432,9 +432,9 @@ print("OK")
 
 | Variable | Used by | Description |
 |---|---|---|
-| `SHIELD_SERVER_URL` | CLI, monitoring scripts | Base URL of the `ShieldAdmin` mount point |
-| `SHIELD_TOKEN` | Monitoring scripts (direct API calls) | Bearer token from `shield login` |
-| `SHIELD_BACKEND` | App server | Backend type: `memory`, `file`, `redis` |
-| `SHIELD_ENV` | App server | Current environment name (`dev`, `staging`, `production`) |
-| `SHIELD_REDIS_URL` | App server | Redis connection URL for `RedisBackend` |
-| `SHIELD_FILE_PATH` | App server | JSON file path for `FileBackend` |
+| `SWITCHLY_SERVER_URL` | CLI, monitoring scripts | Base URL of the `SwitchlyAdmin` mount point |
+| `SWITCHLY_TOKEN` | Monitoring scripts (direct API calls) | Bearer token from `switchly login` |
+| `SWITCHLY_BACKEND` | App server | Backend type: `memory`, `file`, `redis` |
+| `SWITCHLY_ENV` | App server | Current environment name (`dev`, `staging`, `production`) |
+| `SWITCHLY_REDIS_URL` | App server | Redis connection URL for `RedisBackend` |
+| `SWITCHLY_FILE_PATH` | App server | JSON file path for `FileBackend` |

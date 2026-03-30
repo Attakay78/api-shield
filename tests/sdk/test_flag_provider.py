@@ -1,9 +1,9 @@
-"""Integration tests — ShieldSDK OpenFeature flag sync.
+"""Integration tests — SwitchlySDK OpenFeature flag sync.
 
 Covers:
-* ShieldServerBackend._listen_sse() handling flag events
-* ShieldSDKFlagProvider REST fetch + SSE hot-reload
-* ShieldSDK.use_openfeature() integration
+* SwitchlyServerBackend._listen_sse() handling flag events
+* SwitchlySDKFlagProvider REST fetch + SSE hot-reload
+* SwitchlySDK.use_openfeature() integration
 """
 
 from __future__ import annotations
@@ -13,9 +13,9 @@ import asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from shield.admin.app import ShieldAdmin
-from shield.core.engine import ShieldEngine
-from shield.core.feature_flags.models import (
+from switchly.admin.app import SwitchlyAdmin
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.feature_flags.models import (
     FeatureFlag,
     FlagType,
     FlagVariation,
@@ -51,15 +51,15 @@ def _segment(key: str = "beta") -> Segment:
 
 
 # ---------------------------------------------------------------------------
-# ShieldServerBackend — flag SSE event handling
+# SwitchlyServerBackend — flag SSE event handling
 # ---------------------------------------------------------------------------
 
 
-class TestShieldServerBackendFlagSSE:
+class TestSwitchlyServerBackendFlagSSE:
     def _make_backend(self):
-        from shield.core.backends.server import ShieldServerBackend
+        from switchly.core.backends.server import SwitchlyServerBackend
 
-        return ShieldServerBackend(server_url="http://shield:9000", app_id="svc")
+        return SwitchlyServerBackend(server_url="http://switchly:9000", app_id="svc")
 
     async def test_flag_updated_event_updates_cache(self) -> None:
         backend = self._make_backend()
@@ -133,35 +133,35 @@ class TestShieldServerBackendFlagSSE:
 
 
 # ---------------------------------------------------------------------------
-# ShieldSDKFlagProvider — REST fetch + SSE hot-reload
+# SwitchlySDKFlagProvider — REST fetch + SSE hot-reload
 # ---------------------------------------------------------------------------
 
 
-class TestShieldSDKFlagProvider:
+class TestSwitchlySDKFlagProvider:
     @pytest.fixture
-    def engine(self) -> ShieldEngine:
-        return ShieldEngine()
+    def engine(self) -> SwitchlyEngine:
+        return SwitchlyEngine()
 
     @pytest.fixture
-    def admin(self, engine: ShieldEngine):
-        return ShieldAdmin(engine=engine, enable_flags=True)
+    def admin(self, engine: SwitchlyEngine):
+        return SwitchlyAdmin(engine=engine, enable_flags=True)
 
     async def test_fetch_from_server_populates_flags(self, admin, engine) -> None:
         """Provider fetches flags from /api/flags on initialize()."""
         flag = _bool_flag("fetch-flag")
         await engine.save_flag(flag)
 
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
         # Build a backend with ASGI transport pointing at the admin app.
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
         sdk_backend._client = AsyncClient(
             transport=ASGITransport(app=admin),
             base_url="http://testserver",
         )
 
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        provider = SwitchlySDKFlagProvider(sdk_backend)
         await provider._fetch_from_server()
 
         assert "fetch-flag" in provider._flags
@@ -174,16 +174,16 @@ class TestShieldSDKFlagProvider:
         seg = _segment("fetch-seg")
         await engine.save_segment(seg)
 
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
         sdk_backend._client = AsyncClient(
             transport=ASGITransport(app=admin),
             base_url="http://testserver",
         )
 
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        provider = SwitchlySDKFlagProvider(sdk_backend)
         await provider._fetch_from_server()
 
         assert "fetch-seg" in provider._segments
@@ -192,11 +192,11 @@ class TestShieldSDKFlagProvider:
 
     async def test_watch_sse_hot_reloads_flag(self) -> None:
         """Provider _watch_sse() updates _flags when a flag_updated event arrives."""
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
+        provider = SwitchlySDKFlagProvider(sdk_backend)
 
         flag = _bool_flag("hot-flag")
         watch_task = asyncio.create_task(provider._watch_sse())
@@ -220,11 +220,11 @@ class TestShieldSDKFlagProvider:
 
     async def test_watch_sse_removes_deleted_flag(self) -> None:
         """Provider _watch_sse() removes flag when flag_deleted event arrives."""
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
+        provider = SwitchlySDKFlagProvider(sdk_backend)
         flag = _bool_flag("gone-flag")
         provider._flags["gone-flag"] = flag
 
@@ -245,11 +245,11 @@ class TestShieldSDKFlagProvider:
 
     async def test_watch_sse_hot_reloads_segment(self) -> None:
         """Provider _watch_sse() updates _segments when segment_updated event arrives."""
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
+        provider = SwitchlySDKFlagProvider(sdk_backend)
 
         seg = _segment("hot-seg")
         watch_task = asyncio.create_task(provider._watch_sse())
@@ -275,11 +275,11 @@ class TestShieldSDKFlagProvider:
 
     async def test_provider_shutdown_cancels_watch_task(self) -> None:
         """shutdown() cancels the SSE watcher without raising."""
-        from shield.core.backends.server import ShieldServerBackend
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.core.backends.server import SwitchlyServerBackend
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        sdk_backend = ShieldServerBackend(server_url="http://testserver", app_id="test-svc")
-        provider = ShieldSDKFlagProvider(sdk_backend)
+        sdk_backend = SwitchlyServerBackend(server_url="http://testserver", app_id="test-svc")
+        provider = SwitchlySDKFlagProvider(sdk_backend)
         provider._watch_task = asyncio.create_task(provider._watch_sse())
         await asyncio.sleep(0.05)
         provider.shutdown()
@@ -292,33 +292,33 @@ class TestShieldSDKFlagProvider:
 
 
 # ---------------------------------------------------------------------------
-# ShieldSDK.use_openfeature() integration
+# SwitchlySDK.use_openfeature() integration
 # ---------------------------------------------------------------------------
 
 
-class TestShieldSDKUseOpenFeature:
+class TestSwitchlySDKUseOpenFeature:
     async def test_use_openfeature_sets_flag_provider(self) -> None:
-        """use_openfeature() activates ShieldSDKFlagProvider on the engine."""
-        from shield.sdk import ShieldSDK
+        """use_openfeature() activates SwitchlySDKFlagProvider on the engine."""
+        from switchly.sdk import SwitchlySDK
 
-        sdk = ShieldSDK(
-            server_url="http://shield:9000",
+        sdk = SwitchlySDK(
+            server_url="http://switchly:9000",
             app_id="test-svc",
         )
         assert sdk.engine._flag_provider is None
         sdk.use_openfeature()
         assert sdk.engine._flag_provider is not None
 
-        from shield.sdk.flag_provider import ShieldSDKFlagProvider
+        from switchly.sdk.flag_provider import SwitchlySDKFlagProvider
 
-        assert isinstance(sdk.engine._flag_provider, ShieldSDKFlagProvider)
+        assert isinstance(sdk.engine._flag_provider, SwitchlySDKFlagProvider)
 
     async def test_use_openfeature_enables_flag_client(self) -> None:
         """use_openfeature() should also set up the flag_client property."""
-        from shield.sdk import ShieldSDK
+        from switchly.sdk import SwitchlySDK
 
-        sdk = ShieldSDK(
-            server_url="http://shield:9000",
+        sdk = SwitchlySDK(
+            server_url="http://switchly:9000",
             app_id="test-svc",
         )
         sdk.use_openfeature()
@@ -326,10 +326,10 @@ class TestShieldSDKUseOpenFeature:
 
     async def test_use_openfeature_with_domain(self) -> None:
         """use_openfeature(domain=...) uses the given domain name."""
-        from shield.sdk import ShieldSDK
+        from switchly.sdk import SwitchlySDK
 
-        sdk = ShieldSDK(
-            server_url="http://shield:9000",
+        sdk = SwitchlySDK(
+            server_url="http://switchly:9000",
             app_id="test-svc",
         )
         # Should not raise with a custom domain.
@@ -338,9 +338,9 @@ class TestShieldSDKUseOpenFeature:
 
     async def test_use_openfeature_idempotent(self) -> None:
         """Calling use_openfeature() twice should not crash."""
-        from shield.sdk import ShieldSDK
+        from switchly.sdk import SwitchlySDK
 
-        sdk = ShieldSDK(server_url="http://shield:9000", app_id="test-svc")
+        sdk = SwitchlySDK(server_url="http://switchly:9000", app_id="test-svc")
         sdk.use_openfeature()
         sdk.use_openfeature()  # second call — should not raise
         assert sdk.engine._flag_provider is not None

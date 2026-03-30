@@ -1,8 +1,8 @@
-"""Tests for shield.core.models."""
+"""Tests for switchly.core.models."""
 
 from datetime import UTC, datetime
 
-from shield.core.models import AuditEntry, MaintenanceWindow, RouteState, RouteStatus
+from switchly.core.models import AuditEntry, MaintenanceWindow, RouteState, RouteStatus
 
 
 def test_route_status_values():

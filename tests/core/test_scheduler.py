@@ -7,15 +7,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.core.models import MaintenanceWindow, RouteStatus
-from shield.core.scheduler import MaintenanceScheduler
+from switchly.core.backends.memory import MemoryBackend
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.models import MaintenanceWindow, RouteStatus
+from switchly.core.scheduler import MaintenanceScheduler
 
 
 @pytest.fixture
-def engine() -> ShieldEngine:
-    return ShieldEngine(backend=MemoryBackend())
+def engine() -> SwitchlyEngine:
+    return SwitchlyEngine(backend=MemoryBackend())
 
 
 @pytest.fixture
@@ -180,7 +180,7 @@ async def test_restore_skips_expired_windows(engine):
         end=now - timedelta(hours=1),  # already expired
         reason="expired",
     )
-    from shield.core.models import RouteState, RouteStatus
+    from switchly.core.models import RouteState, RouteStatus
 
     await engine.backend.set_state(
         "/api/old",

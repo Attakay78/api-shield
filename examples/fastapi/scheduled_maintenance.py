@@ -26,13 +26,11 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import FastAPI
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.core.models import MaintenanceWindow
-from shield.fastapi import ShieldMiddleware, ShieldRouter, force_active
+from switchly import MaintenanceWindow, MemoryBackend, SwitchlyEngine
+from switchly.fastapi import SwitchlyMiddleware, SwitchlyRouter, force_active
 
-engine = ShieldEngine(backend=MemoryBackend())
-router = ShieldRouter(engine=engine)
+engine = SwitchlyEngine(backend=MemoryBackend())
+router = SwitchlyRouter(engine=engine)
 
 
 @router.get("/orders")
@@ -63,7 +61,7 @@ async def schedule_maintenance():
 @router.get("/admin/status")
 @force_active
 async def admin_status():
-    """Current shield state for all registered routes."""
+    """Current switchly state for all registered routes."""
     states = await engine.list_states()
     return {"routes": [{"path": s.path, "status": s.status, "reason": s.reason} for s in states]}
 
@@ -75,7 +73,7 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
-# App assembly — scheduler is started inside ShieldEngine automatically
+# App assembly — scheduler is started inside SwitchlyEngine automatically
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +85,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="api-shield — Scheduled Maintenance Example",
+    title="switchly — Scheduled Maintenance Example",
     description=(
         "Hit `/admin/schedule` to trigger a 10-second maintenance window on "
         "`GET /orders`. The window activates and deactivates automatically."
@@ -95,5 +93,5 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 app.include_router(router)

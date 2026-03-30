@@ -25,12 +25,11 @@ Quick demo:
 
 from fastapi import FastAPI
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.fastapi import ShieldMiddleware, ShieldRouter, force_active
+from switchly import MemoryBackend, SwitchlyEngine
+from switchly.fastapi import SwitchlyMiddleware, SwitchlyRouter, force_active
 
-engine = ShieldEngine(backend=MemoryBackend())
-router = ShieldRouter(engine=engine)
+engine = SwitchlyEngine(backend=MemoryBackend())
+router = SwitchlyRouter(engine=engine)
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +98,7 @@ async def admin_status():
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="api-shield — Global Maintenance Example",
+    title="switchly — Global Maintenance Example",
     description=(
         "Hit `/admin/on` to enable global maintenance mode. "
         "All routes return 503 except `@force_active` ones. "
@@ -107,5 +106,5 @@ app = FastAPI(
     ),
 )
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 app.include_router(router)

@@ -7,10 +7,10 @@ Full API reference for `@rate_limit`, rate limit models, engine methods, and CLI
 ## `@rate_limit` decorator
 
 ```python
-from shield.fastapi.decorators import rate_limit
+from switchly.fastapi import rate_limit
 ```
 
-Declares a rate limit policy on a route. The policy is registered by `ShieldRouter` at startup and enforced by `ShieldMiddleware` on every matching request.
+Declares a rate limit policy on a route. The policy is registered by `SwitchlyRouter` at startup and enforced by `SwitchlyMiddleware` on every matching request.
 
 ```python
 @router.get("/public/posts")
@@ -58,7 +58,7 @@ Replace the default 429 JSON body with any Starlette `Response`.
 ```python
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from shield.core.exceptions import RateLimitExceededException
+from switchly import RateLimitExceededException
 
 def my_429(request: Request, exc: RateLimitExceededException) -> JSONResponse:
     return JSONResponse(
@@ -72,11 +72,11 @@ def my_429(request: Request, exc: RateLimitExceededException) -> JSONResponse:
 async def list_posts(): ...
 ```
 
-**Global default** — `responses["rate_limited"]` on `ShieldMiddleware`:
+**Global default** — `responses["rate_limited"]` on `SwitchlyMiddleware`:
 
 ```python
 app.add_middleware(
-    ShieldMiddleware,
+    SwitchlyMiddleware,
     engine=engine,
     responses={"rate_limited": my_429},
 )
@@ -96,11 +96,11 @@ Useful `exc` attributes: `limit`, `retry_after_seconds`, `reset_at`, `remaining`
 
 ### Dependency injection
 
-`@rate_limit` works as a `Depends()` dependency. The engine is resolved from `request.app.state.shield_engine` (set automatically by `ShieldMiddleware`).
+`@rate_limit` works as a `Depends()` dependency. The engine is resolved from `request.app.state.switchly_engine` (set automatically by `SwitchlyMiddleware`).
 
 ```python
 from fastapi import Depends
-from shield.fastapi.decorators import rate_limit
+from switchly.fastapi import rate_limit
 
 @router.get("/export", dependencies=[Depends(rate_limit("5/hour", key="user"))])
 async def export(): ...
@@ -113,7 +113,7 @@ Both the decorator path and the `Depends()` path use the same counter — they a
 ## `RateLimitAlgorithm`
 
 ```python
-from shield.core.rate_limit.models import RateLimitAlgorithm
+from switchly import RateLimitAlgorithm
 ```
 
 Controls how requests are counted within a window.
@@ -130,7 +130,7 @@ Controls how requests are counted within a window.
 ## `RateLimitKeyStrategy`
 
 ```python
-from shield.core.rate_limit.models import RateLimitKeyStrategy
+from switchly import RateLimitKeyStrategy
 ```
 
 Controls what value is used as the bucket key for each request.
@@ -148,7 +148,7 @@ Controls what value is used as the bucket key for each request.
 ## `OnMissingKey`
 
 ```python
-from shield.core.rate_limit.models import OnMissingKey
+from switchly import OnMissingKey
 ```
 
 Controls what happens when the configured key strategy cannot extract a key from the request.
@@ -166,10 +166,10 @@ The default per strategy is documented in `RateLimitKeyStrategy` above. Override
 ## `RateLimitPolicy`
 
 ```python
-from shield.core.rate_limit.models import RateLimitPolicy
+from switchly import RateLimitPolicy
 ```
 
-Full rate limiting policy for a single route + method combination. Registered by `ShieldRouter` and stored in the backend.
+Full rate limiting policy for a single route + method combination. Registered by `SwitchlyRouter` and stored in the backend.
 
 ```python
 class RateLimitPolicy(BaseModel):
@@ -191,7 +191,7 @@ class RateLimitPolicy(BaseModel):
 ## `RateLimitTier`
 
 ```python
-from shield.core.rate_limit.models import RateLimitTier
+from switchly import RateLimitTier
 ```
 
 A named tier for tiered rate limiting.
@@ -207,7 +207,7 @@ class RateLimitTier(BaseModel):
 ## `RateLimitResult`
 
 ```python
-from shield.core.rate_limit.models import RateLimitResult
+from switchly import RateLimitResult
 ```
 
 Result of a single rate limit check. Read by the middleware to build the response.
@@ -230,7 +230,7 @@ class RateLimitResult(BaseModel):
 ## `RateLimitHit`
 
 ```python
-from shield.core.rate_limit.models import RateLimitHit
+from switchly import RateLimitHit
 ```
 
 Record of a single blocked request. Written to the backend on every `429` response.
@@ -356,7 +356,7 @@ A global rate limit applies a single policy across **all routes** with higher pr
 ### `GlobalRateLimitPolicy`
 
 ```python
-from shield.core.rate_limit.models import GlobalRateLimitPolicy
+from switchly import GlobalRateLimitPolicy
 ```
 
 | Field | Type | Default | Description |
@@ -556,7 +556,7 @@ Pause the service rate limit without removing it. Per-route policies are unaffec
 
 ### Dashboard
 
-When a service filter is active on the **Rate Limits** page (`/shield/rate-limits?service=<name>`), a **Service Rate Limit** card appears between the global RL card and the policies table.
+When a service filter is active on the **Rate Limits** page (`/switchly/rate-limits?service=<name>`), a **Service Rate Limit** card appears between the global RL card and the policies table.
 
 - **Not configured** — compact bar with a "Set Service Limit" button.
 - **Active** — info card showing limit, algorithm, key strategy, burst, and exempt routes. Action buttons: Pause, Edit, Reset, Remove.
@@ -566,19 +566,19 @@ When a service filter is active on the **Rate Limits** page (`/shield/rate-limit
 
 ## CLI commands
 
-`shield rl` and `shield rate-limits` are aliases for the same command group — use whichever you prefer.
+`switchly rl` and `switchly rate-limits` are aliases for the same command group — use whichever you prefer.
 
 ```bash
-shield rl list          # short form
-shield rate-limits list # identical
+switchly rl list          # short form
+switchly rate-limits list # identical
 ```
 
-### `shield rl list`
+### `switchly rl list`
 
 Show all registered rate limit policies.
 
 ```bash
-shield rl list
+switchly rl list
 ```
 
 Output:
@@ -591,18 +591,18 @@ Output:
 
 ---
 
-### `shield rl set`
+### `switchly rl set`
 
 Register or update a policy at runtime. Changes take effect on the next request.
 
 ```bash
-shield rl set <route> <limit>
+switchly rl set <route> <limit>
 ```
 
 ```bash
-shield rl set GET:/public/posts 20/minute
-shield rl set GET:/public/posts 5/second --algorithm fixed_window
-shield rl set GET:/search 10/minute --key global
+switchly rl set GET:/public/posts 20/minute
+switchly rl set GET:/public/posts 5/second --algorithm fixed_window
+switchly rl set GET:/search 10/minute --key global
 ```
 
 | Option | Description |
@@ -612,33 +612,33 @@ shield rl set GET:/search 10/minute --key global
 
 ---
 
-### `shield rl reset`
+### `switchly rl reset`
 
 Clear all rate limit counters for a route immediately. Clients get their full quota back on the next request.
 
 ```bash
-shield rl reset GET:/public/posts
+switchly rl reset GET:/public/posts
 ```
 
 ---
 
-### `shield rl delete`
+### `switchly rl delete`
 
 Remove a persisted policy override from the backend.
 
 ```bash
-shield rl delete GET:/public/posts
+switchly rl delete GET:/public/posts
 ```
 
 ---
 
-### `shield rl hits`
+### `switchly rl hits`
 
 Show the blocked requests log.
 
 ```bash
-shield rl hits                    # last 20 entries
-shield rl hits --limit 50         # show more
+switchly rl hits                    # last 20 entries
+switchly rl hits --limit 50         # show more
 ```
 
 | Option | Description |
@@ -647,37 +647,37 @@ shield rl hits --limit 50         # show more
 
 ---
 
-### `shield grl` / `shield global-rate-limit`
+### `switchly grl` / `switchly global-rate-limit`
 
-`shield grl` and `shield global-rate-limit` are aliases for the global rate limit command group.
+`switchly grl` and `switchly global-rate-limit` are aliases for the global rate limit command group.
 
 ```bash
-shield grl get           # show current policy
-shield global-rate-limit get  # identical
+switchly grl get           # show current policy
+switchly global-rate-limit get  # identical
 ```
 
-#### `shield grl get`
+#### `switchly grl get`
 
 Show the current global rate limit policy (limit, algorithm, key strategy, burst, exempt routes, enabled state).
 
 ```bash
-shield grl get
+switchly grl get
 ```
 
 ---
 
-#### `shield grl set`
+#### `switchly grl set`
 
 Configure the global rate limit. Creates a new policy or replaces the existing one.
 
 ```bash
-shield grl set <limit>
+switchly grl set <limit>
 ```
 
 ```bash
-shield grl set 1000/minute
-shield grl set 500/minute --algorithm sliding_window --key ip
-shield grl set 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
+switchly grl set 1000/minute
+switchly grl set 500/minute --algorithm sliding_window --key ip
+switchly grl set 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
 ```
 
 | Option | Description |
@@ -689,81 +689,81 @@ shield grl set 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
 
 ---
 
-#### `shield grl delete`
+#### `switchly grl delete`
 
 Remove the global rate limit policy entirely.
 
 ```bash
-shield grl delete
+switchly grl delete
 ```
 
 ---
 
-#### `shield grl reset`
+#### `switchly grl reset`
 
 Clear all global rate limit counters. The policy is kept; clients get their full quota back on the next request.
 
 ```bash
-shield grl reset
+switchly grl reset
 ```
 
 ---
 
-#### `shield grl enable`
+#### `switchly grl enable`
 
 Resume a paused global rate limit policy.
 
 ```bash
-shield grl enable
+switchly grl enable
 ```
 
 ---
 
-#### `shield grl disable`
+#### `switchly grl disable`
 
 Pause the global rate limit without removing it. Per-route policies continue to enforce normally.
 
 ```bash
-shield grl disable
+switchly grl disable
 ```
 
 ---
 
-## `shield srl` / `shield service-rate-limit`
+## `switchly srl` / `switchly service-rate-limit`
 
-`shield srl` and `shield service-rate-limit` are aliases for the per-service rate limit command group. Requires `api-shield[rate-limit]` on the server.
+`switchly srl` and `switchly service-rate-limit` are aliases for the per-service rate limit command group. Requires `switchly[rate-limit]` on the server.
 
 ```bash
-shield srl get payments-service
-shield service-rate-limit get payments-service   # identical
+switchly srl get payments-service
+switchly service-rate-limit get payments-service   # identical
 ```
 
-### `shield srl get`
+### `switchly srl get`
 
 Show the current rate limit policy for a service.
 
 ```bash
-shield srl get <service>
+switchly srl get <service>
 ```
 
 ```bash
-shield srl get payments-service
+switchly srl get payments-service
 ```
 
 ---
 
-### `shield srl set`
+### `switchly srl set`
 
 Configure the rate limit for a service. Creates a new policy or replaces the existing one.
 
 ```bash
-shield srl set <service> <limit>
+switchly srl set <service> <limit>
 ```
 
 ```bash
-shield srl set payments-service 1000/minute
-shield srl set payments-service 500/minute --algorithm sliding_window --key ip
-shield srl set payments-service 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
+switchly srl set payments-service 1000/minute
+switchly srl set payments-service 500/minute --algorithm sliding_window --key ip
+switchly srl set payments-service 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
 ```
 
 | Option | Description |
@@ -775,50 +775,50 @@ shield srl set payments-service 2000/hour --burst 50 --exempt /health --exempt G
 
 ---
 
-### `shield srl delete`
+### `switchly srl delete`
 
 Remove the service rate limit policy entirely.
 
 ```bash
-shield srl delete <service>
+switchly srl delete <service>
 ```
 
 ```bash
-shield srl delete payments-service
+switchly srl delete payments-service
 ```
 
 ---
 
-### `shield srl reset`
+### `switchly srl reset`
 
 Clear all counters for the service. The policy is kept; clients get their full quota back on the next request.
 
 ```bash
-shield srl reset <service>
+switchly srl reset <service>
 ```
 
 ```bash
-shield srl reset payments-service
+switchly srl reset payments-service
 ```
 
 ---
 
-### `shield srl enable`
+### `switchly srl enable`
 
 Resume a paused service rate limit policy.
 
 ```bash
-shield srl enable <service>
+switchly srl enable <service>
 ```
 
 ---
 
-### `shield srl disable`
+### `switchly srl disable`
 
 Pause the service rate limit without removing it. Per-route policies continue to enforce normally.
 
 ```bash
-shield srl disable <service>
+switchly srl disable <service>
 ```
 
 ---
@@ -860,7 +860,7 @@ Rate limit policy changes are recorded in the same audit log as route state chan
 
 The `Path` column for service rate limit entries displays as `[{service} Rate Limit]` (e.g. `[payments-service Rate Limit]`).
 
-View in the dashboard at `/shield/audit` or via `shield log`.
+View in the dashboard at `/switchly/audit` or via `switchly log`.
 
 ---
 

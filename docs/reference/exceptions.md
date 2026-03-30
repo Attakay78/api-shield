@@ -1,10 +1,10 @@
 # Exceptions
 
-All shield exceptions are defined in `shield.core.exceptions`. The engine raises them from `engine.check()`, and `ShieldMiddleware` catches them to produce the appropriate HTTP response.
+All switchly exceptions are defined in `switchly.core.exceptions`. The engine raises them from `engine.check()`, and `SwitchlyMiddleware` catches them to produce the appropriate HTTP response.
 
 ```python
-from shield.core.exceptions import (
-    ShieldException,
+from switchly import (
+    SwitchlyException,
     MaintenanceException,
     RouteDisabledException,
     EnvGatedException,
@@ -12,14 +12,14 @@ from shield.core.exceptions import (
 ```
 
 !!! note "You usually don't import these directly"
-    In a standard FastAPI setup, `ShieldMiddleware` handles all exceptions automatically. You only need to import them if you are building a custom adapter, custom response factory, or writing tests that inspect the raised exception.
+    In a standard FastAPI setup, `SwitchlyMiddleware` handles all exceptions automatically. You only need to import them if you are building a custom adapter, custom response factory, or writing tests that inspect the raised exception.
 
 ---
 
 ## Exception hierarchy
 
 ```
-ShieldException
+SwitchlyException
 ├── MaintenanceException
 ├── RouteDisabledException
 └── EnvGatedException
@@ -27,12 +27,12 @@ ShieldException
 
 ---
 
-## ShieldException
+## SwitchlyException
 
-Base class for all api-shield exceptions. Catch this if you want a single handler for any shield-raised error.
+Base class for all switchly exceptions. Catch this if you want a single handler for any switchly-raised error.
 
 ```python
-from shield.core.exceptions import ShieldException
+from switchly import SwitchlyException
 ```
 
 ---
@@ -42,7 +42,7 @@ from shield.core.exceptions import ShieldException
 Raised by `engine.check()` when a route (or the entire system via global maintenance) is in maintenance mode.
 
 ```python
-from shield.core.exceptions import MaintenanceException
+from switchly import MaintenanceException
 ```
 
 ### Attributes
@@ -58,7 +58,7 @@ from shield.core.exceptions import MaintenanceException
 ```python title="accessing exception attributes"
 from starlette.requests import Request
 from starlette.responses import HTMLResponse
-from shield.core.exceptions import MaintenanceException
+from switchly import MaintenanceException
 
 def maintenance_page(request: Request, exc: MaintenanceException) -> HTMLResponse:
     retry_msg = ""
@@ -78,7 +78,7 @@ def maintenance_page(request: Request, exc: MaintenanceException) -> HTMLRespons
 Raised by `engine.check()` when a route has been permanently disabled.
 
 ```python
-from shield.core.exceptions import RouteDisabledException
+from switchly import RouteDisabledException
 ```
 
 ### Attributes
@@ -95,7 +95,7 @@ from shield.core.exceptions import RouteDisabledException
 Raised by `engine.check()` when a route is restricted to specific environments and the current environment is not in the allowed list.
 
 ```python
-from shield.core.exceptions import EnvGatedException
+from switchly import EnvGatedException
 ```
 
 ### Attributes
@@ -103,11 +103,11 @@ from shield.core.exceptions import EnvGatedException
 | Attribute | Type | Description |
 |---|---|---|
 | `path` | `str` | The route key |
-| `current_env` | `str` | The active environment name (the value `ShieldEngine` was constructed with) |
+| `current_env` | `str` | The active environment name (the value `SwitchlyEngine` was constructed with) |
 | `allowed_envs` | `list[str]` | The environments where the route is accessible |
 
-!!! note "ShieldMiddleware returns 403 with JSON"
-    When `ShieldMiddleware` catches an `EnvGatedException`, it returns a 403 with a structured JSON body containing `code: "ENV_GATED"`, `current_env`, `allowed_envs`, and `path`.
+!!! note "SwitchlyMiddleware returns 403 with JSON"
+    When `SwitchlyMiddleware` catches an `EnvGatedException`, it returns a 403 with a structured JSON body containing `code: "ENV_GATED"`, `current_env`, `allowed_envs`, and `path`.
 
 ---
 
@@ -118,7 +118,7 @@ If you are building an adapter for a framework other than FastAPI, catch these e
 ??? example "Custom adapter middleware pattern"
 
     ```python
-    from shield.core.exceptions import (
+    from switchly import (
         MaintenanceException,
         RouteDisabledException,
         EnvGatedException,

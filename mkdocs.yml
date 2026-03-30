@@ -1,8 +1,8 @@
-site_name: api-shield
-site_description: Route lifecycle management for ASGI Python frameworks — maintenance mode, env gating, deprecation, and more
-site_url: https://attakay78.github.io/api-shield
-repo_url: https://github.com/Attakay78/api-shield
-repo_name: Attakay78/api-shield
+site_name: switchly
+site_description: Runtime control for your APIs. Toggle features, schedule maintenance, enforce rate limits, and perform rollouts without redeploying.
+site_url: https://attakay78.github.io/switchly
+repo_url: https://github.com/Attakay78/switchly
+repo_name: Attakay78/switchly
 edit_uri: edit/main/docs/
 
 theme:
@@ -95,7 +95,7 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - Home: index.md
+  - Switchly: index.md
   - Tutorial:
       - Installation: tutorial/installation.md
       - First Decorator: tutorial/first-decorator.md
@@ -109,14 +109,14 @@ nav:
       - Decorators: reference/decorators.md
       - Rate Limiting: reference/rate-limiting.md
       - Feature Flags: reference/feature-flags.md
-      - ShieldEngine: reference/engine.md
+      - SwitchlyEngine: reference/engine.md
       - Backends: reference/backends.md
       - Middleware: reference/middleware.md
       - Models: reference/models.md
       - Exceptions: reference/exceptions.md
       - CLI Commands: reference/cli.md
   - Guides:
-      - Shield Server (Multi-Service): guides/shield-server.md
+      - Switchly Server (Multi-Service): guides/switchly-server.md
       - Distributed Deployments: guides/distributed.md
       - Production Monitoring & Deployment: guides/production.md
   - Adapters:
@@ -129,9 +129,9 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/Attakay78/api-shield
+      link: https://github.com/Attakay78/switchly
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/api-shield
+      link: https://pypi.org/project/switchly
 
 extra_css:
   - stylesheets/extra.css

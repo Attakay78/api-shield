@@ -1,9 +1,9 @@
-"""Tests for the shield flags / shield segments CLI commands.
+"""Tests for the switchly flags / switchly segments CLI commands.
 
 Tests are sync (def, not async) — the CLI uses anyio.run() internally
 and cannot be nested inside a running pytest-asyncio event loop.
 
-Pattern: create an in-process ShieldAdmin, inject it via make_client mock,
+Pattern: create an in-process SwitchlyAdmin, inject it via make_client mock,
 invoke CLI commands through typer.testing.CliRunner.
 """
 
@@ -15,11 +15,11 @@ import anyio
 import httpx
 from typer.testing import CliRunner
 
-from shield.admin.app import ShieldAdmin
-from shield.cli.client import ShieldClient
-from shield.cli.main import cli as app
-from shield.core.engine import ShieldEngine
-from shield.core.feature_flags.models import (
+from switchly.admin.app import SwitchlyAdmin
+from switchly.cli.client import SwitchlyClient
+from switchly.cli.main import cli as app
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.feature_flags.models import (
     FeatureFlag,
     FlagType,
     FlagVariation,
@@ -34,9 +34,9 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 
 
-def _seed_engine_with_flags(*flags: FeatureFlag, segments: list = None) -> ShieldEngine:
+def _seed_engine_with_flags(*flags: FeatureFlag, segments: list = None) -> SwitchlyEngine:
     """Create engine, seed flags and segments synchronously."""
-    e = ShieldEngine()
+    e = SwitchlyEngine()
 
     async def _run() -> None:
         for flag in flags:
@@ -67,28 +67,28 @@ def _make_segment(key: str = "beta", included: list[str] = None) -> Segment:
     return Segment(key=key, name="Beta Users", included=included or [])
 
 
-def _open_client(engine: ShieldEngine) -> ShieldClient:
-    """ShieldClient backed by in-process ShieldAdmin with flags enabled."""
-    admin = ShieldAdmin(engine=engine, enable_flags=True)
-    return ShieldClient(
+def _open_client(engine: SwitchlyEngine) -> SwitchlyClient:
+    """SwitchlyClient backed by in-process SwitchlyAdmin with flags enabled."""
+    admin = SwitchlyAdmin(engine=engine, enable_flags=True)
+    return SwitchlyClient(
         base_url="http://testserver",
         transport=httpx.ASGITransport(app=admin),
     )
 
 
-def invoke(client: ShieldClient, *args: str):
-    with patch("shield.cli.main.make_client", return_value=client):
+def invoke(client: SwitchlyClient, *args: str):
+    with patch("switchly.cli.main.make_client", return_value=client):
         return runner.invoke(app, list(args), catch_exceptions=False)
 
 
 # ---------------------------------------------------------------------------
-# shield flags list
+# switchly flags list
 # ---------------------------------------------------------------------------
 
 
 class TestFlagsList:
     def test_empty_shows_no_flags_message(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "list")
         assert result.exit_code == 0
@@ -152,7 +152,7 @@ class TestFlagsList:
 
 
 # ---------------------------------------------------------------------------
-# shield flags get
+# switchly flags get
 # ---------------------------------------------------------------------------
 
 
@@ -181,20 +181,20 @@ class TestFlagsGet:
         assert "enabled" in result.output
 
     def test_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "get", "nonexistent")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags create
+# switchly flags create
 # ---------------------------------------------------------------------------
 
 
 class TestFlagsCreate:
     def test_create_boolean_flag(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "create", "my_flag", "--name", "My Flag")
         assert result.exit_code == 0
@@ -202,7 +202,7 @@ class TestFlagsCreate:
         assert "my_flag" in result.output
 
     def test_create_string_flag(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client, "flags", "create", "color_flag", "--name", "Color", "--type", "string"
@@ -211,7 +211,7 @@ class TestFlagsCreate:
         assert "color_flag" in result.output
 
     def test_create_persists_flag(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         invoke(client, "flags", "create", "persist_me", "--name", "Persist")
 
@@ -219,7 +219,7 @@ class TestFlagsCreate:
         assert "persist_me" in flags_result.output
 
     def test_invalid_type_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client, "flags", "create", "bad_flag", "--name", "Bad", "--type", "invalid_type"
@@ -234,7 +234,7 @@ class TestFlagsCreate:
 
 
 # ---------------------------------------------------------------------------
-# shield flags enable / disable
+# switchly flags enable / disable
 # ---------------------------------------------------------------------------
 
 
@@ -254,13 +254,13 @@ class TestFlagsEnableDisable:
         assert "disabled" in result.output.lower()
 
     def test_enable_missing_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "enable", "nonexistent")
         assert result.exit_code != 0
 
     def test_disable_missing_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "disable", "nonexistent")
         assert result.exit_code != 0
@@ -274,7 +274,7 @@ class TestFlagsEnableDisable:
 
 
 # ---------------------------------------------------------------------------
-# shield flags delete
+# switchly flags delete
 # ---------------------------------------------------------------------------
 
 
@@ -294,14 +294,14 @@ class TestFlagsDelete:
         assert "my_flag" not in result.output
 
     def test_delete_missing_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "delete", "nonexistent", "--yes")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags eval
+# switchly flags eval
 # ---------------------------------------------------------------------------
 
 
@@ -345,7 +345,7 @@ class TestFlagsEval:
         assert result.exit_code != 0
 
     def test_eval_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "eval", "nonexistent", "--key", "user_1")
         assert result.exit_code != 0
@@ -367,13 +367,13 @@ class TestFlagsEval:
 
 
 # ---------------------------------------------------------------------------
-# shield segments list
+# switchly segments list
 # ---------------------------------------------------------------------------
 
 
 class TestSegmentsList:
     def test_empty_shows_message(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "segments", "list")
         assert result.exit_code == 0
@@ -395,7 +395,7 @@ class TestSegmentsList:
 
 
 # ---------------------------------------------------------------------------
-# shield segments get
+# switchly segments get
 # ---------------------------------------------------------------------------
 
 
@@ -415,20 +415,20 @@ class TestSegmentsGet:
         assert "user_1" in result.output
 
     def test_missing_segment_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "segments", "get", "nonexistent")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield segments create
+# switchly segments create
 # ---------------------------------------------------------------------------
 
 
 class TestSegmentsCreate:
     def test_create_segment(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "segments", "create", "beta", "--name", "Beta Users")
         assert result.exit_code == 0
@@ -436,7 +436,7 @@ class TestSegmentsCreate:
         assert "created" in result.output.lower()
 
     def test_create_persists_segment(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         invoke(client, "segments", "create", "pro", "--name", "Pro Users")
         result = invoke(client, "segments", "list")
@@ -450,7 +450,7 @@ class TestSegmentsCreate:
 
 
 # ---------------------------------------------------------------------------
-# shield segments delete
+# switchly segments delete
 # ---------------------------------------------------------------------------
 
 
@@ -470,14 +470,14 @@ class TestSegmentsDelete:
         assert "beta" not in result.output
 
     def test_delete_missing_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "segments", "delete", "nonexistent", "--yes")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield segments include / exclude
+# switchly segments include / exclude
 # ---------------------------------------------------------------------------
 
 
@@ -530,7 +530,7 @@ class TestSegmentsIncludeExclude:
         assert "1" in result.output
 
     def test_include_missing_segment_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client,
@@ -543,7 +543,7 @@ class TestSegmentsIncludeExclude:
         assert result.exit_code != 0
 
     def test_exclude_missing_segment_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client,
@@ -557,7 +557,7 @@ class TestSegmentsIncludeExclude:
 
 
 # ---------------------------------------------------------------------------
-# shield seg alias
+# switchly seg alias
 # ---------------------------------------------------------------------------
 
 
@@ -571,7 +571,7 @@ class TestSegAlias:
 
 
 # ---------------------------------------------------------------------------
-# shield flags edit  (PATCH / LaunchDarkly-style mutation)
+# switchly flags edit  (PATCH / LaunchDarkly-style mutation)
 # ---------------------------------------------------------------------------
 
 
@@ -604,7 +604,7 @@ class TestFlagsEdit:
         assert flag.off_variation == "on"
 
     def test_edit_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "edit", "no_such_flag", "--name", "x")
         assert result.exit_code != 0
@@ -617,7 +617,7 @@ class TestFlagsEdit:
 
 
 # ---------------------------------------------------------------------------
-# shield flags variations  (read-only list)
+# switchly flags variations  (read-only list)
 # ---------------------------------------------------------------------------
 
 
@@ -631,14 +631,14 @@ class TestFlagsVariations:
         assert "off" in result.output
 
     def test_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "variations", "no_such_flag")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags targeting  (read-only view)
+# switchly flags targeting  (read-only view)
 # ---------------------------------------------------------------------------
 
 
@@ -651,14 +651,14 @@ class TestFlagsTargeting:
         assert "off" in result.output  # off_variation value
 
     def test_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "targeting", "no_such_flag")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags add-rule / remove-rule
+# switchly flags add-rule / remove-rule
 # ---------------------------------------------------------------------------
 
 
@@ -746,7 +746,7 @@ class TestFlagsAddRule:
         assert result.exit_code != 0
 
     def test_add_rule_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client,
@@ -763,7 +763,7 @@ class TestFlagsAddRule:
 
 class TestFlagsRemoveRule:
     def _flag_with_rule(self) -> tuple[FeatureFlag, str]:
-        from shield.core.feature_flags.models import Operator, RuleClause, TargetingRule
+        from switchly.core.feature_flags.models import Operator, RuleClause, TargetingRule
 
         rule = TargetingRule(
             clauses=[RuleClause(attribute="key", operator=Operator.IN_SEGMENT, values=["beta"])],
@@ -796,14 +796,14 @@ class TestFlagsRemoveRule:
         assert result.exit_code != 0
 
     def test_remove_rule_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "remove-rule", "no_such_flag", "--rule-id", "abc")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags add-prereq / remove-prereq
+# switchly flags add-prereq / remove-prereq
 # ---------------------------------------------------------------------------
 
 
@@ -847,7 +847,7 @@ class TestFlagsAddPrereq:
         assert result.exit_code != 0
 
     def test_add_prereq_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client, "flags", "add-prereq", "no_such_flag", "--flag", "other", "--variation", "on"
@@ -857,7 +857,7 @@ class TestFlagsAddPrereq:
 
 class TestFlagsRemovePrereq:
     def _flag_with_prereq(self) -> FeatureFlag:
-        from shield.core.feature_flags.models import Prerequisite
+        from switchly.core.feature_flags.models import Prerequisite
 
         flag = _make_flag("flag_a")
         flag.prerequisites = [Prerequisite(flag_key="flag_b", variation="on")]
@@ -879,14 +879,14 @@ class TestFlagsRemovePrereq:
         assert result.exit_code != 0
 
     def test_remove_prereq_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(client, "flags", "remove-prereq", "no_such_flag", "--flag", "other")
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
-# shield flags target / untarget
+# switchly flags target / untarget
 # ---------------------------------------------------------------------------
 
 
@@ -923,7 +923,7 @@ class TestFlagsTarget:
         assert result.exit_code != 0
 
     def test_target_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client, "flags", "target", "no_such_flag", "--variation", "on", "--keys", "user_1"
@@ -967,7 +967,7 @@ class TestFlagsUntarget:
         assert result.exit_code != 0
 
     def test_untarget_missing_flag_exits_nonzero(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = _open_client(engine)
         result = invoke(
             client, "flags", "untarget", "no_such_flag", "--variation", "on", "--keys", "user_1"

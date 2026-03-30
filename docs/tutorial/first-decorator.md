@@ -1,23 +1,23 @@
 # Your first decorator
 
-This tutorial shows you how to put a single route into maintenance mode and verify the behaviour. The examples use **FastAPI** — the currently supported ASGI adapter.
+This tutorial shows you how to put a single route into maintenance mode and verify the behaviour. The examples use **FastAPI**.
 
 ## 1. Create a simple app
 
 ```python title="app.py"
 from fastapi import FastAPI
-from shield.core.engine import ShieldEngine
-from shield.core.backends.memory import MemoryBackend
-from shield.fastapi.middleware import ShieldMiddleware
-from shield.fastapi.router import ShieldRouter
-from shield.fastapi.decorators import maintenance, force_active
+from switchly import SwitchlyEngine
+from switchly import MemoryBackend
+from switchly.fastapi import SwitchlyMiddleware
+from switchly.fastapi import SwitchlyRouter
+from switchly.fastapi import maintenance, force_active
 
-engine = ShieldEngine(backend=MemoryBackend())
+engine = SwitchlyEngine(backend=MemoryBackend())
 
 app = FastAPI()
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 @router.get("/payments")
 @maintenance(reason="Database migration — back at 04:00 UTC")
@@ -58,7 +58,7 @@ curl -s http://localhost:8000/payments | python -m json.tool
 ```
 
 ```bash
-# /health → 200 (force_active bypasses all shield checks)
+# /health → 200 (force_active bypasses all switchly checks)
 curl -s http://localhost:8000/health
 ```
 
@@ -77,11 +77,11 @@ async def get_payments():
     ...
 ```
 
-1. `@maintenance(...)` stamps `__shield_meta__ = {"status": "maintenance", "reason": "..."}` on the function. The function itself is **not modified**; it still runs normally if called directly.
+1. `@maintenance(...)` stamps `__switchly_meta__ = {"status": "maintenance", "reason": "..."}` on the function. The function itself is **not modified**; it still runs normally if called directly.
 
-2. When `app.include_router(router)` is called, `ShieldRouter` scans all routes for `__shield_meta__` and calls `engine.register()` for each one.
+2. When `app.include_router(router)` is called, `SwitchlyRouter` scans all routes for `__switchly_meta__` and calls `engine.register()` for each one.
 
-3. On every HTTP request, `ShieldMiddleware` calls `engine.check(path)`. If the route is in maintenance, the engine raises `MaintenanceException` and the middleware returns a 503 response. The route handler never executes.
+3. On every HTTP request, `SwitchlyMiddleware` calls `engine.check(path)`. If the route is in maintenance, the engine raises `MaintenanceException` and the middleware returns a 503 response. The route handler never executes.
 
 ---
 
@@ -94,7 +94,7 @@ async def get_payments():
 | `@env_only("dev", "staging")` | 404 in other environments |
 | `@deprecated(sunset, use_instead)` | 200 + deprecation headers |
 | `@force_active` | Always 200, bypasses all checks |
-| `@rate_limit("100/minute")` | 429 when the limit is exceeded; requires `api-shield[rate-limit]` |
+| `@rate_limit("100/minute")` | 429 when the limit is exceeded; requires `switchly[rate-limit]` |
 
 ---
 
@@ -110,11 +110,11 @@ await engine.enable("GET:/payments")
 await engine.set_maintenance("GET:/payments", reason="Second migration wave")
 ```
 
-Or via the CLI (requires `ShieldAdmin` mounted; see [Admin Dashboard](admin-dashboard.md)):
+Or via the CLI (requires `SwitchlyAdmin` mounted; see [Admin Dashboard](admin-dashboard.md)):
 
 ```bash
-shield enable GET:/payments
-shield maintenance GET:/payments --reason "Second migration wave"
+switchly enable GET:/payments
+switchly maintenance GET:/payments --reason "Second migration wave"
 ```
 
 ---

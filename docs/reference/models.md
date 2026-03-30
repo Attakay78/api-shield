@@ -1,9 +1,9 @@
 # Models
 
-All models are Pydantic v2 models defined in `shield.core.models`. They are the shared data structures used throughout the engine, backends, API, and CLI.
+All models are Pydantic v2 models defined in `switchly.core.models`. They are the shared data structures used throughout the engine, backends, API, and CLI.
 
 ```python
-from shield.core.models import RouteStatus, RouteState, MaintenanceWindow, AuditEntry, GlobalMaintenanceConfig
+from switchly import RouteStatus, RouteState, MaintenanceWindow, AuditEntry, GlobalMaintenanceConfig
 ```
 
 ---
@@ -13,7 +13,7 @@ from shield.core.models import RouteStatus, RouteState, MaintenanceWindow, Audit
 A `StrEnum` representing the lifecycle state of a route. Because it extends `str`, you can compare values against plain strings and store them in JSON without conversion.
 
 ```python
-from shield.core.models import RouteStatus
+from switchly import RouteStatus
 ```
 
 | Value | String | Meaning |
@@ -42,7 +42,7 @@ if state.status == "maintenance":
 Defines a scheduled maintenance period with a start and end time. Pass a `MaintenanceWindow` to `@maintenance(start=..., end=...)` or to `engine.set_maintenance()` to schedule automatic activation and deactivation.
 
 ```python
-from shield.core.models import MaintenanceWindow
+from switchly import MaintenanceWindow
 ```
 
 ### Fields
@@ -57,7 +57,7 @@ from shield.core.models import MaintenanceWindow
 
 ```python title="creating a maintenance window"
 from datetime import datetime, UTC
-from shield.core.models import MaintenanceWindow
+from switchly import MaintenanceWindow
 
 window = MaintenanceWindow(
     start=datetime(2025, 6, 1, 2, 0, tzinfo=UTC),
@@ -76,7 +76,7 @@ window = MaintenanceWindow(
 The complete, current state of a registered route. This is what backends store and what the engine reads on every `check()` call.
 
 ```python
-from shield.core.models import RouteState
+from switchly import RouteState
 ```
 
 ### Fields
@@ -97,7 +97,7 @@ from shield.core.models import RouteState
 ??? example "Creating and serialising a RouteState"
 
     ```python
-    from shield.core.models import RouteState, RouteStatus
+    from switchly import RouteState, RouteStatus
 
     state = RouteState(
         path="GET:/payments",
@@ -122,7 +122,7 @@ from shield.core.models import RouteState
 An immutable record of a single state change. Every call to `engine.enable()`, `engine.disable()`, `engine.set_maintenance()`, or any other state-mutating method writes an `AuditEntry` to the backend.
 
 ```python
-from shield.core.models import AuditEntry
+from switchly import AuditEntry
 ```
 
 ### Fields
@@ -155,7 +155,7 @@ from shield.core.models import AuditEntry
         )
     ```
 
-Read more in [ShieldEngine: get_audit_log](engine.md#get_audit_log).
+Read more in [SwitchlyEngine: get_audit_log](engine.md#get_audit_log).
 
 ---
 
@@ -164,7 +164,7 @@ Read more in [ShieldEngine: get_audit_log](engine.md#get_audit_log).
 The configuration object for global maintenance mode. Returned by `engine.get_global_maintenance()`.
 
 ```python
-from shield.core.models import GlobalMaintenanceConfig
+from switchly import GlobalMaintenanceConfig
 ```
 
 ### Fields
@@ -188,4 +188,4 @@ else:
     print("All systems normal")
 ```
 
-Read more in [ShieldEngine: global maintenance](engine.md#global-maintenance).
+Read more in [SwitchlyEngine: global maintenance](engine.md#global-maintenance).

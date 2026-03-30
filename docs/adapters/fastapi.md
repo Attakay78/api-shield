@@ -1,18 +1,18 @@
 # FastAPI Adapter
 
-The FastAPI adapter is the currently supported ASGI adapter. It provides middleware, decorators, a drop-in router, and OpenAPI integration — all built on top of the framework-agnostic `shield.core`.
+The FastAPI adapter provides middleware, decorators, a drop-in router, and OpenAPI integration — all built on top of the framework-agnostic `switchly.core`.
 
-!!! info "Other ASGI frameworks"
-    api-shield's core and `ShieldMiddleware` are ASGI-native and framework-agnostic. FastAPI-specific features (ShieldRouter, OpenAPI integration, `Depends()` support) live in `shield.fastapi`. Adapters for **Litestar** and plain **Starlette** are on the roadmap. [Open an issue](https://github.com/Attakay78/api-shield/issues) if you need another framework prioritised.
+!!! info "More adapters on the way"
+    We currently support FastAPI. Other framework adapters are on the way. [Open an issue](https://github.com/Attakay78/switchly/issues) if you'd like to see your framework supported sooner.
 
 ---
 
 ## Installation
 
 ```bash
-uv add "api-shield[fastapi]"              # adapter only
-uv add "api-shield[fastapi,rate-limit]"   # with rate limiting
-uv add "api-shield[all]"                  # everything including CLI + admin
+uv add "switchly[fastapi]"              # adapter only
+uv add "switchly[fastapi,rate-limit]"   # with rate limiting
+uv add "switchly[all]"                  # everything including CLI + admin
 ```
 
 ---
@@ -21,12 +21,12 @@ uv add "api-shield[all]"                  # everything including CLI + admin
 
 ```python title="main.py"
 from fastapi import FastAPI
-from shield.core.config import make_engine
-from shield.fastapi import (
-    ShieldMiddleware,
-    ShieldAdmin,
-    apply_shield_to_openapi,
-    setup_shield_docs,
+from switchly import make_engine
+from switchly.fastapi import (
+    SwitchlyMiddleware,
+    SwitchlyAdmin,
+    apply_switchly_to_openapi,
+    setup_switchly_docs,
     maintenance,
     env_only,
     disabled,
@@ -34,10 +34,10 @@ from shield.fastapi import (
     deprecated,
 )
 
-engine = make_engine()  # reads SHIELD_BACKEND, SHIELD_ENV from env / .shield
+engine = make_engine()  # reads SWITCHLY_BACKEND, SWITCHLY_ENV from env / .switchly
 
 app = FastAPI()
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 
 @app.get("/payments")
 @maintenance(reason="DB migration")
@@ -49,22 +49,22 @@ async def get_payments():
 async def health():
     return {"status": "ok"}
 
-apply_shield_to_openapi(app, engine)
-setup_shield_docs(app, engine)
+apply_switchly_to_openapi(app, engine)
+setup_switchly_docs(app, engine)
 
-app.mount("/shield", ShieldAdmin(engine=engine, auth=("admin", "secret")))
+app.mount("/switchly", SwitchlyAdmin(engine=engine, auth=("admin", "secret")))
 ```
 
 ---
 
 ## Components
 
-### ShieldMiddleware
+### SwitchlyMiddleware
 
 ASGI middleware that enforces route state on every request.
 
 ```python
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 ```
 
 See [**Reference: Middleware**](../reference/middleware.md) for full details.
@@ -73,29 +73,29 @@ See [**Reference: Middleware**](../reference/middleware.md) for full details.
 
 ### Decorators
 
-All decorators work with any router type (plain `APIRouter`, `ShieldRouter`, or routes added directly to `app`).
+All decorators work with any router type (plain `APIRouter`, `SwitchlyRouter`, or routes added directly to `app`).
 
 | Decorator | Import | Behaviour |
 |---|---|---|
-| `@maintenance(reason, start, end)` | `shield.fastapi` | 503 temporarily |
-| `@disabled(reason)` | `shield.fastapi` | 503 permanently |
-| `@env_only(*envs)` | `shield.fastapi` | 404 in other envs |
-| `@deprecated(sunset, use_instead)` | `shield.fastapi` | 200 + headers |
-| `@force_active` | `shield.fastapi` | Always 200 |
-| `@rate_limit("100/minute")` | `shield.fastapi.decorators` | 429 when exceeded |
+| `@maintenance(reason, start, end)` | `switchly.fastapi` | 503 temporarily |
+| `@disabled(reason)` | `switchly.fastapi` | 503 permanently |
+| `@env_only(*envs)` | `switchly.fastapi` | 404 in other envs |
+| `@deprecated(sunset, use_instead)` | `switchly.fastapi` | 200 + headers |
+| `@force_active` | `switchly.fastapi` | Always 200 |
+| `@rate_limit("100/minute")` | `switchly.fastapi.decorators` | 429 when exceeded |
 
 See [**Reference: Decorators**](../reference/decorators.md) for full details.
 
 ---
 
-### ShieldRouter
+### SwitchlyRouter
 
 A drop-in replacement for `APIRouter` that automatically registers route metadata with the engine at startup.
 
 ```python
-from shield.fastapi.router import ShieldRouter
+from switchly.fastapi import SwitchlyRouter
 
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 @router.get("/payments")
 @maintenance(reason="DB migration")
@@ -106,18 +106,18 @@ app.include_router(router)
 ```
 
 !!! note
-    `ShieldRouter` is optional. `ShieldMiddleware` also registers routes by scanning `app.routes` at startup (lazy, on first request). Use `ShieldRouter` for explicit control over registration order.
+    `SwitchlyRouter` is optional. `SwitchlyMiddleware` also registers routes by scanning `app.routes` at startup (lazy, on first request). Use `SwitchlyRouter` for explicit control over registration order.
 
 ---
 
-### ShieldAdmin
+### SwitchlyAdmin
 
-Mounts the admin dashboard UI and the REST API (used by the `shield` CLI) under a single path.
+Mounts the admin dashboard UI and the REST API (used by the `switchly` CLI) under a single path.
 
 ```python
-from shield.admin import ShieldAdmin
+from switchly.fastapi import SwitchlyAdmin
 
-app.mount("/shield", ShieldAdmin(engine=engine, auth=("admin", "secret")))
+app.mount("/switchly", SwitchlyAdmin(engine=engine, auth=("admin", "secret")))
 ```
 
 See [**Tutorial: Admin Dashboard**](../tutorial/admin-dashboard.md) for full details.
@@ -126,10 +126,10 @@ See [**Tutorial: Admin Dashboard**](../tutorial/admin-dashboard.md) for full det
 
 ## Rate limiting
 
-Requires `api-shield[rate-limit]` on the server.
+Requires `switchly[rate-limit]` on the server.
 
 ```python
-from shield.fastapi.decorators import rate_limit
+from switchly.fastapi import rate_limit
 
 @router.get("/public/posts")
 @rate_limit("10/minute")               # 10 req/min per IP
@@ -155,7 +155,7 @@ Custom response on rate limit violations:
 ```python
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from shield.core.exceptions import RateLimitExceededException
+from switchly import RateLimitExceededException
 
 def my_429(request: Request, exc: RateLimitExceededException) -> JSONResponse:
     return JSONResponse(
@@ -173,18 +173,18 @@ Global default (applies to all rate-limited routes without a per-route factory):
 
 ```python
 app.add_middleware(
-    ShieldMiddleware,
+    SwitchlyMiddleware,
     engine=engine,
     responses={"rate_limited": my_429},
 )
 ```
 
-Mutate policies at runtime without redeploying (`shield rl` and `shield rate-limits` are aliases):
+Mutate policies at runtime without redeploying (`switchly rl` and `switchly rate-limits` are aliases):
 
 ```bash
-shield rl set GET:/public/posts 20/minute
-shield rl reset GET:/public/posts
-shield rl hits
+switchly rl set GET:/public/posts 20/minute
+switchly rl reset GET:/public/posts
+switchly rl hits
 ```
 
 See [**Tutorial: Rate Limiting**](../tutorial/rate-limiting.md) and [**Reference: Rate Limiting**](../reference/rate-limiting.md) for full details.
@@ -193,13 +193,13 @@ See [**Tutorial: Rate Limiting**](../tutorial/rate-limiting.md) and [**Reference
 
 ## Dependency injection
 
-Shield decorators work as FastAPI `Depends()` dependencies for per-handler enforcement without middleware.
+Switchly decorators work as FastAPI `Depends()` dependencies for per-handler enforcement without middleware.
 
 ```python title="two patterns"
 from fastapi import Depends
-from shield.fastapi.decorators import disabled, maintenance
+from switchly.fastapi import disabled, maintenance
 
-# Pattern A — decorator (relies on ShieldMiddleware to enforce)
+# Pattern A — decorator (relies on SwitchlyMiddleware to enforce)
 @router.get("/payments")
 @maintenance(reason="DB migration")
 async def get_payments():
@@ -218,7 +218,7 @@ async def get_orders():
 `@rate_limit` also works as a `Depends()`:
 
 ```python
-from shield.fastapi.decorators import rate_limit
+from switchly.fastapi import rate_limit
 
 @router.get("/export", dependencies=[Depends(rate_limit("5/hour", key="user"))])
 async def export():
@@ -229,7 +229,7 @@ Both the decorator path and the `Depends()` path share the same counter — they
 
 | Pattern | Best for |
 |---|---|
-| Decorator | Apps that always run `ShieldMiddleware` |
+| Decorator | Apps that always run `SwitchlyMiddleware` |
 | `Depends()` | Serverless / edge runtimes without middleware, or when middleware is not used |
 
 ---
@@ -245,7 +245,7 @@ async def lifespan(app: FastAPI):
         yield
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 ```
 
 ---
@@ -257,18 +257,18 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.fastapi.decorators import maintenance, force_active
-from shield.fastapi.middleware import ShieldMiddleware
-from shield.fastapi.router import ShieldRouter
+from switchly import MemoryBackend
+from switchly import SwitchlyEngine
+from switchly.fastapi import maintenance, force_active
+from switchly.fastapi import SwitchlyMiddleware
+from switchly.fastapi import SwitchlyRouter
 
 
 async def test_maintenance_returns_503():
-    engine = ShieldEngine(backend=MemoryBackend())
+    engine = SwitchlyEngine(backend=MemoryBackend())
     app = FastAPI()
-    app.add_middleware(ShieldMiddleware, engine=engine)
-    router = ShieldRouter(engine=engine)
+    app.add_middleware(SwitchlyMiddleware, engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/payments")
     @maintenance(reason="DB migration")
@@ -276,7 +276,7 @@ async def test_maintenance_returns_503():
         return {"ok": True}
 
     app.include_router(router)
-    await app.router.startup()   # trigger shield route registration
+    await app.router.startup()   # trigger switchly route registration
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -288,7 +288,7 @@ async def test_maintenance_returns_503():
 
 
 async def test_runtime_enable_via_engine():
-    engine = ShieldEngine(backend=MemoryBackend())
+    engine = SwitchlyEngine(backend=MemoryBackend())
 
     await engine.set_maintenance("GET:/orders", reason="Upgrade")
     await engine.enable("GET:/orders")
@@ -314,11 +314,11 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ### Basic usage
 
-??? example "All core decorators + ShieldAdmin"
+??? example "All core decorators + SwitchlyAdmin"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/basic.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/basic.py){ .md-button }
 
-    Demonstrates every decorator (`@maintenance`, `@disabled`, `@env_only`, `@force_active`, `@deprecated`) together with the `ShieldAdmin` unified interface (dashboard + CLI REST API).
+    Demonstrates every decorator (`@maintenance`, `@disabled`, `@env_only`, `@force_active`, `@deprecated`) together with the `SwitchlyAdmin` unified interface (dashboard + CLI REST API).
 
     **Expected behavior:**
 
@@ -335,17 +335,17 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     ```bash
     uv run uvicorn examples.fastapi.basic:app --reload
     # Swagger UI:       http://localhost:8000/docs
-    # Admin dashboard:  http://localhost:8000/shield/   (admin / secret)
-    # Audit log:        http://localhost:8000/shield/audit
+    # Admin dashboard:  http://localhost:8000/switchly/   (admin / secret)
+    # Audit log:        http://localhost:8000/switchly/audit
     ```
 
     **CLI quick-start:**
 
     ```bash
-    shield login admin          # password: secret
-    shield status
-    shield disable GET:/payments --reason "hotfix"
-    shield enable  GET:/payments
+    switchly login admin          # password: secret
+    switchly status
+    switchly disable GET:/payments --reason "hotfix"
+    switchly enable  GET:/payments
     ```
 
     **Full source:**
@@ -358,17 +358,17 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ### Dependency injection
 
-??? example "Shield decorators as FastAPI `Depends()`"
+??? example "Switchly decorators as FastAPI `Depends()`"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/dependency_injection.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/dependency_injection.py){ .md-button }
 
-    Shows how to use shield decorators as `Depends()` instead of (or alongside) middleware. Once `configure_shield(app, engine)` is called — or `ShieldMiddleware` is added, which calls it automatically — all decorator dependencies find the engine via `request.app.state` without needing an explicit `engine=` argument per route.
+    Shows how to use switchly decorators as `Depends()` instead of (or alongside) middleware. Once `configure_switchly(app, engine)` is called — or `SwitchlyMiddleware` is added, which calls it automatically — all decorator dependencies find the engine via `request.app.state` without needing an explicit `engine=` argument per route.
 
     **Expected behavior:**
 
     | Endpoint | Response |
     |---|---|
-    | `GET /payments` | 503 (maintenance) — toggle off with `shield enable GET:/payments` |
+    | `GET /payments` | 503 (maintenance) — toggle off with `switchly enable GET:/payments` |
     | `GET /old-endpoint` | 503 (disabled) |
     | `GET /debug` | 404 in production, 200 in dev/staging |
     | `GET /v1/users` | 200 + `Deprecation` / `Sunset` / `Link` headers |
@@ -378,14 +378,14 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     ```bash
     uv run uvicorn examples.fastapi.dependency_injection:app --reload
-    # Admin dashboard: http://localhost:8000/shield/   (admin / secret)
+    # Admin dashboard: http://localhost:8000/switchly/   (admin / secret)
     ```
 
     **Try it:**
 
     ```bash
     curl -i http://localhost:8000/payments      # → 503
-    shield enable GET:/payments                 # toggle off without redeploy
+    switchly enable GET:/payments                 # toggle off without redeploy
     curl -i http://localhost:8000/payments      # → 200
     ```
 
@@ -401,7 +401,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ??? example "Auto-activating and auto-deactivating windows"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/scheduled_maintenance.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/scheduled_maintenance.py){ .md-button }
 
     Demonstrates how to schedule a maintenance window that activates and deactivates automatically at the specified times — no manual intervention required.
 
@@ -411,7 +411,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     |---|---|
     | `GET /orders` | Normal route — enters maintenance during the window |
     | `GET /admin/schedule` | Schedules a 10-second window starting 5 seconds from now |
-    | `GET /admin/status` | Current shield state for all routes |
+    | `GET /admin/status` | Current switchly state for all routes |
     | `GET /health` | Always 200 |
 
     **Run:**
@@ -448,7 +448,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ??? example "Blocking all routes at once"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/global_maintenance.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/global_maintenance.py){ .md-button }
 
     Demonstrates enabling and disabling global maintenance mode, which blocks every route in one call without per-route decorators. `@force_active` routes are exempt by default.
 
@@ -492,7 +492,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ??? example "HTML pages, redirects, and branded JSON errors"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/custom_responses.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/custom_responses.py){ .md-button }
 
     Shows how to replace the default JSON error body with any Starlette response — HTML maintenance pages, redirects, plain text, or a different JSON shape — either per-route or as an app-wide default on the middleware.
 
@@ -514,7 +514,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     ```bash
     uv run uvicorn examples.fastapi.custom_responses:app --reload
-    # Admin dashboard: http://localhost:8000/shield/   (admin / secret)
+    # Admin dashboard: http://localhost:8000/switchly/   (admin / secret)
     ```
 
     **Full source:**
@@ -529,24 +529,24 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ??? example "HTTP notifications on every state change"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/webhooks.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/webhooks.py){ .md-button }
 
     Fully self-contained webhook demo: three receivers (generic JSON, Slack-formatted, and a custom payload) are mounted on the same app — no external service needed. Change a route state via the CLI or dashboard and watch the events appear at `/webhook-log`.
 
     Webhooks are always registered on the engine that owns state mutations:
 
-    - **Embedded mode** — register on the engine before passing it to `ShieldAdmin`
-    - **Shield Server mode** — build the engine explicitly and register on it before passing to `ShieldAdmin`; SDK service apps never fire webhooks
+    - **Embedded mode** — register on the engine before passing it to `SwitchlyAdmin`
+    - **Switchly Server mode** — build the engine explicitly and register on it before passing to `SwitchlyAdmin`; SDK service apps never fire webhooks
 
     ```python
-    # Shield Server mode
-    from shield.core.engine import ShieldEngine
-    from shield.core.webhooks import SlackWebhookFormatter
-    from shield.admin.app import ShieldAdmin
+    # Switchly Server mode
+    from switchly import SwitchlyEngine
+    from switchly import SlackWebhookFormatter
+    from switchly.fastapi import SwitchlyAdmin
 
-    engine = ShieldEngine(backend=RedisBackend(...))
+    engine = SwitchlyEngine(backend=RedisBackend(...))
     engine.add_webhook("https://hooks.slack.com/...", formatter=SlackWebhookFormatter())
-    shield_app = ShieldAdmin(engine=engine, auth=("admin", "secret"))
+    switchly_app = SwitchlyAdmin(engine=engine, auth=("admin", "secret"))
     ```
 
     **Webhook receivers (all `@force_active`):**
@@ -562,18 +562,18 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     ```bash
     uv run uvicorn examples.fastapi.webhooks:app --reload
     # Webhook log: http://localhost:8000/webhook-log  (auto-refreshes every 5 s)
-    # Admin:       http://localhost:8000/shield/       (admin / secret)
+    # Admin:       http://localhost:8000/switchly/       (admin / secret)
     ```
 
     **Trigger events:**
 
     ```bash
-    shield config set-url http://localhost:8000/shield
-    shield login admin                                   # password: secret
-    shield disable GET:/payments --reason "hotfix"
-    shield enable  GET:/payments
-    shield maintenance GET:/orders --reason "stock sync"
-    shield enable  GET:/orders
+    switchly config set-url http://localhost:8000/switchly
+    switchly login admin                                   # password: secret
+    switchly disable GET:/payments --reason "hotfix"
+    switchly enable  GET:/payments
+    switchly maintenance GET:/orders --reason "stock sync"
+    switchly enable  GET:/orders
     ```
 
     Then open `http://localhost:8000/webhook-log` to see all three receivers fire for each state change.
@@ -590,9 +590,9 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ??? example "Per-IP, per-user, tiered limits, and custom 429 responses"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/rate_limiting.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/rate_limiting.py){ .md-button }
 
-    Demonstrates IP-based, user-based, and tiered rate limiting with a custom 429 response factory. Requires `api-shield[rate-limit]`.
+    Demonstrates IP-based, user-based, and tiered rate limiting with a custom 429 response factory. Requires `switchly[rate-limit]`.
 
     **Expected behavior:**
 
@@ -606,21 +606,21 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     **Run:**
 
     ```bash
-    uv add "api-shield[all,rate-limit]"
+    uv add "switchly[all,rate-limit]"
     uv run uvicorn examples.fastapi.rate_limiting:app --reload
-    # Admin dashboard:  http://localhost:8000/shield/   (admin / secret)
-    # Rate limits tab:  http://localhost:8000/shield/rate-limits
-    # Blocked log:      http://localhost:8000/shield/blocked
+    # Admin dashboard:  http://localhost:8000/switchly/   (admin / secret)
+    # Rate limits tab:  http://localhost:8000/switchly/rate-limits
+    # Blocked log:      http://localhost:8000/switchly/blocked
     ```
 
     **CLI quick-start:**
 
     ```bash
-    shield login admin
-    shield rl list
-    shield rl set GET:/public/posts 20/minute   # raise limit live
-    shield rl reset GET:/public/posts           # clear counters
-    shield rl hits                              # blocked requests log
+    switchly login admin
+    switchly rl list
+    switchly rl set GET:/public/posts 20/minute   # raise limit live
+    switchly rl reset GET:/public/posts           # clear counters
+    switchly rl hits                              # blocked requests log
     ```
 
     **Full source:**
@@ -631,27 +631,27 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ---
 
-### Shield Server (single service)
+### Switchly Server (single service)
 
-??? example "Centralized Shield Server + one service via ShieldSDK"
+??? example "Centralized Switchly Server + one service via SwitchlySDK"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/shield_server.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/switchly_server.py){ .md-button }
 
-    Demonstrates the centralized Shield Server architecture: one Shield Server process owns all route state, and one service app connects via `ShieldSDK`. State is enforced locally — zero per-request network overhead.
+    Demonstrates the centralized Switchly Server architecture: one Switchly Server process owns all route state, and one service app connects via `SwitchlySDK`. State is enforced locally — zero per-request network overhead.
 
     **Two ASGI apps — run each in its own terminal:**
 
     ```bash
-    # Shield Server (port 8001)
-    uv run uvicorn examples.fastapi.shield_server:shield_app --port 8001 --reload
+    # Switchly Server (port 8001)
+    uv run uvicorn examples.fastapi.switchly_server:switchly_app --port 8001 --reload
 
     # Service app (port 8000)
-    uv run uvicorn examples.fastapi.shield_server:service_app --port 8000 --reload
+    uv run uvicorn examples.fastapi.switchly_server:service_app --port 8000 --reload
     ```
 
     **Then visit:**
 
-    - `http://localhost:8001/` — Shield dashboard (`admin` / `secret`)
+    - `http://localhost:8001/` — Switchly dashboard (`admin` / `secret`)
     - `http://localhost:8000/docs` — service Swagger UI
 
     **Expected behavior:**
@@ -668,7 +668,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     ```python
     # Option 1 — Auto-login (recommended): SDK logs in on startup, no token management
-    sdk = ShieldSDK(
+    sdk = SwitchlySDK(
         server_url="http://localhost:8001",
         app_id="payments-service",
         username="admin",
@@ -676,56 +676,56 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     )
 
     # Option 2 — Pre-issued token
-    sdk = ShieldSDK(
+    sdk = SwitchlySDK(
         server_url="http://localhost:8001",
         app_id="payments-service",
-        token="<token-from-shield-login>",
+        token="<token-from-switchly-login>",
     )
 
-    # Option 3 — No auth on the Shield Server
-    sdk = ShieldSDK(server_url="http://localhost:8001", app_id="payments-service")
+    # Option 3 — No auth on the Switchly Server
+    sdk = SwitchlySDK(server_url="http://localhost:8001", app_id="payments-service")
     ```
 
-    **CLI — always targets the Shield Server:**
+    **CLI — always targets the Switchly Server:**
 
     ```bash
-    shield config set-url http://localhost:8001
-    shield login admin              # password: secret
-    shield status
-    shield enable /api/payments
-    shield disable /api/orders --reason "hotfix"
-    shield maintenance /api/payments --reason "DB migration"
-    shield audit
+    switchly config set-url http://localhost:8001
+    switchly login admin              # password: secret
+    switchly status
+    switchly enable /api/payments
+    switchly disable /api/orders --reason "hotfix"
+    switchly maintenance /api/payments --reason "DB migration"
+    switchly audit
     ```
 
     **Full source:**
 
-    ```python title="examples/fastapi/shield_server.py"
-    --8<-- "examples/fastapi/shield_server.py"
+    ```python title="examples/fastapi/switchly_server.py"
+    --8<-- "examples/fastapi/switchly_server.py"
     ```
 
 ---
 
-### Shield Server (multi-service)
+### Switchly Server (multi-service)
 
-??? example "Two independent services sharing one Shield Server"
+??? example "Two independent services sharing one Switchly Server"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/multi_service.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/multi_service.py){ .md-button }
 
-    Demonstrates two independent FastAPI services (`payments-service` and `orders-service`) both connecting to the same Shield Server. Each service registers its routes under its own `app_id` namespace so the dashboard service dropdown and CLI `SHIELD_SERVICE` env var can manage them independently or together.
+    Demonstrates two independent FastAPI services (`payments-service` and `orders-service`) both connecting to the same Switchly Server. Each service registers its routes under its own `app_id` namespace so the dashboard service dropdown and CLI `SWITCHLY_SERVICE` env var can manage them independently or together.
 
-    Each service authenticates using `username`/`password` so the SDK obtains its own long-lived `sdk`-platform token on startup — no manual token management required. The Shield Server is configured with separate expiry times for human sessions and service tokens:
+    Each service authenticates using `username`/`password` so the SDK obtains its own long-lived `sdk`-platform token on startup — no manual token management required. The Switchly Server is configured with separate expiry times for human sessions and service tokens:
 
     ```python
-    shield_app = ShieldServer(
+    switchly_app = SwitchlyServer(
         backend=MemoryBackend(),
         auth=("admin", "secret"),
         token_expiry=3600,          # dashboard / CLI: 1 hour
         sdk_token_expiry=31536000,  # SDK services: 1 year
     )
 
-    payments_sdk = ShieldSDK(
-        server_url="http://shield-server:9000",
+    payments_sdk = SwitchlySDK(
+        server_url="http://switchly-server:9000",
         app_id="payments-service",
         username="admin",
         password="secret",          # inject from env in production
@@ -735,8 +735,8 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     **Three ASGI apps — run each in its own terminal:**
 
     ```bash
-    # Shield Server (port 8001)
-    uv run uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
+    # Switchly Server (port 8001)
+    uv run uvicorn examples.fastapi.multi_service:switchly_app --port 8001 --reload
 
     # Payments service (port 8000)
     uv run uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
@@ -747,7 +747,7 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
     **Then visit:**
 
-    - `http://localhost:8001/` — Shield dashboard (use service dropdown to switch)
+    - `http://localhost:8001/` — Switchly dashboard (use service dropdown to switch)
     - `http://localhost:8000/docs` — Payments Swagger UI
     - `http://localhost:8002/docs` — Orders Swagger UI
 
@@ -767,26 +767,26 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     **CLI — multi-service workflow:**
 
     ```bash
-    shield config set-url http://localhost:8001
-    shield login admin              # password: secret
-    shield services                 # list all connected services
+    switchly config set-url http://localhost:8001
+    switchly login admin              # password: secret
+    switchly services                 # list all connected services
 
     # Scope to payments via env var
-    export SHIELD_SERVICE=payments-service
-    shield status
-    shield enable /api/payments
-    shield current-service          # confirm active context
+    export SWITCHLY_SERVICE=payments-service
+    switchly status
+    switchly enable /api/payments
+    switchly current-service          # confirm active context
 
     # Switch to orders with explicit flag (overrides env var)
-    shield status --service orders-service
-    shield disable /api/cart --reason "redesign" --service orders-service
+    switchly status --service orders-service
+    switchly disable /api/cart --reason "redesign" --service orders-service
 
     # Unscoped — operates across all services
-    unset SHIELD_SERVICE
-    shield status
-    shield audit
-    shield global disable --reason "emergency maintenance"
-    shield global enable
+    unset SWITCHLY_SERVICE
+    switchly status
+    switchly audit
+    switchly global disable --reason "emergency maintenance"
+    switchly global enable
     ```
 
     **Full source:**
@@ -799,9 +799,9 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
 
 ### Custom backend (SQLite)
 
-??? example "Implementing `ShieldBackend` with aiosqlite"
+??? example "Implementing `SwitchlyBackend` with aiosqlite"
 
-    [:material-github: View on GitHub](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/custom_backend/sqlite_backend.py){ .md-button }
+    [:material-github: View on GitHub](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/custom_backend/sqlite_backend.py){ .md-button }
 
     A complete, working custom backend that stores all route state and audit log entries in a SQLite database via `aiosqlite`. Restart the server and the state survives. The same CLI workflow works unchanged — the CLI talks to the app's REST API, never to the database directly.
 
@@ -825,19 +825,19 @@ Each example below is a complete, self-contained FastAPI app. Click to expand th
     ```bash
     uv run uvicorn examples.fastapi.custom_backend.sqlite_backend:app --reload
     # Swagger UI:  http://localhost:8000/docs
-    # Admin:       http://localhost:8000/shield/   (admin / secret)
-    # Audit log:   http://localhost:8000/shield/audit
+    # Admin:       http://localhost:8000/switchly/   (admin / secret)
+    # Audit log:   http://localhost:8000/switchly/audit
     ```
 
     **CLI quick-start:**
 
     ```bash
-    shield config set-url http://localhost:8000/shield
-    shield login admin          # password: secret
-    shield status
-    shield disable GET:/payments --reason "hotfix"
-    shield enable  GET:/payments
-    shield log
+    switchly config set-url http://localhost:8000/switchly
+    switchly login admin          # password: secret
+    switchly status
+    switchly disable GET:/payments --reason "hotfix"
+    switchly enable  GET:/payments
+    switchly log
     ```
 
     **Full source:**

@@ -1,17 +1,17 @@
-"""Tests for ShieldFeatureClient and engine.use_openfeature()."""
+"""Tests for SwitchlyFeatureClient and engine.use_openfeature()."""
 
 from __future__ import annotations
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.core.feature_flags.client import ShieldFeatureClient
-from shield.core.feature_flags.models import (
+from switchly.core.backends.memory import MemoryBackend
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.feature_flags.client import SwitchlyFeatureClient
+from switchly.core.feature_flags.models import (
     EvaluationContext,
     FeatureFlag,
     FlagType,
     FlagVariation,
 )
-from shield.core.feature_flags.provider import ShieldOpenFeatureProvider
+from switchly.core.feature_flags.provider import SwitchlyOpenFeatureProvider
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,7 +99,7 @@ class _FakeBackend:
     async def load_all_segments(self):
         return []
 
-    # Minimal stubs so ShieldEngine can use this as backend
+    # Minimal stubs so SwitchlyEngine can use this as backend
     async def startup(self):
         pass
 
@@ -122,43 +122,43 @@ class _FakeBackend:
 
 
 class TestUseOpenFeature:
-    def test_returns_shield_feature_client(self):
-        engine = ShieldEngine()
+    def test_returns_switchly_feature_client(self):
+        engine = SwitchlyEngine()
         client = engine.use_openfeature(domain="test_uof")
-        assert isinstance(client, ShieldFeatureClient)
+        assert isinstance(client, SwitchlyFeatureClient)
 
     def test_flag_client_property_returns_client(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         client = engine.use_openfeature(domain="test_prop")
         assert engine.flag_client is client
 
     def test_flag_client_none_before_use_openfeature(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         assert engine.flag_client is None
 
     def test_custom_provider_accepted(self):
-        engine = ShieldEngine()
-        custom = ShieldOpenFeatureProvider(MemoryBackend())
+        engine = SwitchlyEngine()
+        custom = SwitchlyOpenFeatureProvider(MemoryBackend())
         client = engine.use_openfeature(provider=custom, domain="test_custom")
         assert engine._flag_provider is custom
-        assert isinstance(client, ShieldFeatureClient)
+        assert isinstance(client, SwitchlyFeatureClient)
 
-    def test_default_provider_is_shield_provider(self):
-        engine = ShieldEngine()
+    def test_default_provider_is_switchly_provider(self):
+        engine = SwitchlyEngine()
         engine.use_openfeature(domain="test_default_prov")
-        assert isinstance(engine._flag_provider, ShieldOpenFeatureProvider)
+        assert isinstance(engine._flag_provider, SwitchlyOpenFeatureProvider)
 
     async def test_start_initializes_provider(self):
         initialized = []
 
-        class _TrackedProvider(ShieldOpenFeatureProvider):
+        class _TrackedProvider(SwitchlyOpenFeatureProvider):
             def initialize(self, evaluation_context=None):
                 initialized.append(True)
 
             def shutdown(self):
                 pass
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         engine.use_openfeature(provider=_TrackedProvider(MemoryBackend()), domain="test_start")
         await engine.start()
         assert initialized == [True]
@@ -167,21 +167,21 @@ class TestUseOpenFeature:
     async def test_stop_shuts_down_provider(self):
         shutdown = []
 
-        class _TrackedProvider(ShieldOpenFeatureProvider):
+        class _TrackedProvider(SwitchlyOpenFeatureProvider):
             def initialize(self, evaluation_context=None):
                 pass
 
             def shutdown(self):
                 shutdown.append(True)
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         engine.use_openfeature(provider=_TrackedProvider(MemoryBackend()), domain="test_stop")
         await engine.start()
         await engine.stop()
         assert shutdown == [True]
 
     def test_use_openfeature_multiple_calls_replaces_provider(self):
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         engine.use_openfeature(domain="test_multi_1")
         p1 = engine._flag_provider
         engine.use_openfeature(domain="test_multi_2")
@@ -191,20 +191,20 @@ class TestUseOpenFeature:
 
 
 # ---------------------------------------------------------------------------
-# ShieldFeatureClient — evaluation
+# SwitchlyFeatureClient — evaluation
 # ---------------------------------------------------------------------------
 
 
-class TestShieldFeatureClientEvaluation:
-    async def _make_client(self, flags, domain) -> ShieldFeatureClient:
+class TestSwitchlyFeatureClientEvaluation:
+    async def _make_client(self, flags, domain) -> SwitchlyFeatureClient:
         """Wire up a provider with the given flags and return a client."""
-        provider = ShieldOpenFeatureProvider(_FakeBackend(flags=flags))
+        provider = SwitchlyOpenFeatureProvider(_FakeBackend(flags=flags))
         await provider._load_all()
 
         import openfeature.api as of_api
 
         of_api.set_provider(provider, domain=domain)
-        return ShieldFeatureClient(domain=domain)
+        return SwitchlyFeatureClient(domain=domain)
 
     async def test_get_boolean_value_true(self):
         client = await self._make_client([_bool_flag(fallthrough_variation="on")], "cli_bool")

@@ -19,17 +19,16 @@ hide:
       </a>
 
       <h1 class="hp-h1">
-        Runtime control<br>for <span class="hp-accent">Python APIs</span>
+        Toggle features,<br>control your <span class="hp-accent">API</span> at runtime
       </h1>
 
       <p class="hp-hero-desc">
-        Feature flags, rate limiting, and maintenance mode. No redeployment.
-        Self-hosted. OpenFeature compliant. Zero restarts.
+        Switchly gives you runtime control of your APIs to toggle features, schedule maintenance, enforce rate limits, and perform rollouts without redeploying.
       </p>
 
       <div class="hp-hero-btns">
         <a href="tutorial/installation/" class="hp-btn hp-btn-primary">Get Started →</a>
-        <a href="https://github.com/Attakay78/api-shield" class="hp-btn hp-btn-ghost" target="_blank">
+        <a href="https://github.com/Attakay78/switchly" class="hp-btn hp-btn-ghost" target="_blank">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
           GitHub
         </a>
@@ -37,8 +36,8 @@ hide:
 
       <div class="hp-install">
         <span class="hp-install-label">$ </span>
-        <code class="hp-install-cmd">uv add "api-shield[all]"</code>
-        <button class="hp-copy-btn" data-copy='uv add "api-shield[all]"' title="Copy to clipboard">
+        <code class="hp-install-cmd">uv add "switchly[all]"</code>
+        <button class="hp-copy-btn" data-copy='uv add "switchly[all]"' title="Copy to clipboard">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
       </div>
@@ -53,16 +52,16 @@ hide:
           <span class="hp-code-win-title">app.py</span>
         </div>
         <pre class="hp-code-win-body"><code><span class="t-kw">from</span> <span class="t-mod">fastapi</span> <span class="t-kw">import</span> FastAPI
-<span class="t-kw">from</span> <span class="t-mod">shield.core.config</span> <span class="t-kw">import</span> make_engine
-<span class="t-kw">from</span> <span class="t-mod">shield.fastapi</span> <span class="t-kw">import</span> (
-    ShieldMiddleware, ShieldAdmin,
+<span class="t-kw">from</span> <span class="t-mod">switchly</span> <span class="t-kw">import</span> make_engine
+<span class="t-kw">from</span> <span class="t-mod">switchly.fastapi</span> <span class="t-kw">import</span> (
+    SwitchlyMiddleware, SwitchlyAdmin,
     maintenance, env_only, deprecated,
     force_active, rate_limit,
 )
 
 engine <span class="t-op">=</span> <span class="t-fn">make_engine</span>()
 app    <span class="t-op">=</span> <span class="t-cls">FastAPI</span>()
-app.<span class="t-fn">add_middleware</span>(<span class="t-cls">ShieldMiddleware</span>, engine<span class="t-op">=</span>engine)
+app.<span class="t-fn">add_middleware</span>(<span class="t-cls">SwitchlyMiddleware</span>, engine<span class="t-op">=</span>engine)
 
 <span class="t-cm"># Database migration in progress</span>
 <span class="t-dec">@app.get</span>(<span class="t-str">"/payments"</span>)
@@ -84,9 +83,9 @@ app.<span class="t-fn">add_middleware</span>(<span class="t-cls">ShieldMiddlewar
 <span class="t-dec">@force_active</span>
 <span class="t-kw">async def</span> <span class="t-fn">health</span>(): ...
 
-<span class="t-cm"># Dashboard + REST API at /shield</span>
-app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
-    <span class="t-cls">ShieldAdmin</span>(engine<span class="t-op">=</span>engine, auth<span class="t-op">=</span>(<span class="t-str">"admin"</span>, <span class="t-str">"secret"</span>))
+<span class="t-cm"># Dashboard + REST API at /switchly</span>
+app.<span class="t-fn">mount</span>(<span class="t-str">"/switchly"</span>,
+    <span class="t-cls">SwitchlyAdmin</span>(engine<span class="t-op">=</span>engine, auth<span class="t-op">=</span>(<span class="t-str">"admin"</span>, <span class="t-str">"secret"</span>))
 )</code></pre>
       </div>
     </div>
@@ -99,34 +98,36 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
 ══════════════════════════════════════════════════ -->
 <div class="hp-marquee-outer">
   <div class="hp-marquee-track">
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Zero-restart control</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Feature flags</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>OpenFeature compliant</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Canary rollouts</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>A/B testing</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Percentage rollouts</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Rate limiting</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Maintenance mode</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Feature flags</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Scheduled windows</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Zero-restart control</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Audit log</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Redis backends</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Webhooks</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>CLI control</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Multi-service fleet</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Scheduled windows</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Canary rollouts</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>A/B testing</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Env gating</span>
     <!-- duplicate for seamless loop -->
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Zero-restart control</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Feature flags</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>OpenFeature compliant</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Canary rollouts</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>A/B testing</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Percentage rollouts</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Rate limiting</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Maintenance mode</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Feature flags</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Scheduled windows</span>
+    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Zero-restart control</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Audit log</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Redis backends</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Webhooks</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>CLI control</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Multi-service fleet</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Scheduled windows</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>Canary rollouts</span>
-    <span class="hp-mq-item"><span class="hp-mq-dot"></span>A/B testing</span>
     <span class="hp-mq-item"><span class="hp-mq-dot"></span>Env gating</span>
   </div>
 </div>
@@ -163,14 +164,14 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
 
     <div class="hp-ecosystem-col">
       <span class="hp-label">The problem</span>
-      <h2 class="hp-h2">Most runtime tools are blunt instruments</h2>
-      <p class="hp-body">Shut everything down or nothing at all. Redeployment just to flip a flag. No audit trail. No per-route control. No way to gradually roll out a change to 5% of users.</p>
+      <h2 class="hp-h2">Redeploying to toggle a feature is the wrong tool</h2>
+      <p class="hp-body">Redeployment just to flip a flag. Shut everything down or nothing at all. No targeting rules, no gradual rollouts, no per-route control, no audit trail.</p>
     </div>
 
     <div class="hp-ecosystem-col">
       <span class="hp-label">The solution</span>
-      <h2 class="hp-h2">One ecosystem. Every Python API.</h2>
-      <p class="hp-body"><code class="hp-inline-code">api-shield</code> treats every route as a first-class entity with its own lifecycle. State changes are immediate. No restart. No redeploy. Full control from a dashboard, CLI, or REST API.</p>
+      <h2 class="hp-h2">Feature flags, rollouts, and route control in one tool.</h2>
+      <p class="hp-body"><code class="hp-inline-code">switchly</code> lets you toggle features, run percentage rollouts, and control every route's lifecycle in real time. State changes are immediate. No restart. No redeploy. Full control from a dashboard, CLI, or REST API.</p>
     </div>
 
   </div>
@@ -207,8 +208,8 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
   <div class="hp-diff-inner">
     <div class="hp-diff-header">
       <span class="hp-label">What makes it different</span>
-      <h2 class="hp-h2">Other tools flag features.<br>api-shield controls routes.</h2>
-      <p class="hp-body">LaunchDarkly, Flagsmith, Unleash — they operate at the application layer and have no concept of what a route is. You can't ask them to put <code class="hp-inline-code">/api/payments</code> into maintenance mode, schedule the window, reset its rate limit counters when it comes back, or show you a live dashboard of route states across your fleet. That is a different problem, and that is what api-shield solves.</p>
+      <h2 class="hp-h2">Feature flags and full<br>route lifecycle in one tool.</h2>
+      <p class="hp-body">LaunchDarkly, Flagsmith, Unleash operate at the application layer with no concept of what a route is. switchly does feature flags and gives you route-level control: put <code class="hp-inline-code">/api/payments</code> into maintenance, schedule the window, reset its rate limit counters when it comes back, and see a live dashboard of route states across your fleet.</p>
     </div>
 
     <div class="hp-diff-grid">
@@ -217,7 +218,7 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </div>
         <h4 class="hp-diff-title">Route-aware request context</h4>
-        <p class="hp-diff-body">api-shield reads <code>request.state.user_id</code>, FastAPI dependencies, and ASGI request context directly. The route is the unit of control, not a string key passed to an SDK.</p>
+        <p class="hp-diff-body">switchly reads <code>request.state.user_id</code>, FastAPI dependencies, and ASGI request context directly. The route is the unit of control, not a string key passed to an SDK.</p>
       </div>
 
       <div class="hp-diff-card">
@@ -246,7 +247,7 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
   <div class="hp-features-inner">
 
     <div class="hp-section-header">
-      <span class="hp-label">Why api-shield</span>
+      <span class="hp-label">Why switchly</span>
       <h2 class="hp-h2">Built for production from day one</h2>
     </div>
 
@@ -261,7 +262,7 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
       <div class="hp-feat-item">
         <span class="hp-feat-num">02</span>
         <h4 class="hp-feat-title">Fail-open by default</h4>
-        <p class="hp-feat-body">If the backend is unreachable, requests pass through. Shield never takes down your API due to its own failures.</p>
+        <p class="hp-feat-body">If the backend is unreachable, requests pass through. Switchly never takes down your API due to its own failures.</p>
       </div>
 
       <div class="hp-feat-item">
@@ -279,13 +280,13 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
       <div class="hp-feat-item">
         <span class="hp-feat-num">05</span>
         <h4 class="hp-feat-title">Multi-service fleet</h4>
-        <p class="hp-feat-body">ShieldServer + ShieldSDK for centralized control across multiple services. State synced via SSE with zero per-request latency.</p>
+        <p class="hp-feat-body">SwitchlyServer + SwitchlySDK for centralized control across multiple services. State synced via SSE with zero per-request latency.</p>
       </div>
 
       <div class="hp-feat-item">
         <span class="hp-feat-num">06</span>
         <h4 class="hp-feat-title">Full CLI + REST API</h4>
-        <p class="hp-feat-body">Every dashboard action is available from the terminal or CI pipeline. Token auth. Cross-platform config at <code>~/.shield/config.json</code>.</p>
+        <p class="hp-feat-body">Every dashboard action is available from the terminal or CI pipeline. Token auth. Cross-platform config at <code>~/.switchly/config.json</code>.</p>
       </div>
 
     </div>
@@ -299,25 +300,25 @@ app.<span class="t-fn">mount</span>(<span class="t-str">"/shield"</span>,
   <div class="hp-cta-inner">
     <span class="hp-label">Get started</span>
     <h2 class="hp-h2">Add runtime control to your API today</h2>
-    <p class="hp-body">Install in seconds. No external services. Works with any ASGI framework.</p>
+    <p class="hp-body">Install in seconds. No external services. Currently supports FastAPI, more adapters coming.</p>
 
     <div class="hp-cta-install">
       <span class="hp-install-label">$ </span>
-      <code class="hp-install-cmd">uv add "api-shield[all]"</code>
-      <button class="hp-copy-btn" data-copy='uv add "api-shield[all]"' title="Copy">
+      <code class="hp-install-cmd">uv add "switchly[all]"</code>
+      <button class="hp-copy-btn" data-copy='uv add "switchly[all]"' title="Copy">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1"/></svg>
       </button>
     </div>
 
     <div class="hp-cta-btns">
       <a href="tutorial/installation/" class="hp-btn hp-btn-primary">Read the Docs</a>
-      <a href="https://github.com/Attakay78/api-shield" class="hp-btn hp-btn-ghost" target="_blank">Star on GitHub</a>
+      <a href="https://github.com/Attakay78/switchly" class="hp-btn hp-btn-ghost" target="_blank">Star on GitHub</a>
     </div>
 
     <div class="hp-cta-badges">
-      <img src="https://img.shields.io/pypi/v/api-shield?color=F59E0B&label=pypi" alt="PyPI">
-      <img src="https://img.shields.io/pypi/pyversions/api-shield?color=F59E0B" alt="Python">
-      <img src="https://img.shields.io/github/license/Attakay78/api-shield?color=F59E0B" alt="License">
+      <img src="https://img.switchlys.io/pypi/v/switchly?color=F59E0B&label=pypi" alt="PyPI">
+      <img src="https://img.switchlys.io/pypi/pyversions/switchly?color=F59E0B" alt="Python">
+      <img src="https://img.switchlys.io/github/license/Attakay78/switchly?color=F59E0B" alt="License">
     </div>
   </div>
 </section>

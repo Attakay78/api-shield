@@ -1,6 +1,6 @@
 # Backends
 
-A backend is where api-shield stores route state and the audit log. Swapping backends requires a one-line change; everything else (decorators, middleware, CLI, audit log) works unchanged.
+A backend is where switchly stores route state and the audit log. Swapping backends requires a one-line change; everything else (decorators, middleware, CLI, audit log) works unchanged.
 
 ---
 
@@ -20,10 +20,10 @@ A backend is where api-shield stores route state and the audit log. Swapping bac
 State lives in a Python `dict`. Lost on restart. The CLI cannot share state with the running server unless it also uses the in-process engine (e.g. via the admin API).
 
 ```python
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
+from switchly import MemoryBackend
+from switchly import SwitchlyEngine
 
-engine = ShieldEngine(backend=MemoryBackend())
+engine = SwitchlyEngine(backend=MemoryBackend())
 ```
 
 Best for: development, unit tests, demos.
@@ -35,16 +35,16 @@ Best for: development, unit tests, demos.
 State is written to a JSON file on disk. The CLI and the running server share state as long as both point to the same file.
 
 ```python
-from shield.core.backends.file import FileBackend
-from shield.core.engine import ShieldEngine
+from switchly import FileBackend
+from switchly import SwitchlyEngine
 
-engine = ShieldEngine(backend=FileBackend(path="shield-state.json"))
+engine = SwitchlyEngine(backend=FileBackend(path="switchly-state.json"))
 ```
 
 Or via environment variables:
 
 ```bash
-SHIELD_BACKEND=file SHIELD_FILE_PATH=./shield-state.json uvicorn app:app
+SWITCHLY_BACKEND=file SWITCHLY_FILE_PATH=./switchly-state.json uvicorn app:app
 ```
 
 File format:
@@ -67,30 +67,30 @@ Best for: single-instance deployments, CLI-driven workflows.
 State is stored in Redis. All instances in a deployment share the same state. Pub/sub keeps the dashboard SSE feed live across instances.
 
 ```bash
-uv add "api-shield[redis]"
+uv add "switchly[redis]"
 ```
 
 ```python
-from shield.core.backends.redis import RedisBackend
-from shield.core.engine import ShieldEngine
+from switchly import RedisBackend
+from switchly import SwitchlyEngine
 
-engine = ShieldEngine(backend=RedisBackend(url="redis://localhost:6379/0"))
+engine = SwitchlyEngine(backend=RedisBackend(url="redis://localhost:6379/0"))
 ```
 
 Or via environment variable:
 
 ```bash
-SHIELD_BACKEND=redis SHIELD_REDIS_URL=redis://localhost:6379/0 uvicorn app:app
+SWITCHLY_BACKEND=redis SWITCHLY_REDIS_URL=redis://localhost:6379/0 uvicorn app:app
 ```
 
 Redis key schema:
 
 | Key | Type | Description |
 |---|---|---|
-| `shield:state:{path}` | String | JSON-serialised `RouteState` |
-| `shield:audit` | List | JSON-serialised `AuditEntry` items (capped at 1000) |
-| `shield:global` | String | JSON-serialised global maintenance config |
-| `shield:changes` | Pub/sub channel | Publishes on every `set_state` — used by SSE |
+| `switchly:state:{path}` | String | JSON-serialised `RouteState` |
+| `switchly:audit` | List | JSON-serialised `AuditEntry` items (capped at 1000) |
+| `switchly:global` | String | JSON-serialised global maintenance config |
+| `switchly:changes` | Pub/sub channel | Publishes on every `set_state` — used by SSE |
 
 Best for: multi-instance / load-balanced production deployments.
 
@@ -103,77 +103,77 @@ Best for: multi-instance / load-balanced production deployments.
 
 ---
 
-## Shield Server + ShieldSDK (multi-service)
+## Switchly Server + SwitchlySDK (multi-service)
 
-When you run multiple independent services, a dedicated **Shield Server** acts as the centralised control plane. Each service connects to it via **ShieldSDK**, which keeps an in-process cache synced over a persistent SSE connection — so enforcement never touches the network per request.
+When you run multiple independent services, a dedicated **Switchly Server** acts as the centralised control plane. Each service connects to it via **SwitchlySDK**, which keeps an in-process cache synced over a persistent SSE connection — so enforcement never touches the network per request.
 
 ```mermaid
 graph TD
-    subgraph server["Shield Server  •  port 9000"]
-        SS["ShieldServer(backend=...)\nDashboard · REST API · SSE"]
+    subgraph server["Switchly Server  •  port 9000"]
+        SS["SwitchlyServer(backend=...)\nDashboard · REST API · SSE"]
     end
 
     SS -->|HTTP + SSE| P
     SS -->|HTTP + SSE| O
 
     subgraph P["payments-app"]
-        PS["ShieldSDK\nlocal cache"]
+        PS["SwitchlySDK\nlocal cache"]
     end
 
     subgraph O["orders-app"]
-        OS["ShieldSDK\nlocal cache"]
+        OS["SwitchlySDK\nlocal cache"]
     end
 ```
 
-**Shield Server setup:**
+**Switchly Server setup:**
 
 ```python
-from shield.server import ShieldServer
-from shield.core.backends.memory import MemoryBackend
+from switchly.server import SwitchlyServer
+from switchly import MemoryBackend
 
-shield_app = ShieldServer(
+switchly_app = SwitchlyServer(
     backend=MemoryBackend(),
     auth=("admin", "secret"),
     token_expiry=3600,          # dashboard / CLI users: 1 hour
     sdk_token_expiry=31536000,  # SDK service tokens: 1 year (default)
 )
-# Run: uvicorn myapp:shield_app --port 9000
+# Run: uvicorn myapp:switchly_app --port 9000
 ```
 
 **Service setup — three auth configurations:**
 
 ```python
-from shield.sdk import ShieldSDK
+from switchly.sdk import SwitchlySDK
 import os
 
-# No auth on the Shield Server — nothing needed
-sdk = ShieldSDK(server_url="http://shield-server:9000", app_id="payments-service")
+# No auth on the Switchly Server — nothing needed
+sdk = SwitchlySDK(server_url="http://switchly-server:9000", app_id="payments-service")
 
 # Auto-login (recommended for production): SDK logs in on startup with platform="sdk"
-sdk = ShieldSDK(
-    server_url=os.environ["SHIELD_SERVER_URL"],
+sdk = SwitchlySDK(
+    server_url=os.environ["SWITCHLY_SERVER_URL"],
     app_id="payments-service",
-    username=os.environ["SHIELD_USERNAME"],
-    password=os.environ["SHIELD_PASSWORD"],
+    username=os.environ["SWITCHLY_USERNAME"],
+    password=os.environ["SWITCHLY_PASSWORD"],
 )
 
-# Pre-issued token: obtain once via `shield login`, store as a secret
-sdk = ShieldSDK(
-    server_url=os.environ["SHIELD_SERVER_URL"],
+# Pre-issued token: obtain once via `switchly login`, store as a secret
+sdk = SwitchlySDK(
+    server_url=os.environ["SWITCHLY_SERVER_URL"],
     app_id="payments-service",
-    token=os.environ["SHIELD_TOKEN"],
+    token=os.environ["SWITCHLY_TOKEN"],
 )
 
 sdk.attach(app)   # wires middleware + startup/shutdown
 ```
 
-### Which backend should the Shield Server use?
+### Which backend should the Switchly Server use?
 
-| Shield Server instances | Backend choice |
+| Switchly Server instances | Backend choice |
 |---|---|
 | 1 (development) | `MemoryBackend` — state lives in-process, lost on restart |
 | 1 (production) | `FileBackend` — state survives restarts |
-| 2+ (HA / load-balanced) | `RedisBackend` — all Shield Server nodes share state via pub/sub |
+| 2+ (HA / load-balanced) | `RedisBackend` — all Switchly Server nodes share state via pub/sub |
 
 ### Shared rate limit counters across SDK replicas
 
@@ -182,10 +182,10 @@ Each SDK client enforces rate limits locally using its own counters. When a serv
 To enforce the limit **across all replicas combined**, pass a shared `RedisBackend` as `rate_limit_backend`:
 
 ```python
-from shield.core.backends.redis import RedisBackend
+from switchly import RedisBackend
 
-sdk = ShieldSDK(
-    server_url="http://shield-server:9000",
+sdk = SwitchlySDK(
+    server_url="http://switchly-server:9000",
     app_id="payments-service",
     rate_limit_backend=RedisBackend(url="redis://redis:6379/1"),
 )
@@ -193,24 +193,24 @@ sdk = ShieldSDK(
 
 ### Deployment matrix
 
-| Services | Replicas per service | Shield Server backend | SDK `rate_limit_backend` |
+| Services | Replicas per service | Switchly Server backend | SDK `rate_limit_backend` |
 |---|---|---|---|
-| 1 | 1 | any — use embedded `ShieldAdmin` instead | — |
+| 1 | 1 | any — use embedded `SwitchlyAdmin` instead | — |
 | 2+ | 1 each | `MemoryBackend` or `FileBackend` | not needed |
 | 2+ | 2+ each | `RedisBackend` | `RedisBackend` |
 
-See [**Shield Server guide →**](../guides/shield-server.md) for a complete walkthrough.
+See [**Switchly Server guide →**](../guides/switchly-server.md) for a complete walkthrough.
 
 ---
 
 ## Using `make_engine` (recommended)
 
-`make_engine()` reads `SHIELD_BACKEND` (and related env vars) so you never hardcode the backend:
+`make_engine()` reads `SWITCHLY_BACKEND` (and related env vars) so you never hardcode the backend:
 
 ```python
-from shield.core.config import make_engine
+from switchly import make_engine
 
-engine = make_engine()                           # reads env + .shield file
+engine = make_engine()                           # reads env + .switchly file
 engine = make_engine(current_env="staging")      # override env
 engine = make_engine(backend="redis")            # force backend type
 ```
@@ -221,13 +221,13 @@ This lets you use `MemoryBackend` locally and `RedisBackend` in production witho
 
 ## Custom backends
 
-Any storage layer can be used by subclassing `ShieldBackend`:
+Any storage layer can be used by subclassing `SwitchlyBackend`:
 
 ```python
-from shield.core.backends.base import ShieldBackend
-from shield.core.models import AuditEntry, RouteState
+from switchly import SwitchlyBackend
+from switchly import AuditEntry, RouteState
 
-class MyBackend(ShieldBackend):
+class MyBackend(SwitchlyBackend):
 
     async def get_state(self, path: str) -> RouteState:
         # MUST raise KeyError if not found
@@ -254,7 +254,7 @@ class MyBackend(ShieldBackend):
 See [**Adapters: Building your own backend →**](../adapters/custom.md) for a full SQLite example.
 
 !!! warning "Storage latency affects every request"
-    api-shield calls your backend on every incoming request. If your storage layer is
+    switchly calls your backend on every incoming request. If your storage layer is
     remote (PostgreSQL, SQLite over NFS, a hosted database), the round-trip time to that
     storage is added to every request that passes through the middleware. Keep your
     storage instance in the same data centre or region as your application. The same
@@ -268,7 +268,7 @@ See [**Adapters: Building your own backend →**](../adapters/custom.md) for a f
 Override `startup()` and `shutdown()` for connection setup/teardown:
 
 ```python
-class MyBackend(ShieldBackend):
+class MyBackend(SwitchlyBackend):
     async def startup(self) -> None:
         self._conn = await connect_to_db()
 
@@ -307,7 +307,7 @@ For production deployments with multiple workers, use `RedisBackend`. Redis coun
 
 ```python
 # Rate limit counters automatically use Redis when the main backend is Redis
-engine = ShieldEngine(backend=RedisBackend("redis://localhost:6379/0"))
+engine = SwitchlyEngine(backend=RedisBackend("redis://localhost:6379/0"))
 ```
 
 !!! warning "FileBackend and multi-worker"

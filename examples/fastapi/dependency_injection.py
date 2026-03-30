@@ -1,17 +1,17 @@
 """FastAPI — Dependency Injection Example.
 
-Shows how to use shield decorators as FastAPI ``Depends()`` dependencies
+Shows how to use switchly decorators as FastAPI ``Depends()`` dependencies
 instead of (or alongside) the middleware model — but not both on the
-same route. Pick one: decorator (with ShieldMiddleware) or Depends()
+same route. Pick one: decorator (with SwitchlyMiddleware) or Depends()
 (without middleware).
 
-Call ``configure_shield(app, engine)`` once and all decorator deps find the
-engine automatically via ``request.app.state.shield_engine`` — no ``engine=``
-argument per route. ``ShieldMiddleware`` calls ``configure_shield``
+Call ``configure_switchly(app, engine)`` once and all decorator deps find the
+engine automatically via ``request.app.state.switchly_engine`` — no ``engine=``
+argument per route. ``SwitchlyMiddleware`` calls ``configure_switchly``
 automatically at ASGI startup, so if you use middleware you don't need to
 call it manually.
 
-Use either the decorator (with ShieldMiddleware) or ``Depends()`` (without
+Use either the decorator (with SwitchlyMiddleware) or ``Depends()`` (without
 middleware) — not both on the same route.
 
 Decorator support as ``Depends()``:
@@ -20,7 +20,7 @@ Decorator support as ``Depends()``:
   ✅ disabled     — raises 503 when route is disabled
   ✅ env_only     — raises 404 when accessed from the wrong environment
   ✅ deprecated   — injects Deprecation / Sunset / Link headers on the response
-  ❌ force_active — decorator-only; shield checks run in the middleware, which
+  ❌ force_active — decorator-only; switchly checks run in the middleware, which
                     completes before any dependency is resolved. A dependency
                     has no mechanism to retroactively bypass that check.
 
@@ -28,18 +28,18 @@ Run:
     uv run uvicorn examples.fastapi.dependency_injection:app --reload
 
 Admin dashboard:
-    http://localhost:8000/shield/        — login: admin / secret
+    http://localhost:8000/switchly/        — login: admin / secret
 
 CLI quick-start:
-    shield login admin          # password: secret
-    shield status               # see all route states
-    shield enable /payments     # toggle off maintenance without redeploy
-    shield disable /payments --reason "emergency patch"
+    switchly login admin          # password: secret
+    switchly status               # see all route states
+    switchly enable /payments     # toggle off maintenance without redeploy
+    switchly disable /payments --reason "emergency patch"
 
 Try these requests:
 
     curl -i http://localhost:8000/payments     # → 503 MAINTENANCE_MODE
-    shield enable /payments                    # toggle off without redeploy
+    switchly enable /payments                    # toggle off without redeploy
     curl -i http://localhost:8000/payments     # → 200
 
     curl -i http://localhost:8000/old-endpoint # → 503 ROUTE_DISABLED
@@ -52,12 +52,12 @@ import os
 
 from fastapi import Depends, FastAPI
 
-from shield.admin import ShieldAdmin
-from shield.core.config import make_engine
-from shield.fastapi import (
-    ShieldMiddleware,
-    ShieldRouter,
-    apply_shield_to_openapi,
+from switchly import make_engine
+from switchly.fastapi import (
+    SwitchlyAdmin,
+    SwitchlyMiddleware,
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
     deprecated,
     disabled,
     env_only,
@@ -67,24 +67,24 @@ from shield.fastapi import (
 
 CURRENT_ENV = os.getenv("APP_ENV", "dev")
 engine = make_engine(current_env=CURRENT_ENV)
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 # ---------------------------------------------------------------------------
-# App assembly — configure_shield is called automatically by ShieldMiddleware
+# App assembly — configure_switchly is called automatically by SwitchlyMiddleware
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="api-shield — Dependency Injection Example",
+    title="switchly — Dependency Injection Example",
     description=(
-        "``configure_shield(app, engine)`` called once — no ``engine=`` per route.\n\n"
+        "``configure_switchly(app, engine)`` called once — no ``engine=`` per route.\n\n"
         f"Current environment: **{CURRENT_ENV}**"
     ),
 )
 
-# ShieldMiddleware auto-calls configure_shield(app, engine) at ASGI startup.
-# Without middleware: from shield.fastapi import configure_shield
-#                     configure_shield(app, engine)
-app.add_middleware(ShieldMiddleware, engine=engine)
+# SwitchlyMiddleware auto-calls configure_switchly(app, engine) at ASGI startup.
+# Without middleware: from switchly.fastapi import configure_switchly
+#                     configure_switchly(app, engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 
 # ---------------------------------------------------------------------------
 # Routes — engine resolved from app.state; no engine= needed per route
@@ -103,13 +103,13 @@ async def list_users():
     return {"users": [{"id": 1, "name": "Alice"}]}
 
 
-# Depends() — enforces at the handler level without requiring ShieldMiddleware.
+# Depends() — enforces at the handler level without requiring SwitchlyMiddleware.
 @router.get(
     "/payments",
     dependencies=[Depends(maintenance(reason="Scheduled DB migration"))],
 )
 async def get_payments():
-    """503 on startup; toggle off with: shield enable /payments"""
+    """503 on startup; toggle off with: switchly enable /payments"""
     return {"payments": []}
 
 
@@ -118,7 +118,7 @@ async def get_payments():
     dependencies=[Depends(disabled(reason="Use /v2/endpoint instead"))],
 )
 async def old_endpoint():
-    """503 on startup; re-enable with: shield enable /old-endpoint"""
+    """503 on startup; re-enable with: switchly enable /old-endpoint"""
     return {}
 
 
@@ -160,18 +160,18 @@ async def v2_users():
 
 
 app.include_router(router)
-apply_shield_to_openapi(app, engine)
+apply_switchly_to_openapi(app, engine)
 
 # ---------------------------------------------------------------------------
 # Admin interface — dashboard UI + REST API (used by the CLI)
 # ---------------------------------------------------------------------------
 
 app.mount(
-    "/shield",
-    ShieldAdmin(
+    "/switchly",
+    SwitchlyAdmin(
         engine=engine,
         auth=("admin", "secret"),
-        prefix="/shield",
+        prefix="/switchly",
         # secret_key="change-me-in-production",
     ),
 )
