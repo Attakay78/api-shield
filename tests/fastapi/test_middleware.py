@@ -1,4 +1,4 @@
-"""Integration tests for ShieldMiddleware.
+"""Integration tests for SwitchlyMiddleware.
 
 Each test spins up a minimal FastAPI app and makes real HTTP requests via
 ``httpx.AsyncClient`` + ``ASGITransport``.  No real server is needed.
@@ -12,24 +12,24 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from shield.core.backends.memory import MemoryBackend
-from shield.core.engine import ShieldEngine
-from shield.core.models import MaintenanceWindow
-from shield.fastapi.decorators import disabled, env_only, force_active, maintenance
-from shield.fastapi.middleware import ShieldMiddleware
-from shield.fastapi.router import ShieldRouter
+from switchly.core.backends.memory import MemoryBackend
+from switchly.core.engine import SwitchlyEngine
+from switchly.core.models import MaintenanceWindow
+from switchly.fastapi.decorators import disabled, env_only, force_active, maintenance
+from switchly.fastapi.middleware import SwitchlyMiddleware
+from switchly.fastapi.router import SwitchlyRouter
 from tests.fastapi._helpers import _trigger_startup
 
 
-def _build_app(env: str = "dev") -> tuple[FastAPI, ShieldEngine]:
+def _build_app(env: str = "dev") -> tuple[FastAPI, SwitchlyEngine]:
     """Return a bare (app, engine) pair — routes added by the caller."""
-    engine = ShieldEngine(backend=MemoryBackend(), current_env=env)
+    engine = SwitchlyEngine(backend=MemoryBackend(), current_env=env)
     app = FastAPI()
-    app.add_middleware(ShieldMiddleware, engine=engine)
+    app.add_middleware(SwitchlyMiddleware, engine=engine)
     return app, engine
 
 
-def _include(app: FastAPI, router: ShieldRouter) -> None:
+def _include(app: FastAPI, router: SwitchlyRouter) -> None:
     """Include router into app — must be called AFTER routes are defined."""
     app.include_router(router)
 
@@ -45,7 +45,7 @@ async def _startup(app: FastAPI) -> None:
 
 async def test_maintenance_returns_503():
     app, engine = _build_app()
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/payments")
     @maintenance(reason="DB migration")
@@ -89,7 +89,7 @@ async def test_maintenance_sets_retry_after_header():
 
 async def test_disabled_returns_503():
     app, engine = _build_app()
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/old-endpoint")
     @disabled(reason="Use /new-endpoint instead")
@@ -115,7 +115,7 @@ async def test_disabled_returns_503():
 
 async def test_env_gated_wrong_env_returns_403():
     app, engine = _build_app(env="production")
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/debug")
     @env_only("dev")
@@ -137,7 +137,7 @@ async def test_env_gated_wrong_env_returns_403():
 
 async def test_env_gated_correct_env_passes():
     app, engine = _build_app(env="dev")
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/debug")
     @env_only("dev")
@@ -160,7 +160,7 @@ async def test_env_gated_correct_env_passes():
 
 async def test_force_active_bypasses_engine():
     app, engine = _build_app()
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/health")
     @force_active
@@ -172,7 +172,7 @@ async def test_force_active_bypasses_engine():
 
     # @force_active routes are registered as "GET:/health" with force_active=True.
     # Trying to mutate that key directly raises RouteProtectedException.
-    from shield.core.exceptions import RouteProtectedException
+    from switchly.core.exceptions import RouteProtectedException
 
     with pytest.raises(RouteProtectedException):
         await engine.disable("GET:/health", reason="oops")
@@ -194,7 +194,7 @@ async def test_force_active_bypasses_engine():
 
 async def test_active_route_passes():
     app, engine = _build_app()
-    router = ShieldRouter(engine=engine)
+    router = SwitchlyRouter(engine=engine)
 
     @router.get("/api/users")
     async def users():

@@ -1,14 +1,14 @@
-"""FastAPI — Multi-Service Shield Server Example.
+"""FastAPI — Multi-Service Switchly Server Example.
 
 Demonstrates two independent FastAPI services (payments and orders) both
-connecting to the same Shield Server.  Each service registers its routes
+connecting to the same Switchly Server.  Each service registers its routes
 under its own app_id namespace so the dashboard and CLI can manage them
 independently or together.
 
 This file defines THREE separate ASGI apps.  Run each in its own terminal:
 
-  Shield Server (port 8001):
-    uv run --with uvicorn uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
+  Switchly Server (port 8001):
+    uv run --with uvicorn uvicorn examples.fastapi.multi_service:switchly_app --port 8001 --reload
 
   Payments service (port 8000):
     uv run --with uvicorn uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
@@ -17,42 +17,42 @@ This file defines THREE separate ASGI apps.  Run each in its own terminal:
     uv run --with uvicorn uvicorn examples.fastapi.multi_service:orders_app --port 8002 --reload
 
 Then visit:
-    http://localhost:8001/           — Shield dashboard (admin / secret)
+    http://localhost:8001/           — Switchly dashboard (admin / secret)
                                        Use the service dropdown to switch between
                                        "payments-service" and "orders-service"
     http://localhost:8000/docs       — Payments Swagger UI
     http://localhost:8002/docs       — Orders Swagger UI
 
-CLI — points at the Shield Server; use --service or SHIELD_SERVICE to scope:
+CLI — points at the Switchly Server; use --service or SWITCHLY_SERVICE to scope:
 
     # One-time setup
-    shield config set-url http://localhost:8001
-    shield login admin              # password: secret
+    switchly config set-url http://localhost:8001
+    switchly login admin              # password: secret
 
     # View all registered services
-    shield services
+    switchly services
 
     # Manage payments routes
-    export SHIELD_SERVICE=payments-service
-    shield status
-    shield disable /api/payments --reason "hotfix"
-    shield enable  /api/payments
+    export SWITCHLY_SERVICE=payments-service
+    switchly status
+    switchly disable /api/payments --reason "hotfix"
+    switchly enable  /api/payments
 
     # Switch to orders without changing env var
-    shield status --service orders-service
+    switchly status --service orders-service
 
     # Explicit --service flag overrides the env var
-    export SHIELD_SERVICE=payments-service
-    shield enable /api/orders --service orders-service
+    export SWITCHLY_SERVICE=payments-service
+    switchly enable /api/orders --service orders-service
 
     # Clear the env var to work across all services at once
-    unset SHIELD_SERVICE
-    shield status                   # shows routes from both services
-    shield audit                    # audit log from both services
+    unset SWITCHLY_SERVICE
+    switchly status                   # shows routes from both services
+    switchly audit                    # audit log from both services
 
     # Global maintenance — affects ALL services
-    shield global disable --reason "emergency maintenance"
-    shield global enable
+    switchly global disable --reason "emergency maintenance"
+    switchly global enable
 
 Expected behaviour:
     Payments (port 8000):
@@ -69,18 +69,18 @@ Expected behaviour:
         GET /api/cart          → 200                      (active)
 
 Production notes:
-    Backend choice affects the Shield Server only.  All SDK clients receive
-    live SSE updates regardless of backend — they connect to the Shield Server
+    Backend choice affects the Switchly Server only.  All SDK clients receive
+    live SSE updates regardless of backend — they connect to the Switchly Server
     over HTTP, never to the backend directly:
 
-    * MemoryBackend  — fine for development; state lost on Shield Server restart.
-    * FileBackend    — state survives restarts; single Shield Server instance only.
-    * RedisBackend   — needed only when running multiple Shield Server instances
+    * MemoryBackend  — fine for development; state lost on Switchly Server restart.
+    * FileBackend    — state survives restarts; single Switchly Server instance only.
+    * RedisBackend   — needed only when running multiple Switchly Server instances
                        (HA / load-balanced). Redis pub/sub keeps all nodes in
                        sync so every SDK client sees consistent state.
 
-    * Use a stable secret_key so tokens survive Shield Server restarts.
-    * Prefer passing username/password to each ShieldSDK so each service
+    * Use a stable secret_key so tokens survive Switchly Server restarts.
+    * Prefer passing username/password to each SwitchlySDK so each service
       obtains its own sdk-platform token on startup automatically.
     * Set token_expiry (dashboard/CLI) and sdk_token_expiry (services)
       independently so human sessions stay short-lived.
@@ -90,32 +90,32 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from shield.core.backends.memory import MemoryBackend
-from shield.fastapi import (
-    ShieldRouter,
-    apply_shield_to_openapi,
+from switchly import MemoryBackend
+from switchly.fastapi import (
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
     deprecated,
     disabled,
     force_active,
     maintenance,
-    setup_shield_docs,
+    setup_switchly_docs,
 )
-from shield.sdk import ShieldSDK
-from shield.server import ShieldServer
+from switchly.sdk import SwitchlySDK
+from switchly.server import SwitchlyServer
 
 # ---------------------------------------------------------------------------
-# Shield Server — shared by all services
+# Switchly Server — shared by all services
 # ---------------------------------------------------------------------------
-# Run: uv run uvicorn examples.fastapi.multi_service:shield_app --port 8001 --reload
+# Run: uv run uvicorn examples.fastapi.multi_service:switchly_app --port 8001 --reload
 #
 # All services register their routes here.  The dashboard service dropdown
 # lets you filter and manage each service independently.
 #
 # For production: swap MemoryBackend for RedisBackend:
-#   from shield.core.backends.redis import RedisBackend
+#   from switchly import RedisBackend
 #   backend = RedisBackend("redis://localhost:6379")
 
-shield_app = ShieldServer(
+switchly_app = SwitchlyServer(
     backend=MemoryBackend(),
     auth=("admin", "secret"),
     # secret_key="change-me-in-production",
@@ -129,34 +129,34 @@ shield_app = ShieldServer(
 # Run: uv run uvicorn examples.fastapi.multi_service:payments_app --port 8000 --reload
 #
 # app_id="payments-service" namespaces all routes from this service on the
-# Shield Server.  The dashboard shows them separately from orders-service.
-# CLI: export SHIELD_SERVICE=payments-service; shield status
+# Switchly Server.  The dashboard shows them separately from orders-service.
+# CLI: export SWITCHLY_SERVICE=payments-service; switchly status
 
-payments_sdk = ShieldSDK(
+payments_sdk = SwitchlySDK(
     server_url="http://localhost:8001",
     app_id="payments-service",
     username="admin",
     password="secret",
     # Auto-login (recommended): SDK obtains a 1-year sdk-platform token on startup.
-    # username="admin",   # inject from env: os.environ["SHIELD_USERNAME"]
-    # password="secret",  # inject from env: os.environ["SHIELD_PASSWORD"]
-    # Or use a pre-issued token: token=os.environ["SHIELD_TOKEN"]
+    # username="admin",   # inject from env: os.environ["SWITCHLY_USERNAME"]
+    # password="secret",  # inject from env: os.environ["SWITCHLY_PASSWORD"]
+    # Or use a pre-issued token: token=os.environ["SWITCHLY_TOKEN"]
     reconnect_delay=5.0,
 )
 
 payments_app = FastAPI(
-    title="api-shield — Payments Service",
+    title="switchly — Payments Service",
     description=(
-        "Connects to the Shield Server at **http://localhost:8001** as "
+        "Connects to the Switchly Server at **http://localhost:8001** as "
         "`payments-service`.  Manage routes from the "
-        "[Shield Dashboard](http://localhost:8001/) or via the CLI with "
-        "`export SHIELD_SERVICE=payments-service`."
+        "[Switchly Dashboard](http://localhost:8001/) or via the CLI with "
+        "`export SWITCHLY_SERVICE=payments-service`."
     ),
 )
 
 payments_sdk.attach(payments_app)
 
-payments_router = ShieldRouter(engine=payments_sdk.engine)
+payments_router = SwitchlyRouter(engine=payments_sdk.engine)
 
 
 @payments_router.get("/health")
@@ -172,8 +172,8 @@ async def process_payment():
     """Returns 503 MAINTENANCE_MODE on startup.
 
     Restore from the CLI:
-        export SHIELD_SERVICE=payments-service
-        shield enable /api/payments
+        export SWITCHLY_SERVICE=payments-service
+        switchly enable /api/payments
     """
     return {"payment_id": "pay_abc123", "status": "processed"}
 
@@ -183,7 +183,7 @@ async def list_refunds():
     """Active on startup.
 
     Disable from the CLI:
-        shield disable /api/refunds --reason "audit in progress" \\
+        switchly disable /api/refunds --reason "audit in progress" \\
                --service payments-service
     """
     return {"refunds": [{"id": "ref_001", "amount": 49.99}]}
@@ -203,8 +203,8 @@ async def v2_invoices():
 
 
 payments_app.include_router(payments_router)
-apply_shield_to_openapi(payments_app, payments_sdk.engine)
-setup_shield_docs(payments_app, payments_sdk.engine)
+apply_switchly_to_openapi(payments_app, payments_sdk.engine)
+setup_switchly_docs(payments_app, payments_sdk.engine)
 
 # ---------------------------------------------------------------------------
 # Orders Service (port 8002)
@@ -212,33 +212,33 @@ setup_shield_docs(payments_app, payments_sdk.engine)
 # Run: uv run uvicorn examples.fastapi.multi_service:orders_app --port 8002 --reload
 #
 # app_id="orders-service" gives this service its own namespace on the server.
-# CLI: export SHIELD_SERVICE=orders-service; shield status
+# CLI: export SWITCHLY_SERVICE=orders-service; switchly status
 
-orders_sdk = ShieldSDK(
+orders_sdk = SwitchlySDK(
     server_url="http://localhost:8001",
     app_id="orders-service",
     username="admin",
     password="secret",
     # Auto-login (recommended): SDK obtains a 1-year sdk-platform token on startup.
-    # username="admin",   # inject from env: os.environ["SHIELD_USERNAME"]
-    # password="secret",  # inject from env: os.environ["SHIELD_PASSWORD"]
-    # Or use a pre-issued token: token=os.environ["SHIELD_TOKEN"]
+    # username="admin",   # inject from env: os.environ["SWITCHLY_USERNAME"]
+    # password="secret",  # inject from env: os.environ["SWITCHLY_PASSWORD"]
+    # Or use a pre-issued token: token=os.environ["SWITCHLY_TOKEN"]
     reconnect_delay=5.0,
 )
 
 orders_app = FastAPI(
-    title="api-shield — Orders Service",
+    title="switchly — Orders Service",
     description=(
-        "Connects to the Shield Server at **http://localhost:8001** as "
+        "Connects to the Switchly Server at **http://localhost:8001** as "
         "`orders-service`.  Manage routes from the "
-        "[Shield Dashboard](http://localhost:8001/) or via the CLI with "
-        "`export SHIELD_SERVICE=orders-service`."
+        "[Switchly Dashboard](http://localhost:8001/) or via the CLI with "
+        "`export SWITCHLY_SERVICE=orders-service`."
     ),
 )
 
 orders_sdk.attach(orders_app)
 
-orders_router = ShieldRouter(engine=orders_sdk.engine)
+orders_router = SwitchlyRouter(engine=orders_sdk.engine)
 
 
 @orders_router.get("/health")
@@ -253,7 +253,7 @@ async def list_orders():
     """Active on startup.
 
     Disable from the CLI:
-        shield disable /api/orders --reason "inventory sync" \\
+        switchly disable /api/orders --reason "inventory sync" \\
                --service orders-service
     """
     return {"orders": [{"id": 42, "status": "shipped"}]}
@@ -265,7 +265,7 @@ async def list_shipments():
     """Returns 503 ROUTE_DISABLED.
 
     Re-enable from the CLI if you need to temporarily restore access:
-        shield enable /api/shipments --service orders-service
+        switchly enable /api/shipments --service orders-service
     """
     return {}
 
@@ -276,46 +276,46 @@ async def get_cart():
 
     Put the whole orders-service in global maintenance from the dashboard
     or pause just this route:
-        shield maintenance /api/cart --reason "cart redesign" \\
+        switchly maintenance /api/cart --reason "cart redesign" \\
                --service orders-service
     """
     return {"cart": {"items": [], "total": 0.0}}
 
 
 orders_app.include_router(orders_router)
-apply_shield_to_openapi(orders_app, orders_sdk.engine)
-setup_shield_docs(orders_app, orders_sdk.engine)
+apply_switchly_to_openapi(orders_app, orders_sdk.engine)
+setup_switchly_docs(orders_app, orders_sdk.engine)
 
 # ---------------------------------------------------------------------------
 # CLI reference — multi-service workflow
 # ---------------------------------------------------------------------------
 #
 # Setup (once):
-#   shield config set-url http://localhost:8001
-#   shield login admin
+#   switchly config set-url http://localhost:8001
+#   switchly login admin
 #
 # View all services and their routes:
-#   shield services
-#   shield status                           # routes from ALL services combined
+#   switchly services
+#   switchly status                           # routes from ALL services combined
 #
 # Scope to a specific service via env var:
-#   export SHIELD_SERVICE=payments-service
-#   shield status                           # only payments-service routes
-#   shield disable /api/payments --reason "hotfix"
-#   shield enable  /api/payments
-#   shield maintenance /api/refunds --reason "audit"
+#   export SWITCHLY_SERVICE=payments-service
+#   switchly status                           # only payments-service routes
+#   switchly disable /api/payments --reason "hotfix"
+#   switchly enable  /api/payments
+#   switchly maintenance /api/refunds --reason "audit"
 #
 # Switch service without changing the env var (--service flag):
-#   shield status --service orders-service
-#   shield disable /api/orders --reason "inventory sync" \\
+#   switchly status --service orders-service
+#   switchly disable /api/orders --reason "inventory sync" \\
 #          --service orders-service
 #
-# Explicit flag always overrides the SHIELD_SERVICE env var:
-#   export SHIELD_SERVICE=payments-service
-#   shield enable /api/orders --service orders-service   # acts on orders
+# Explicit flag always overrides the SWITCHLY_SERVICE env var:
+#   export SWITCHLY_SERVICE=payments-service
+#   switchly enable /api/orders --service orders-service   # acts on orders
 #
 # Unscoped commands operate across all services:
-#   unset SHIELD_SERVICE
-#   shield audit                            # audit log from both services
-#   shield global disable --reason "emergency maintenance"
-#   shield global enable
+#   unset SWITCHLY_SERVICE
+#   switchly audit                            # audit log from both services
+#   switchly global disable --reason "emergency maintenance"
+#   switchly global enable

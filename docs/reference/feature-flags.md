@@ -4,7 +4,7 @@ API reference for the feature flag system.
 
 !!! note "Optional dependency"
     ```bash
-    uv add "api-shield[flags]"
+    uv add "switchly[flags]"
     ```
 
 ---
@@ -416,7 +416,7 @@ Why a specific value was returned.
 
 ## REST API
 
-When `ShieldAdmin` is mounted with `engine.use_openfeature()`, these endpoints are registered under the admin path (e.g. `/shield/api/`):
+When `SwitchlyAdmin` is mounted with `engine.use_openfeature()`, these endpoints are registered under the admin path (e.g. `/switchly/api/`):
 
 ### Flags
 
@@ -449,7 +449,7 @@ When `ShieldAdmin` is mounted with `engine.use_openfeature()`, these endpoints a
 The evaluator (`FlagEvaluator`) is pure Python with no I/O, unit-testable in isolation.
 
 ```python
-from shield.core.feature_flags.evaluator import FlagEvaluator
+from switchly import FlagEvaluator
 
 evaluator = FlagEvaluator(segments={"beta": beta_segment})
 result = evaluator.evaluate(flag, ctx, all_flags)
@@ -466,15 +466,15 @@ print(result.value, result.reason)
 
 | URL | Page |
 |---|---|
-| `/shield/flags` | Flag list with search and status filters |
-| `/shield/flags/{key}` | Flag detail (4 tabs: Overview, Targeting, Variations, Settings) |
-| `/shield/segments` | Segment list |
+| `/switchly/flags` | Flag list with search and status filters |
+| `/switchly/flags/{key}` | Flag detail (4 tabs: Overview, Targeting, Variations, Settings) |
+| `/switchly/segments` | Segment list |
 
 ---
 
 ## Example
 
-Example: [`examples/fastapi/feature_flags.py`](https://github.com/Attakay78/api-shield/blob/main/examples/fastapi/feature_flags.py)
+Example: [`examples/fastapi/feature_flags.py`](https://github.com/Attakay78/switchly/blob/main/examples/fastapi/feature_flags.py)
 
 ```bash
 uv run uvicorn examples.fastapi.feature_flags:app --reload

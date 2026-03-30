@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from shield.core.rate_limit.storage import HAS_LIMITS
+from switchly.core.rate_limit.storage import HAS_LIMITS
 
 pytestmark = pytest.mark.skipif(not HAS_LIMITS, reason="limits library not installed")
 
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(not HAS_LIMITS, reason="limits library not insta
 
 class TestMemoryBackendPolicyPersistence:
     async def test_set_and_get(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.set_rate_limit_policy("/api/items", "GET", {"limit": "10/minute"})
@@ -25,7 +25,7 @@ class TestMemoryBackendPolicyPersistence:
         assert policies[0]["limit"] == "10/minute"
 
     async def test_overwrite(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.set_rate_limit_policy("/api/items", "GET", {"limit": "10/minute"})
@@ -35,7 +35,7 @@ class TestMemoryBackendPolicyPersistence:
         assert policies[0]["limit"] == "50/minute"
 
     async def test_delete(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.set_rate_limit_policy("/api/items", "GET", {"limit": "10/minute"})
@@ -44,13 +44,13 @@ class TestMemoryBackendPolicyPersistence:
         assert policies == []
 
     async def test_delete_nonexistent_is_noop(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.delete_rate_limit_policy("/nonexistent", "GET")  # no raise
 
     async def test_multiple_policies(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.set_rate_limit_policy("/api/items", "GET", {"limit": "10/minute"})
@@ -59,7 +59,7 @@ class TestMemoryBackendPolicyPersistence:
         assert len(policies) == 2
 
     async def test_method_is_uppercased(self):
-        from shield.core.backends.memory import MemoryBackend
+        from switchly.core.backends.memory import MemoryBackend
 
         backend = MemoryBackend()
         await backend.set_rate_limit_policy("/api/items", "get", {"limit": "10/minute"})
@@ -71,7 +71,7 @@ class TestFileBackendPolicyPersistence:
     async def test_set_persists_to_file(self, tmp_path):
         import json
 
-        from shield.core.backends.file import FileBackend
+        from switchly.core.backends.file import FileBackend
 
         path = tmp_path / "state.json"
         backend = FileBackend(path=str(path))
@@ -81,7 +81,7 @@ class TestFileBackendPolicyPersistence:
         assert "GET:/api/items" in data["rl_policies"]
 
     async def test_loaded_on_restart(self, tmp_path):
-        from shield.core.backends.file import FileBackend
+        from switchly.core.backends.file import FileBackend
 
         path = tmp_path / "state.json"
         backend1 = FileBackend(path=str(path))
@@ -96,7 +96,7 @@ class TestFileBackendPolicyPersistence:
     async def test_delete_removes_from_file(self, tmp_path):
         import json
 
-        from shield.core.backends.file import FileBackend
+        from switchly.core.backends.file import FileBackend
 
         path = tmp_path / "state.json"
         backend = FileBackend(path=str(path))
@@ -108,8 +108,8 @@ class TestFileBackendPolicyPersistence:
     async def test_coexists_with_states_and_audit(self, tmp_path):
         import json
 
-        from shield.core.backends.file import FileBackend
-        from shield.core.models import AuditEntry, RouteState, RouteStatus
+        from switchly.core.backends.file import FileBackend
+        from switchly.core.models import AuditEntry, RouteState, RouteStatus
 
         path = tmp_path / "state.json"
         backend = FileBackend(path=str(path))
@@ -151,18 +151,18 @@ class TestEngineRateLimitPersistence:
         await engine.register(path, {"status": "active"})
 
     async def test_set_rate_limit_policy_registers_live(self):
-        from shield.core.engine import ShieldEngine
+        from switchly.core.engine import SwitchlyEngine
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         policy = await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         assert policy.limit == "10/minute"
         assert "GET:/api/items" in engine._rate_limit_policies
 
     async def test_set_rate_limit_policy_persisted_to_backend(self):
-        from shield.core.engine import ShieldEngine
+        from switchly.core.engine import SwitchlyEngine
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         policies = await engine.backend.get_rate_limit_policies()
@@ -170,18 +170,18 @@ class TestEngineRateLimitPersistence:
         assert policies[0]["limit"] == "10/minute"
 
     async def test_delete_rate_limit_policy_removes_from_in_memory(self):
-        from shield.core.engine import ShieldEngine
+        from switchly.core.engine import SwitchlyEngine
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         await engine.delete_rate_limit_policy("/api/items", "GET")
         assert "GET:/api/items" not in engine._rate_limit_policies
 
     async def test_delete_rate_limit_policy_removes_from_backend(self):
-        from shield.core.engine import ShieldEngine
+        from switchly.core.engine import SwitchlyEngine
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         await engine.set_rate_limit_policy("/api/items", "GET", "10/minute")
         await engine.delete_rate_limit_policy("/api/items", "GET")
@@ -189,25 +189,25 @@ class TestEngineRateLimitPersistence:
         assert policies == []
 
     async def test_restore_rate_limit_policies_loads_from_backend(self):
-        from shield.core.engine import ShieldEngine
+        from switchly.core.engine import SwitchlyEngine
 
         # Persist a policy directly to the backend (simulating a prior CLI call).
-        engine1 = ShieldEngine()
+        engine1 = SwitchlyEngine()
         await self._register(engine1)
         await engine1.set_rate_limit_policy("/api/items", "GET", "10/minute")
 
         # Simulate a new engine instance on the same backend after a restart.
-        engine2 = ShieldEngine(backend=engine1.backend)
+        engine2 = SwitchlyEngine(backend=engine1.backend)
         assert "GET:/api/items" not in engine2._rate_limit_policies  # not yet loaded
 
         await engine2.restore_rate_limit_policies()
         assert "GET:/api/items" in engine2._rate_limit_policies
 
     async def test_set_policy_with_algorithm(self):
-        from shield.core.engine import ShieldEngine
-        from shield.core.rate_limit.models import RateLimitAlgorithm
+        from switchly.core.engine import SwitchlyEngine
+        from switchly.core.rate_limit.models import RateLimitAlgorithm
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         policy = await engine.set_rate_limit_policy(
             "/api/items", "GET", "10/minute", algorithm="fixed_window"
@@ -215,10 +215,10 @@ class TestEngineRateLimitPersistence:
         assert policy.algorithm == RateLimitAlgorithm.FIXED_WINDOW
 
     async def test_set_policy_with_key_strategy(self):
-        from shield.core.engine import ShieldEngine
-        from shield.core.rate_limit.models import RateLimitKeyStrategy
+        from switchly.core.engine import SwitchlyEngine
+        from switchly.core.rate_limit.models import RateLimitKeyStrategy
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         await self._register(engine)
         policy = await engine.set_rate_limit_policy(
             "/api/items", "GET", "10/minute", key_strategy="global"
@@ -227,9 +227,9 @@ class TestEngineRateLimitPersistence:
 
     async def test_set_policy_for_unknown_route_raises(self):
         """set_rate_limit_policy must reject paths that are not registered."""
-        from shield.core.engine import ShieldEngine
-        from shield.core.exceptions import RouteNotFoundException
+        from switchly.core.engine import SwitchlyEngine
+        from switchly.core.exceptions import RouteNotFoundException
 
-        engine = ShieldEngine()
+        engine = SwitchlyEngine()
         with pytest.raises(RouteNotFoundException):
             await engine.set_rate_limit_policy("/does/not/exist", "GET", "10/minute")

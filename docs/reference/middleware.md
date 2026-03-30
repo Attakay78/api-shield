@@ -1,35 +1,35 @@
 # Middleware & OpenAPI
 
-This page covers `ShieldMiddleware`, which enforces route state on every HTTP request, and the two OpenAPI helpers that keep your `/docs` accurate at runtime.
+This page covers `SwitchlyMiddleware`, which enforces route state on every HTTP request, and the two OpenAPI helpers that keep your `/docs` accurate at runtime.
 
 ---
 
-## ShieldMiddleware
+## SwitchlyMiddleware
 
-`ShieldMiddleware` is a standard ASGI middleware (Starlette `BaseHTTPMiddleware`). Add it once to your ASGI app and it automatically intercepts every request, calls `engine.check()`, and returns the appropriate error response when a route is blocked. It works with any Starlette-compatible ASGI framework, including FastAPI.
+`SwitchlyMiddleware` is a standard ASGI middleware (Starlette `BaseHTTPMiddleware`). Add it once to your ASGI app and it automatically intercepts every request, calls `engine.check()`, and returns the appropriate error response when a route is blocked. It works with any Starlette-compatible ASGI framework, including FastAPI.
 
 ```python
-from shield.fastapi import ShieldMiddleware
+from switchly.fastapi import SwitchlyMiddleware
 ```
 
 ### Setup
 
 ```python title="main.py"
 from fastapi import FastAPI
-from shield.fastapi import ShieldMiddleware
-from shield.core.engine import ShieldEngine
+from switchly.fastapi import SwitchlyMiddleware
+from switchly import SwitchlyEngine
 
-engine = ShieldEngine()
+engine = SwitchlyEngine()
 app = FastAPI()
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 ```
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `engine` | `ShieldEngine` | required | The engine instance to delegate all `check()` calls to. Read more in [ShieldEngine](engine.md). |
+| `engine` | `SwitchlyEngine` | required | The engine instance to delegate all `check()` calls to. Read more in [SwitchlyEngine](engine.md). |
 | `responses` | `dict \| None` | `None` | App-wide custom response factories, keyed by error type. Read more in [Custom responses](decorators.md#custom-responses). |
 
 ### Request flow
@@ -40,12 +40,12 @@ Every incoming request passes through this sequence:
 Incoming HTTP request
         │
         ▼
-ShieldMiddleware.dispatch()
+SwitchlyMiddleware.dispatch()
         │
         ├─ Path is /docs, /redoc, or /openapi.json?  → pass through
-        ├─ Path starts with /shield/ (admin)?         → pass through
+        ├─ Path starts with /switchly/ (admin)?         → pass through
         │
-        ├─ Lazy-scan routes for __shield_meta__ (once, on first request)
+        ├─ Lazy-scan routes for __switchly_meta__ (once, on first request)
         │
         ├─ Route has force_active=True?               → pass through
         │
@@ -98,38 +98,38 @@ Link: </v2/users>; rel="successor-version"
 
 ---
 
-## `apply_shield_to_openapi` (FastAPI only)
+## `apply_switchly_to_openapi` (FastAPI only)
 
 Keep your FastAPI OpenAPI schema accurate by filtering it based on the current route states at runtime. Disabled and env-gated routes are hidden. Maintenance routes are annotated. Deprecated routes are flagged.
 
 ```python
-from shield.fastapi.openapi import apply_shield_to_openapi
+from switchly.fastapi import apply_switchly_to_openapi
 ```
 
 ### Setup
 
 ```python title="main.py"
-from shield.fastapi.openapi import apply_shield_to_openapi
+from switchly.fastapi import apply_switchly_to_openapi
 
-apply_shield_to_openapi(app, engine)
+apply_switchly_to_openapi(app, engine)
 ```
 
 !!! warning "Call after `app.include_router()`"
-    `apply_shield_to_openapi` patches `app.openapi()`. Call it after all routers have been included so the full route list is available when the patch is applied.
+    `apply_switchly_to_openapi` patches `app.openapi()`. Call it after all routers have been included so the full route list is available when the patch is applied.
 
 ### Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
 | `app` | `FastAPI` | The FastAPI application instance to patch |
-| `engine` | `ShieldEngine` | The engine whose current state is used to filter the schema |
+| `engine` | `SwitchlyEngine` | The engine whose current state is used to filter the schema |
 
 ### Schema behavior by route status
 
 | Route status | OpenAPI schema behavior |
 |---|---|
 | `ACTIVE` | No change |
-| `MAINTENANCE` | Summary prefixed with `🔧`; description block shows a warning; `x-shield-status` extension added |
+| `MAINTENANCE` | Summary prefixed with `🔧`; description block shows a warning; `x-switchly-status` extension added |
 | `DISABLED` | Hidden from all schemas — not visible in `/docs`, `/redoc`, or `/openapi.json` |
 | `ENV_GATED` (wrong environment) | Hidden from all schemas |
 | `DEPRECATED` | Marked `deprecated: true`; successor path shown in description |
@@ -138,20 +138,20 @@ The schema is re-computed on every request to `/openapi.json`, so runtime state 
 
 ---
 
-## `setup_shield_docs` (FastAPI only)
+## `setup_switchly_docs` (FastAPI only)
 
 Enhance FastAPI's `/docs` and `/redoc` with live status indicators that update automatically as route states change.
 
 ```python
-from shield.fastapi.openapi import apply_shield_to_openapi, setup_shield_docs
+from switchly.fastapi import apply_switchly_to_openapi, setup_switchly_docs
 ```
 
 ### Setup
 
 ```python title="main.py"
-# apply_shield_to_openapi must be called first
-apply_shield_to_openapi(app, engine)
-setup_shield_docs(app, engine)
+# apply_switchly_to_openapi must be called first
+apply_switchly_to_openapi(app, engine)
+setup_switchly_docs(app, engine)
 ```
 
 ### Parameters
@@ -159,7 +159,7 @@ setup_shield_docs(app, engine)
 | Parameter | Type | Description |
 |---|---|---|
 | `app` | `FastAPI` | The FastAPI application instance |
-| `engine` | `ShieldEngine` | The engine whose state drives the UI indicators |
+| `engine` | `SwitchlyEngine` | The engine whose state drives the UI indicators |
 
 ### What it adds to `/docs`
 
@@ -170,4 +170,4 @@ setup_shield_docs(app, engine)
 | Per-route maintenance | Orange left-border on the operation block with a `🔧 MAINTENANCE` badge |
 
 !!! tip "Use both together"
-    `apply_shield_to_openapi` keeps the schema accurate (hiding disabled routes, marking deprecated ones). `setup_shield_docs` adds the live status UI on top. They are independent — use one, both, or neither.
+    `apply_switchly_to_openapi` keeps the schema accurate (hiding disabled routes, marking deprecated ones). `setup_switchly_docs` adds the live status UI on top. They are independent — use one, both, or neither.

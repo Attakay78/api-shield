@@ -1,17 +1,17 @@
-"""Tests for shield.core.exceptions."""
+"""Tests for switchly.core.exceptions."""
 
 from datetime import UTC, datetime
 
-from shield.core.exceptions import (
+from switchly.core.exceptions import (
     EnvGatedException,
     MaintenanceException,
     RouteDisabledException,
-    ShieldException,
+    SwitchlyException,
 )
 
 
-def test_shield_exception_is_base():
-    exc = ShieldException("test")
+def test_switchly_exception_is_base():
+    exc = SwitchlyException("test")
     assert isinstance(exc, Exception)
 
 
@@ -20,7 +20,7 @@ def test_maintenance_exception_attrs():
     exc = MaintenanceException(reason="DB migration", retry_after=retry)
     assert exc.reason == "DB migration"
     assert exc.retry_after == retry
-    assert isinstance(exc, ShieldException)
+    assert isinstance(exc, SwitchlyException)
 
 
 def test_maintenance_exception_defaults():
@@ -36,14 +36,14 @@ def test_env_gated_exception_attrs():
     assert exc.path == "/api/debug"
     assert exc.current_env == "production"
     assert exc.allowed_envs == ["dev", "staging"]
-    assert isinstance(exc, ShieldException)
+    assert isinstance(exc, SwitchlyException)
     assert "production" in str(exc)
 
 
 def test_route_disabled_exception_attrs():
     exc = RouteDisabledException(reason="Use /new-endpoint instead")
     assert exc.reason == "Use /new-endpoint instead"
-    assert isinstance(exc, ShieldException)
+    assert isinstance(exc, SwitchlyException)
 
 
 def test_route_disabled_exception_default():

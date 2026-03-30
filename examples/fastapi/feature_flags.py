@@ -13,17 +13,17 @@ Demonstrates the full feature-flag API powered by OpenFeature:
   * Live event stream — watch evaluations in real time
 
 Prerequisites:
-    pip install api-shield[flags]
+    pip install switchly[flags]
     # or:
-    uv pip install "api-shield[flags]"
+    uv pip install "switchly[flags]"
 
 Run:
     uv run uvicorn examples.fastapi.feature_flags:app --reload
 
 Then visit:
     http://localhost:8000/docs           — Swagger UI
-    http://localhost:8000/shield/        — admin dashboard (login: admin / secret)
-    http://localhost:8000/shield/flags   — flag management UI
+    http://localhost:8000/switchly/        — admin dashboard (login: admin / secret)
+    http://localhost:8000/switchly/flags   — flag management UI
 
 Exercise the endpoints:
     # Boolean flag — new checkout flow (async route)
@@ -48,16 +48,16 @@ Exercise the endpoints:
     curl "http://localhost:8000/checkout?user_id=beta_tester_1"
 
     # Live event stream (SSE) — watch evaluations happen in real time
-    curl -N "http://localhost:8000/shield/api/flags/stream"
+    curl -N "http://localhost:8000/switchly/api/flags/stream"
 
 CLI — manage flags without redeploying:
-    shield login admin          # password: secret
-    shield flags list
-    shield flags get new-checkout
-    shield flags disable new-checkout   # kill-switch
-    shield flags enable new-checkout    # restore
-    shield flags stream                 # tail live evaluations
-    shield flags stream new-checkout    # filter to one flag
+    switchly login admin          # password: secret
+    switchly flags list
+    switchly flags get new-checkout
+    switchly flags disable new-checkout   # kill-switch
+    switchly flags enable new-checkout    # restore
+    switchly flags stream                 # tail live evaluations
+    switchly flags stream new-checkout    # filter to one flag
 """
 
 from __future__ import annotations
@@ -67,9 +67,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 
-from shield.admin import ShieldAdmin
-from shield.core.config import make_engine
-from shield.core.feature_flags.models import (
+from switchly import (
     EvaluationContext,
     FeatureFlag,
     FlagType,
@@ -78,11 +76,13 @@ from shield.core.feature_flags.models import (
     RolloutVariation,
     RuleClause,
     TargetingRule,
+    make_engine,
 )
-from shield.fastapi import (
-    ShieldMiddleware,
-    ShieldRouter,
-    apply_shield_to_openapi,
+from switchly.fastapi import (
+    SwitchlyAdmin,
+    SwitchlyMiddleware,
+    SwitchlyRouter,
+    apply_switchly_to_openapi,
 )
 
 # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ from shield.fastapi import (
 engine = make_engine()
 engine.use_openfeature()
 
-router = ShieldRouter(engine=engine)
+router = SwitchlyRouter(engine=engine)
 
 
 # ---------------------------------------------------------------------------
@@ -414,25 +414,25 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="api-shield — Feature Flags Example",
+    title="switchly — Feature Flags Example",
     description=(
         "Demonstrates boolean, string, integer, float, and JSON flags with "
         "targeting rules, rollouts, kill-switches, and live event streaming.\n\n"
-        "Requires `api-shield[flags]` (`pip install api-shield[flags]`)."
+        "Requires `switchly[flags]` (`pip install switchly[flags]`)."
     ),
     lifespan=lifespan,
 )
 
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 app.include_router(router)
-apply_shield_to_openapi(app, engine)
+apply_switchly_to_openapi(app, engine)
 
 app.mount(
-    "/shield",
-    ShieldAdmin(
+    "/switchly",
+    SwitchlyAdmin(
         engine=engine,
         auth=("admin", "secret"),
-        prefix="/shield",
+        prefix="/switchly",
         # enable_flags is auto-detected from engine.use_openfeature() — no
         # need to set it explicitly.  Set to True/False to override.
     ),

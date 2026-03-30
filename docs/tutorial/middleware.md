@@ -1,8 +1,8 @@
 # Adding middleware
 
-`ShieldMiddleware` is the enforcement layer. It is a standard ASGI middleware that intercepts every HTTP request, calls `engine.check()`, and returns the appropriate error response when a route is blocked. Without it, decorators register state but nothing enforces it.
+`SwitchlyMiddleware` is the enforcement layer. It intercepts every HTTP request, calls `engine.check()`, and returns the appropriate error response when a route is blocked. Without it, decorators register state but nothing enforces it.
 
-The examples below use **FastAPI**, but `ShieldMiddleware` works with any [Starlette](https://www.starlette.io/)-compatible ASGI framework.
+The examples below use **FastAPI**.
 
 ---
 
@@ -10,17 +10,17 @@ The examples below use **FastAPI**, but `ShieldMiddleware` works with any [Starl
 
 ```python title="app.py"
 from fastapi import FastAPI
-from shield.core.engine import ShieldEngine
-from shield.fastapi.middleware import ShieldMiddleware
+from switchly import SwitchlyEngine
+from switchly.fastapi import SwitchlyMiddleware
 
-engine = ShieldEngine()  # uses MemoryBackend by default
+engine = SwitchlyEngine()  # uses MemoryBackend by default
 
 app = FastAPI()
-app.add_middleware(ShieldMiddleware, engine=engine)
+app.add_middleware(SwitchlyMiddleware, engine=engine)
 ```
 
 !!! important
-    Add `ShieldMiddleware` **before** including any routers. Middleware is applied in reverse registration order in ASGI frameworks built on Starlette, so adding it first ensures it wraps all routes.
+    Add `SwitchlyMiddleware` **before** including any routers so it wraps all routes.
 
 ---
 
@@ -29,9 +29,9 @@ app.add_middleware(ShieldMiddleware, engine=engine)
 ```mermaid
 flowchart TD
     REQ["Incoming HTTP request"]
-    DISPATCH["ShieldMiddleware.dispatch()"]
+    DISPATCH["SwitchlyMiddleware.dispatch()"]
     DOCS{"OpenAPI / docs\npath?"}
-    SCAN["Lazy-scan routes for\n__shield_meta__ (once only)"]
+    SCAN["Lazy-scan routes for\n__switchly_meta__ (once only)"]
     FORCE{"@force_active\nroute?"}
     CHECK["engine.check(path, method)"]
 
@@ -75,7 +75,7 @@ flowchart TD
 
 ## Route registration
 
-The middleware auto-registers routes on first startup by scanning for `__shield_meta__` on route handlers. This works with any router type: plain `APIRouter`, `ShieldRouter`, or routes added directly to the app.
+The middleware auto-registers routes on first startup by scanning for `__switchly_meta__` on route handlers. This works with any router type: plain `APIRouter`, `SwitchlyRouter`, or routes added directly to the app.
 
 If a route already has persisted state in the backend (for example, written by a previous CLI command), the decorator default is **ignored** and the persisted state wins. This means runtime changes survive restarts.
 
@@ -83,10 +83,10 @@ If a route already has persisted state in the backend (for example, written by a
 
 ## Paths excluded from checks
 
-The following paths always pass through regardless of shield state:
+The following paths always pass through regardless of switchly state:
 
 - `/docs`, `/redoc`, `/openapi.json`: API documentation
-- `/shield/`: admin dashboard prefix
+- `/switchly/`: admin dashboard prefix
 
 You can exclude additional paths by using `@force_active` on those routes.
 
@@ -108,7 +108,7 @@ await engine.enable_global_maintenance(
 await engine.disable_global_maintenance()
 ```
 
-See [**Reference: ShieldEngine**](../reference/engine.md) for the full global maintenance API.
+See [**Reference: SwitchlyEngine**](../reference/engine.md) for the full global maintenance API.
 
 ---
 
@@ -140,21 +140,21 @@ All error responses from the middleware use a consistent JSON structure:
 
 ## OpenAPI integration (FastAPI only)
 
-FastAPI exposes a live OpenAPI schema at `/openapi.json`. Shield can filter it to hide disabled and env-gated routes and annotate maintained or deprecated ones:
+FastAPI exposes a live OpenAPI schema at `/openapi.json`. Switchly can filter it to hide disabled and env-gated routes and annotate maintained or deprecated ones:
 
 ```python
-from shield.fastapi.openapi import apply_shield_to_openapi
+from switchly.fastapi import apply_switchly_to_openapi
 
-apply_shield_to_openapi(app, engine)  # call after add_middleware
+apply_switchly_to_openapi(app, engine)  # call after add_middleware
 ```
 
 For enhanced docs UI with maintenance banners:
 
 ```python
-from shield.fastapi.openapi import apply_shield_to_openapi, setup_shield_docs
+from switchly.fastapi import apply_switchly_to_openapi, setup_switchly_docs
 
-apply_shield_to_openapi(app, engine)  # must come first
-setup_shield_docs(app, engine)        # inject banners into /docs and /redoc
+apply_switchly_to_openapi(app, engine)  # must come first
+setup_switchly_docs(app, engine)        # inject banners into /docs and /redoc
 ```
 
 See [**Reference: Middleware**](../reference/middleware.md) for all parameters.

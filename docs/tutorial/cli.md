@@ -1,71 +1,71 @@
 # CLI
 
-The `shield` CLI is a thin HTTP client that talks to a running `ShieldAdmin` instance over HTTP. Install it separately if you only need the command-line tool:
+The `switchly` CLI is a thin HTTP client that talks to a running `SwitchlyAdmin` instance over HTTP. Install it separately if you only need the command-line tool:
 
 ```bash
-uv add "api-shield[cli]"
+uv add "switchly[cli]"
 ```
 
 ---
 
 ## First-time setup
 
-### 1. Start your app with ShieldAdmin mounted
+### 1. Start your app with SwitchlyAdmin mounted
 
 ```python title="main.py"
-app.mount("/shield", ShieldAdmin(engine=engine, auth=("admin", "secret")))
+app.mount("/switchly", SwitchlyAdmin(engine=engine, auth=("admin", "secret")))
 ```
 
 ### 2. Configure the server URL
 
-Drop a `.shield` file in your project root (commit it alongside your code so the whole team gets the right URL automatically):
+Drop a `.switchly` file in your project root (commit it alongside your code so the whole team gets the right URL automatically):
 
-```ini title=".shield"
-SHIELD_SERVER_URL=http://localhost:8000/shield
+```ini title=".switchly"
+SWITCHLY_SERVER_URL=http://localhost:8000/switchly
 ```
 
 Or set it manually:
 
 ```bash
-shield config set-url http://localhost:8000/shield
+switchly config set-url http://localhost:8000/switchly
 ```
 
 ### 3. Log in
 
 ```bash
-shield login admin
+switchly login admin
 # Password: ••••••
 ```
 
-Credentials are stored in `~/.shield/config.json` with an expiry timestamp.
+Credentials are stored in `~/.switchly/config.json` with an expiry timestamp.
 
 ---
 
 ## Route management
 
 ```bash
-shield status                          # show all registered routes
-shield status GET:/payments            # inspect one route
+switchly status                          # show all registered routes
+switchly status GET:/payments            # inspect one route
 
-shield enable GET:/payments            # restore to ACTIVE
-shield disable GET:/payments --reason "Use /v2/payments instead"
+switchly enable GET:/payments            # restore to ACTIVE
+switchly disable GET:/payments --reason "Use /v2/payments instead"
 
-shield maintenance GET:/payments --reason "DB migration"
+switchly maintenance GET:/payments --reason "DB migration"
 
-shield maintenance GET:/payments \
+switchly maintenance GET:/payments \
   --reason "Planned migration" \
   --start 2025-06-01T02:00Z \
   --end   2025-06-01T04:00Z
 
-shield schedule GET:/payments \
+switchly schedule GET:/payments \
   --start 2025-06-01T02:00Z \
   --end   2025-06-01T04:00Z \
   --reason "Planned migration"
 
-shield disable GET:/payments --reason "hotfix" --until 2h
+switchly disable GET:/payments --reason "hotfix" --until 2h
 ```
 
-??? example "Sample `shield status` output"
+??? example "Sample `switchly status` output"
 
     | Route | Status | Reason | Since |
     |---|---|---|---|
@@ -78,20 +78,20 @@ shield disable GET:/payments --reason "hotfix" --until 2h
 ## Global maintenance
 
 ```bash
-shield global enable --reason "Deploying v2"
+switchly global enable --reason "Deploying v2"
 
 # Exempt specific paths so they keep responding
-shield global enable --reason "Deploying v2" --exempt /health --exempt GET:/status
+switchly global enable --reason "Deploying v2" --exempt /health --exempt GET:/status
 
 # Block even @force_active routes
-shield global enable --reason "Hard lockdown" --include-force-active
+switchly global enable --reason "Hard lockdown" --include-force-active
 
 # Adjust exemptions while active
-shield global exempt-add /monitoring/ping
-shield global exempt-remove /monitoring/ping
+switchly global exempt-add /monitoring/ping
+switchly global exempt-remove /monitoring/ping
 
-shield global status    # check current state
-shield global disable   # restore normal operation
+switchly global status    # check current state
+switchly global disable   # restore normal operation
 ```
 
 ---
@@ -101,46 +101,46 @@ shield global disable   # restore normal operation
 Restrict a route to specific environments at runtime without redeploying.
 
 ```bash
-shield env set /api/debug dev                    # allow only the "dev" environment
-shield env set /api/internal dev staging         # allow dev and staging
-shield env clear /api/debug                      # remove the gate, restore to ACTIVE
+switchly env set /api/debug dev                    # allow only the "dev" environment
+switchly env set /api/internal dev staging         # allow dev and staging
+switchly env clear /api/debug                      # remove the gate, restore to ACTIVE
 ```
 
 !!! note
-    The engine's `current_env` is set at startup (`ShieldEngine(current_env="prod")`). Requests from an environment not in `allowed_envs` receive a `403 ENV_GATED` response. `shield env clear` is equivalent to calling `shield enable` — it transitions the route back to `ACTIVE`.
+    The engine's `current_env` is set at startup (`SwitchlyEngine(current_env="prod")`). Requests from an environment not in `allowed_envs` receive a `403 ENV_GATED` response. `switchly env clear` is equivalent to calling `switchly enable` — it transitions the route back to `ACTIVE`.
 
 ---
 
 ## Multi-service context
 
-When the Shield Server manages multiple services, scope every command to the right service.
+When the Switchly Server manages multiple services, scope every command to the right service.
 
-### Option A — `SHIELD_SERVICE` env var (recommended)
+### Option A — `SWITCHLY_SERVICE` env var (recommended)
 
 ```bash
-export SHIELD_SERVICE=payments-service
-shield status               # only payments-service routes
-shield disable GET:/payments --reason "hotfix"
-shield enable  GET:/payments
+export SWITCHLY_SERVICE=payments-service
+switchly status               # only payments-service routes
+switchly disable GET:/payments --reason "hotfix"
+switchly enable  GET:/payments
 ```
 
-All route commands (`status`, `enable`, `disable`, `maintenance`, `schedule`) read `SHIELD_SERVICE` automatically. An explicit `--service` flag always overrides it.
+All route commands (`status`, `enable`, `disable`, `maintenance`, `schedule`) read `SWITCHLY_SERVICE` automatically. An explicit `--service` flag always overrides it.
 
 ### Option B — `--service` flag per command
 
 ```bash
-shield status --service payments-service
-shield disable GET:/payments --service payments-service --reason "hotfix"
+switchly status --service payments-service
+switchly disable GET:/payments --service payments-service --reason "hotfix"
 ```
 
 ### Discover active context and connected services
 
 ```bash
-shield current-service          # show which service SHIELD_SERVICE points to
-shield services                 # list all services registered with the Shield Server
+switchly current-service          # show which service SWITCHLY_SERVICE points to
+switchly services                 # list all services registered with the Switchly Server
 ```
 
-??? example "Sample `shield services` output"
+??? example "Sample `switchly services` output"
 
     ```
     Connected services
@@ -156,29 +156,29 @@ shield services                 # list all services registered with the Shield S
 
 ## Rate limits
 
-Manage rate limit policies and view blocked requests. Requires `api-shield[rate-limit]` on the server.
+Manage rate limit policies and view blocked requests. Requires `switchly[rate-limit]` on the server.
 
-`shield rl` and `shield rate-limits` are aliases — use whichever you prefer.
+`switchly rl` and `switchly rate-limits` are aliases — use whichever you prefer.
 
 ```bash
-shield rl list                              # show all registered policies
-shield rl set GET:/public/posts 20/minute   # set or update a policy
-shield rl set GET:/search 5/minute --algorithm fixed_window --key global
-shield rl reset GET:/public/posts           # clear counters immediately
-shield rl delete GET:/public/posts          # remove persisted policy override
-shield rl hits                              # blocked requests log, page 1
-shield rl hits --page 2                     # next page
-shield rl hits --per-page 50               # 50 rows per page
+switchly rl list                              # show all registered policies
+switchly rl set GET:/public/posts 20/minute   # set or update a policy
+switchly rl set GET:/search 5/minute --algorithm fixed_window --key global
+switchly rl reset GET:/public/posts           # clear counters immediately
+switchly rl delete GET:/public/posts          # remove persisted policy override
+switchly rl hits                              # blocked requests log, page 1
+switchly rl hits --page 2                     # next page
+switchly rl hits --per-page 50               # 50 rows per page
 
-# identical — shield rate-limits is the full name
-shield rate-limits list
-shield rate-limits set GET:/public/posts 20/minute
+# identical — switchly rate-limits is the full name
+switchly rate-limits list
+switchly rate-limits set GET:/public/posts 20/minute
 ```
 
 !!! tip "SDK clients receive policy changes in real time"
-    When using Shield Server + ShieldSDK, rate limit policies set via `shield rl set` are broadcast over the SSE stream and applied to every connected SDK client immediately — no restart required.
+    When using Switchly Server + SwitchlySDK, rate limit policies set via `switchly rl set` are broadcast over the SSE stream and applied to every connected SDK client immediately — no restart required.
 
-??? example "Sample `shield rl list` output"
+??? example "Sample `switchly rl list` output"
 
     | Route | Limit | Algorithm | Key Strategy |
     |---|---|---|---|
@@ -191,13 +191,13 @@ shield rate-limits set GET:/public/posts 20/minute
 ## Audit log
 
 ```bash
-shield log                          # page 1, 20 entries per page
-shield log --route GET:/payments    # filter by route
-shield log --page 2                 # next page
-shield log --per-page 50           # 50 rows per page
+switchly log                          # page 1, 20 entries per page
+switchly log --route GET:/payments    # filter by route
+switchly log --page 2                 # next page
+switchly log --per-page 50           # 50 rows per page
 ```
 
-??? example "Sample `shield log` output"
+??? example "Sample `switchly log` output"
 
     | Timestamp | Route | Action | Actor | Platform | Status | Reason |
     |---|---|---|---|---|---|---|
@@ -210,11 +210,11 @@ shield log --per-page 50           # 50 rows per page
 ## Auth commands
 
 ```bash
-shield login admin                          # prompts for password interactively
-shield login admin --password "$SHIELD_PASS"  # inline, useful in CI
+switchly login admin                          # prompts for password interactively
+switchly login admin --password "$SWITCHLY_PASS"  # inline, useful in CI
 
-shield config show   # check current session and resolved URL
-shield logout        # revokes server-side token and clears local credentials
+switchly config show   # check current session and resolved URL
+switchly logout        # revokes server-side token and clears local credentials
 ```
 
 ---
@@ -222,8 +222,8 @@ shield logout        # revokes server-side token and clears local credentials
 ## Config commands
 
 ```bash
-shield config set-url http://prod.example.com/shield   # override server URL
-shield config show                                      # show URL, source, session
+switchly config set-url http://prod.example.com/switchly   # override server URL
+switchly config show                                      # show URL, source, session
 ```
 
 ---
@@ -234,10 +234,10 @@ The CLI resolves the server URL using this priority order (highest wins):
 
 | Priority | Source | How to set |
 |---|---|---|
-| 1 | `SHIELD_SERVER_URL` environment variable | `export SHIELD_SERVER_URL=http://...` |
-| 2 | `SHIELD_SERVER_URL` in a `.shield` file (walked up from cwd) | Add to project root |
-| 3 | `server_url` in `~/.shield/config.json` | `shield config set-url ...` |
-| 4 | Default | `http://localhost:8000/shield` |
+| 1 | `SWITCHLY_SERVER_URL` environment variable | `export SWITCHLY_SERVER_URL=http://...` |
+| 2 | `SWITCHLY_SERVER_URL` in a `.switchly` file (walked up from cwd) | Add to project root |
+| 3 | `server_url` in `~/.switchly/config.json` | `switchly config set-url ...` |
+| 4 | Default | `http://localhost:8000/switchly` |
 
 ---
 
@@ -252,8 +252,8 @@ Routes are identified by a method-prefixed key. Use the same format in all CLI c
 | `@router.get("/api/v1/users")` | `GET:/api/v1/users` |
 
 ```bash
-shield disable "GET:/payments"   # method-specific
-shield enable "/payments"        # applies to all methods under /payments
+switchly disable "GET:/payments"   # method-specific
+switchly enable "/payments"        # applies to all methods under /payments
 ```
 
 ---
