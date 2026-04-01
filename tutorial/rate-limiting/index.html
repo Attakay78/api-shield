@@ -582,6 +582,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../route-control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../backends/" class="md-nav__link">
         
   
@@ -963,6 +991,118 @@
     
   
     Feature Flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rollouts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rollouts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit-log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-responses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Responses
   
 
     
@@ -2185,17 +2325,11 @@
 <td>Timestamps every request; strictest accuracy</td>
 <td>Precision matters more than memory</td>
 </tr>
-<tr>
-<td><code>token_bucket</code></td>
-<td>Tokens accumulate over time up to a cap</td>
-<td>Controlled bursts with a sustained average rate</td>
-</tr>
 </tbody>
 </table>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nd">@rate_limit</span><span class="p">(</span><span class="s2">&quot;5/minute&quot;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;fixed_window&quot;</span><span class="p">)</span>   <span class="c1"># default</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nd">@rate_limit</span><span class="p">(</span><span class="s2">&quot;5/minute&quot;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;sliding_window&quot;</span><span class="p">)</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="nd">@rate_limit</span><span class="p">(</span><span class="s2">&quot;5/minute&quot;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;moving_window&quot;</span><span class="p">)</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="nd">@rate_limit</span><span class="p">(</span><span class="s2">&quot;5/minute&quot;</span><span class="p">,</span> <span class="n">algorithm</span><span class="o">=</span><span class="s2">&quot;token_bucket&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Choose <code>fixed_window</code> for small per-minute limits</p>
@@ -2366,7 +2500,7 @@
 <td><code>algorithm</code></td>
 <td><code>str</code></td>
 <td><code>"fixed_window"</code></td>
-<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td><code>key</code></td>
@@ -2456,7 +2590,7 @@
 </tr>
 <tr>
 <td>Algorithm</td>
-<td><code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td><code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td>Key strategy</td>

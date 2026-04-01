@@ -579,6 +579,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../tutorial/route-control/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route Control
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../tutorial/backends/" class="md-nav__link">
         
   
@@ -643,6 +671,118 @@
     
   
     Feature Flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/rollouts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rollouts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/audit-log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorial/custom-responses/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Responses
   
 
     
@@ -2974,7 +3114,7 @@
 <td><code>algorithm</code></td>
 <td><code>str</code></td>
 <td><code>"fixed_window"</code></td>
-<td>Counting algorithm. One of: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td>Counting algorithm. One of: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td><code>key</code></td>
@@ -3085,10 +3225,6 @@
 <tr>
 <td><code>MOVING_WINDOW</code></td>
 <td>Timestamps every individual request. Most accurate; highest memory.</td>
-</tr>
-<tr>
-<td><code>TOKEN_BUCKET</code></td>
-<td>Tokens accumulate over time up to a cap. Good for controlled bursts with a sustained average rate. Currently mapped to <code>MOVING_WINDOW</code> — a native implementation will be used when available from the <code>limits</code> library.</td>
 </tr>
 </tbody>
 </table>
@@ -3526,7 +3662,7 @@
 <tbody>
 <tr>
 <td><code>--algorithm TEXT</code></td>
-<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td><code>--key TEXT</code></td>
@@ -3593,7 +3729,7 @@
 <tbody>
 <tr>
 <td><code>--algorithm TEXT</code></td>
-<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td><code>--key TEXT</code></td>
@@ -3660,7 +3796,7 @@
 <tbody>
 <tr>
 <td><code>--algorithm TEXT</code></td>
-<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code>, <code>token_bucket</code></td>
+<td>Counting algorithm: <code>fixed_window</code>, <code>sliding_window</code>, <code>moving_window</code></td>
 </tr>
 <tr>
 <td><code>--key TEXT</code></td>
