@@ -63,17 +63,6 @@ class RateLimitAlgorithm(StrEnum):
     more than memory.
     """
 
-    TOKEN_BUCKET = "token_bucket"
-    """Token bucket — tokens accumulate over time up to a capacity.
-
-    Best for allowing short bursts while enforcing an average rate.
-
-    Note: the ``limits`` library does not yet provide a native token-bucket
-    strategy.  waygate maps this to ``MOVING_WINDOW`` which provides
-    comparable accuracy.  A future release will use a native implementation
-    when ``limits`` ships one.
-    """
-
 
 class OnMissingKey(StrEnum):
     """Behaviour when a key strategy cannot resolve a key for a request.

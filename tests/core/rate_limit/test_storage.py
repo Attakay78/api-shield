@@ -114,14 +114,6 @@ class TestMemoryRateLimitStorage:
         )
         assert result.allowed is True
 
-    async def test_token_bucket_maps_to_moving_window(self, memory_storage):
-        result = await memory_storage.increment(
-            key="token-key",
-            limit="10/minute",
-            algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
-        )
-        assert result.allowed is True
-
     async def test_result_has_reset_at(self, memory_storage):
         result = await memory_storage.increment(
             key="reset-at-key",

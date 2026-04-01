@@ -168,13 +168,11 @@ All algorithms are implemented by the `limits` library. waygate selects which on
 | `fixed_window` (default) | Hard window resets at a fixed boundary | Simplicity matters; predictable behaviour preferred |
 | `sliding_window` | Blends two adjacent windows to smooth bursts | Burst smoothing matters; not suitable for small limits like `5/minute` |
 | `moving_window` | Timestamps every request; strictest accuracy | Precision matters more than memory |
-| `token_bucket` | Tokens accumulate over time up to a cap | Controlled bursts with a sustained average rate |
 
 ```python
 @rate_limit("5/minute", algorithm="fixed_window")   # default
 @rate_limit("5/minute", algorithm="sliding_window")
 @rate_limit("5/minute", algorithm="moving_window")
-@rate_limit("5/minute", algorithm="token_bucket")
 ```
 
 !!! tip "Choose `fixed_window` for small per-minute limits"
@@ -348,7 +346,7 @@ When used as a dependency, the engine is resolved automatically from `request.ap
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `limit` | `str \| dict` | required | Limit string (`"100/minute"`) or tier dict (`{"free": "10/min", "pro": "100/min"}`) |
-| `algorithm` | `str` | `"fixed_window"` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `algorithm` | `str` | `"fixed_window"` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `key` | `str \| callable` | `"ip"` | Key strategy: `"ip"`, `"user"`, `"api_key"`, `"global"`, or an async callable |
 | `on_missing_key` | `str \| None` | strategy default | What to do when the key extractor returns `None`: `"exempt"`, `"fallback_ip"`, or `"block"` |
 | `burst` | `int` | `0` | Extra requests allowed above the base limit |
@@ -395,7 +393,7 @@ Each row has an **Add Limit** button that opens a modal where you can configure:
 | Field | Description |
 |---|---|
 | Limit | Limit string, e.g. `100/minute` |
-| Algorithm | `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| Algorithm | `fixed_window`, `sliding_window`, `moving_window` |
 | Key strategy | `ip`, `user`, `api_key`, `global` |
 | Burst | Extra requests above the base limit |
 

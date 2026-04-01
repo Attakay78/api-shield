@@ -5,7 +5,7 @@ Demonstrates the full @rate_limit decorator API:
   * Basic IP-based limiting
   * Per-user and per-API-key strategies
   * Global (shared) counters
-  * Algorithms: fixed_window, sliding_window, moving_window, token_bucket
+  * Algorithms: fixed_window, sliding_window, moving_window
   * Burst allowance
   * Tiered limits (free / pro / enterprise)
   * Exempt IPs
@@ -106,13 +106,6 @@ async def sliding_window_route():
 async def moving_window_route():
     """Moving window: strictest — tracks every individual request timestamp."""
     return {"algorithm": "moving_window"}
-
-
-@router.get("/token-bucket")
-@rate_limit("5/minute", algorithm="token_bucket")
-async def token_bucket_route():
-    """Token bucket: allows controlled bursts, smoothed average rate."""
-    return {"algorithm": "token_bucket"}
 
 
 # ---------------------------------------------------------------------------

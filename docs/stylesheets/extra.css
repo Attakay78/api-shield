@@ -317,6 +317,12 @@ body:has(.hp-page) .md-content__inner {
   font-size: 1.05rem; line-height: 1.7;
   color: var(--hero-sub); margin: 0;
 }
+.hp-formerly-note {
+  font-size: 0.8rem; color: var(--hero-sub); opacity: 0.75;
+  margin: 0; margin-top: 2px;
+}
+.hp-formerly-note a { color: var(--ac); text-decoration: none; }
+.hp-formerly-note a:hover { text-decoration: underline; }
 .hp-hero-btns {
   display: flex; gap: var(--s3); flex-wrap: wrap;
 }
