@@ -40,7 +40,7 @@ def rate_limit(
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `limit` | `str \| dict` | required | Limit string (`"100/minute"`) or tier dict (`{"free": "10/min", "pro": "100/min"}`) |
-| `algorithm` | `str` | `"fixed_window"` | Counting algorithm. One of: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `algorithm` | `str` | `"fixed_window"` | Counting algorithm. One of: `fixed_window`, `sliding_window`, `moving_window` |
 | `key` | `str \| callable` | `"ip"` | Key strategy. One of: `"ip"`, `"user"`, `"api_key"`, `"global"`, or a sync/async callable `(Request) -> str \| None` |
 | `on_missing_key` | `str \| None` | strategy default | Behaviour when the key extractor returns `None`. One of: `"exempt"`, `"fallback_ip"`, `"block"` |
 | `burst` | `int` | `0` | Extra requests allowed above `limit` (additive) |
@@ -123,7 +123,6 @@ Controls how requests are counted within a window.
 | `FIXED_WINDOW` | Fixed time buckets. Simple and predictable. The default. Allows boundary bursts (up to 2x in the worst case). |
 | `SLIDING_WINDOW` | Blends two adjacent fixed-window counters. Smooths boundary bursts. Not suitable for small limits like `5/minute` where gradual re-allow looks like intermittent blocking. |
 | `MOVING_WINDOW` | Timestamps every individual request. Most accurate; highest memory. |
-| `TOKEN_BUCKET` | Tokens accumulate over time up to a cap. Good for controlled bursts with a sustained average rate. Currently mapped to `MOVING_WINDOW` — a native implementation will be used when available from the `limits` library. |
 
 ---
 
@@ -607,7 +606,7 @@ waygate rl set GET:/search 10/minute --key global
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 
 ---
@@ -682,7 +681,7 @@ waygate grl set 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 | `--burst INT` | Extra requests above the base limit |
 | `--exempt TEXT` | Exempt route (repeatable). Bare path or `METHOD:/path` |
@@ -768,7 +767,7 @@ waygate srl set payments-service 2000/hour --burst 50 --exempt /health --exempt 
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 | `--burst INT` | Extra requests above the base limit |
 | `--exempt TEXT` | Exempt route (repeatable). Bare path (`/health`) or method-prefixed (`GET:/metrics`) |

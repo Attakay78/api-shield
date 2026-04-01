@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.1.3]
+
+### Added
+
+- New tutorial sections: [Route Control](tutorial/route-control.md), [Rollouts](tutorial/rollouts.md), [Webhooks](tutorial/webhooks.md), [Audit Log](tutorial/audit-log.md), and [Custom Responses](tutorial/custom-responses.md).
+
+### Removed
+
+- Removed reference to token bucket algorithm, will add real implementation in coming release.
+
+---
+
 ## [0.1.0]
 
 ### Changed
@@ -94,7 +106,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
-- **Rate limiting** (`@rate_limit`): per-IP, per-user, per-API-key, and global counters with fixed/sliding/moving window and token bucket algorithms. Supports burst allowance, tiered limits (`{"free": "10/min", "pro": "100/min"}`), exempt IPs/roles, and custom `on_missing_key` behaviour. Works as both a decorator and a `Depends()` dependency. Responses include `X-RateLimit-Limit/Remaining/Reset` and `Retry-After` headers. Requires `waygate[rate-limit]`.
+- **Rate limiting** (`@rate_limit`): per-IP, per-user, per-API-key, and global counters with fixed/sliding/moving window algorithms. Supports burst allowance, tiered limits (`{"free": "10/min", "pro": "100/min"}`), exempt IPs/roles, and custom `on_missing_key` behaviour. Works as both a decorator and a `Depends()` dependency. Responses include `X-RateLimit-Limit/Remaining/Reset` and `Retry-After` headers. Requires `waygate[rate-limit]`.
 - **Rate limit custom responses**: `response=` on `@rate_limit` and `responses["rate_limited"]` on `WaygateMiddleware` for replacing the default 429 JSON body with any Starlette `Response`.
 - **Rate limit dashboard**: `/waygate/rate-limits` tab showing registered policies with reset/edit/delete actions; `/waygate/blocked` page for the blocked requests log. Policies can also be managed via the `waygate rl` CLI commands (`list`, `set`, `reset`, `delete`, `hits`).
 - **Rate limit audit log**: policy changes (`set`, `update`, `reset`, `delete`) are recorded in the audit log alongside route state changes, with coloured action badges in the dashboard.

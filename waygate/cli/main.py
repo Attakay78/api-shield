@@ -1114,7 +1114,7 @@ def rl_set(
         None,
         "--algorithm",
         "-a",
-        help="Algorithm: fixed_window, sliding_window, moving_window, token_bucket.",
+        help="Algorithm: fixed_window, sliding_window, moving_window.",
     ),
     key_strategy: str | None = typer.Option(
         None,
@@ -1241,7 +1241,7 @@ def grl_set(
         None,
         "--algorithm",
         "-a",
-        help="Algorithm: fixed_window, sliding_window, moving_window, token_bucket.",
+        help="Algorithm: fixed_window, sliding_window, moving_window.",
     ),
     key_strategy: str | None = typer.Option(
         None,
@@ -1407,7 +1407,7 @@ def srl_set(
         None,
         "--algorithm",
         "-a",
-        help="Algorithm: fixed_window, sliding_window, moving_window, token_bucket.",
+        help="Algorithm: fixed_window, sliding_window, moving_window.",
     ),
     key_strategy: str | None = typer.Option(
         None,

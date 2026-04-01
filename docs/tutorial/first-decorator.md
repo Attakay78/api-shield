@@ -121,4 +121,4 @@ waygate maintenance GET:/payments --reason "Second migration wave"
 
 ## Next step
 
-[**Tutorial: Adding middleware →**](middleware.md)
+[**Tutorial: Route Control →**](route-control.md)

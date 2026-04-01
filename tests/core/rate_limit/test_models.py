@@ -20,7 +20,6 @@ class TestRateLimitAlgorithm:
         assert RateLimitAlgorithm.FIXED_WINDOW == "fixed_window"
         assert RateLimitAlgorithm.SLIDING_WINDOW == "sliding_window"
         assert RateLimitAlgorithm.MOVING_WINDOW == "moving_window"
-        assert RateLimitAlgorithm.TOKEN_BUCKET == "token_bucket"
 
 
 class TestOnMissingKey:

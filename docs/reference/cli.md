@@ -393,7 +393,7 @@ waygate rl set GET:/search 10/minute --key global
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 
 ---
@@ -472,7 +472,7 @@ waygate grl set 2000/hour --burst 50 --exempt /health --exempt GET:/metrics
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 | `--burst INT` | Extra requests above the base limit |
 | `--exempt TEXT` | Exempt route (repeatable). Bare path (`/health`) or method-prefixed (`GET:/metrics`) |
@@ -558,7 +558,7 @@ waygate srl set payments-service 2000/hour --burst 50 --exempt /health --exempt 
 
 | Option | Description |
 |---|---|
-| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window`, `token_bucket` |
+| `--algorithm TEXT` | Counting algorithm: `fixed_window`, `sliding_window`, `moving_window` |
 | `--key TEXT` | Key strategy: `ip`, `user`, `api_key`, `global` |
 | `--burst INT` | Extra requests above the base limit |
 | `--exempt TEXT` | Exempt route (repeatable). Bare path (`/health`) or method-prefixed (`GET:/metrics`) |

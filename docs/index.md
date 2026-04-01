@@ -18,6 +18,10 @@ hide:
         Feature flags &amp; OpenFeature are here
       </a>
 
+      <p class="hp-formerly-note">
+        Formerly known as <strong>api-shield</strong>, same project, new name.
+      </p>
+
       <h1 class="hp-h1">
         Toggle features,<br>control your <span class="hp-accent">API</span> at runtime
       </h1>

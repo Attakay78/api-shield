@@ -111,8 +111,6 @@ def _get_strategy(algorithm: RateLimitAlgorithm, storage: Any) -> Any:
         RateLimitAlgorithm.FIXED_WINDOW: FixedWindowRateLimiter,
         RateLimitAlgorithm.SLIDING_WINDOW: SlidingWindowCounterRateLimiter,
         RateLimitAlgorithm.MOVING_WINDOW: MovingWindowRateLimiter,
-        # TOKEN_BUCKET → MovingWindowRateLimiter (closest approximation in limits v3)
-        RateLimitAlgorithm.TOKEN_BUCKET: MovingWindowRateLimiter,
     }
     cls = mapping[algorithm]
     return cls(storage)

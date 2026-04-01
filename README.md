@@ -10,6 +10,9 @@
 
 ---
 
+> [!NOTE]
+> **Formerly `api-shield`:** `waygate` is the new name for `api-shield`. Replace `pip install api-shield` with `pip install waygate`. The import root changes from `shield` to `waygate` and the CLI command from `shield` to `waygate`.
+
 > [!WARNING]
 > **Early Access:** `waygate` is fully functional and ready to use. We're actively building on it and real-world feedback is invaluable. If you have feedback, feature ideas, or suggestions, [open an issue](https://github.com/Attakay78/waygate/issues).
 
